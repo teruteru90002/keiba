@@ -1,0 +1,1 @@
+--allow-releaseinfo-change
