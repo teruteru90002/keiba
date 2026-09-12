@@ -424,7 +424,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         phase2_lines.append("\n####### その他補正判定プロセス")
         phase2_lines.append(f"* 騎手名：{row['騎手']}（{j_desc} → {j_score:+d}点）")
         phase2_lines.append(
-            f"* 海外出走：{oversea_adj}点 | 上上がり3F：{f3_adj}点 | 当日補填：{cond_adj}点 | "
+            f"* 海外出走：{oversea_adj}点 | 上がり3F：{f3_adj}点 | 当日補填：{cond_adj}点 | "
             f"脚質補正：{pos_adj}点 | 当日傾向：{trend_adj}点（{trend_desc}） | 休養補正：{rest_weeks_str}"
         )
         phase2_lines.append(f"* 枠順補正：{frame_num}枠（{frame_type}）/ {favored_desc} → {frame_adj}点")
