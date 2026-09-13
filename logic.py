@@ -596,8 +596,8 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     # 相手1 ＋ 相手2 の結合（重複除外）
     all_aite_set = set(aite1_horses + aite2_horses)
 
-    # 買い目（表示用）：能力順位昇順でソート
-    aite_df_display = df_sorted[df_sorted["馬番"].isin(all_aite_set)].sort_values(by=["能力順位", "馬番"])
+    # 買い目（表示用）：合成順位昇順でソート
+    aite_df_display = df_sorted[df_sorted["馬番"].isin(all_aite_set)].sort_values(by=["合成順位", "馬番"])
     display_aite_horses = aite_df_display["馬番"].tolist()
 
     # 入力用買い目用：馬番順（昇順）でソート
@@ -650,7 +650,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     phase6_lines.append("**【３連複１頭軸流し】**")
     phase6_lines.append(f"* 軸  ：{jiku_horse['馬番']}")
-    phase6_lines.append(f"* 相手：{', '.join(map(str, display_aite_horses))} （{len(display_aite_horses)}頭 / 能力順位昇順）\n")
+    phase6_lines.append(f"* 相手：{', '.join(map(str, display_aite_horses))} （{len(display_aite_horses)}頭 / 合成順位昇順）\n")
 
     # --------------------------------------------------------------------------
     # 4. 入力用買い目の生成（馬番順）
