@@ -391,6 +391,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         is_inner_favored = (
             (track == "東京" and "芝" in surface and distance == 2000) or
             (track == "中山" and "芝" in surface and distance == 2000) or
+            (track == "中山" and "芝" in surface and distance == 2000) or
             (track == "中山" and "芝" in surface and distance == 1800) or
             (track == "中山" and "芝" in surface and distance == 2200) or
             (track == "阪神" and "芝" in surface and distance == 1400) or
@@ -578,33 +579,26 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     # 軸馬、相手1を除外した候補リスト
     aite2_candidates = valid_aite_df[~valid_aite_df["馬番"].isin(aite1_horses)].copy()
 
-    # パターン別の複勝率(MC)基準および選出頭数の設定
+    # パターン別の複勝率(MC)基準の設定
     if race_pattern == "堅い":
         mc_threshold = 20.0
-        target_count = 4
     elif race_pattern == "やや堅い":
         mc_threshold = 18.0
-        target_count = 5
-    elif race_pattern == "やや混戦":
+    elif race_pattern in ["やや混戦", "混戦"]:
         mc_threshold = 15.0
-        target_count = 6
-    elif race_pattern == "混戦":
-        mc_threshold = 15.0
-        target_count = 7
     else:
         mc_threshold = 0.0
-        target_count = 0
 
-    # 複勝率条件でフィルタリング後、能力順位上位から所定頭数を選出
+    # 複勝率条件でフィルタリング後、能力順位上位から選出
     aite2_filtered = aite2_candidates[aite2_candidates["複勝率(MC)"] >= mc_threshold]
-    aite2_df = aite2_filtered.sort_values(by=["能力順位", "合成順位", "馬番"]).head(target_count)
+    aite2_df = aite2_filtered.sort_values(by=["能力順位", "馬番"])
     aite2_horses = aite2_df["馬番"].tolist()
 
     # 相手1 ＋ 相手2 の結合（重複除外）
     all_aite_set = set(aite1_horses + aite2_horses)
 
-    # 買い目（表示用）：合成順位昇順でソート
-    aite_df_display = df_sorted[df_sorted["馬番"].isin(all_aite_set)].sort_values(by=["合成順位", "馬番"])
+    # 買い目（表示用）：能力順位昇順でソート
+    aite_df_display = df_sorted[df_sorted["馬番"].isin(all_aite_set)].sort_values(by=["能力順位", "馬番"])
     display_aite_horses = aite_df_display["馬番"].tolist()
 
     # 入力用買い目用：馬番順（昇順）でソート
@@ -657,7 +651,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     phase6_lines.append("**【３連複１頭軸流し】**")
     phase6_lines.append(f"* 軸  ：{jiku_horse['馬番']}")
-    phase6_lines.append(f"* 相手：{', '.join(map(str, display_aite_horses))} （{len(display_aite_horses)}頭 / 合成順位昇順）\n")
+    phase6_lines.append(f"* 相手：{', '.join(map(str, display_aite_horses))} （{len(display_aite_horses)}頭 / 能力順位昇順）\n")
 
     # --------------------------------------------------------------------------
     # 4. 入力用買い目の生成（馬番順）
