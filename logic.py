@@ -567,18 +567,21 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         pattern_desc = "通常より注意。堅いとも混戦とも言い切れない中間的なレースです。"
 
     # --------------------------------------------------------------------------
-    # 1. 軸馬決定判定プロセス
+    # 1. 軸馬決定判定プロセス（修正箇所）
     # --------------------------------------------------------------------------
     df_odds_sorted = df_sorted.sort_values(by="オッズ順位", ascending=True).reset_index(drop=True)
 
     if race_pattern in ["堅い", "やや堅い"]:
         jiku_horse = df_odds_sorted.iloc[0]
         jiku_reason = f"レース判定が「{race_pattern}」のため、オッズ1位を選出"
-    else:
-        # やや混戦、混戦の場合はオッズ順位上位2頭のうち合成順位上位1頭を選出
+    elif race_pattern == "やや混戦":
         jiku_candidates = df_odds_sorted.head(2)
         jiku_horse = jiku_candidates.sort_values(by=["合成順位", "オッズ順位"]).iloc[0]
-        jiku_reason = f"レース判定が「{race_pattern}」のため、オッズ順位上位2頭のうち合成順位上位1頭を選出"
+        jiku_reason = "レース判定が「やや混戦」のため、オッズ順位上位2頭のうち合成順位上位1頭を選出"
+    else:  # 混戦
+        jiku_candidates = df_odds_sorted.head(3)
+        jiku_horse = jiku_candidates.sort_values(by=["合成順位", "オッズ順位"]).iloc[0]
+        jiku_reason = "レース判定が「混戦」のため、オッズ順位上位3頭のうち合成順位上位1頭を選出"
 
     jiku_log_lines = ["\n#### ■ 3-3. 軸馬決定判定プロセス"]
     jiku_log_lines.append(f"【判定】：{jiku_reason}、馬番{jiku_horse['馬番']}（{jiku_horse['馬名']}）を軸馬として選定")
