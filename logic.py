@@ -523,21 +523,48 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     o2 = top_odds_list[1] if len(top_odds_list) > 1 else 99.0
     o3 = top_odds_list[2] if len(top_odds_list) > 2 else 99.0
 
+    # ① 上位3頭の合成オッズ (C)
     est_min_odds = (o1 * o2 * o3) * 0.20
+    # ② 上位3頭の複勝率合計 (P)
     top3_place_rate_sum = df_sorted.sort_values(by="単勝オッズ")["複勝率(MC)"].head(3).sum()
 
-    if (est_min_odds < 12.0 and top3_place_rate_sum >= 150.0) or (o1 <= 2.2 and o2 <= 4.5 and top3_place_rate_sum >= 180.0):
+    # ③ 4～10番人気の平均オッズ (M)
+    o_4_10 = top_odds_list[3:10]
+    if len(o_4_10) > 0:
+        m_avg_odds = sum(o_4_10) / len(o_4_10)
+    else:
+        m_avg_odds = 99.0
+
+    # ④ 10番人気のオッズ (O10)
+    o10 = top_odds_list[9] if len(top_odds_list) >= 10 else (top_odds_list[-1] if len(top_odds_list) > 0 else 99.0)
+
+    # --------------------------------------------------------------------------
+    # レース荒れ度判定ロジック
+    # --------------------------------------------------------------------------
+    # ❶ 堅い
+    is_katai_a = (est_min_odds < 12.0) and (top3_place_rate_sum >= 150.0) and (m_avg_odds >= 15.0) and (o10 >= 20.0)
+    is_katai_b = (o1 <= 2.2) and (o2 <= 4.5) and (top3_place_rate_sum >= 180.0) and (m_avg_odds >= 15.0) and (o10 >= 20.0)
+
+    # ❷ やや堅い
+    is_yaya_katai = (est_min_odds < 20.0) and (top3_place_rate_sum >= 140.0) and (m_avg_odds >= 10.0) and (o10 >= 15.0)
+
+    # ❸ 混戦
+    is_konsen_a = (est_min_odds >= 35.0)
+    is_konsen_b = (o1 >= 4.0) and (top3_place_rate_sum < 125.0)
+    is_konsen_c = (m_avg_odds < 10.0) and (o10 < 20.0)
+
+    if is_katai_a or is_katai_b:
         race_pattern = "堅い"
-        pattern_desc = "軸を強く信頼・絞る。上位人気馬の信頼度が高く、3連複30倍未満の本命決着が期待されるレースです。"
-    elif est_min_odds < 20.0 and top3_place_rate_sum >= 140.0:
+        pattern_desc = "軸を強く信頼・絞る。上位3頭が強く、4～10番人気への支持が弱いレースです。"
+    elif is_yaya_katai:
         race_pattern = "やや堅い"
-        pattern_desc = "軸信頼度高め。上位人気馬が比較的安定しており、3連複30～50倍程度の決着が想定されるレースです。"
-    elif est_min_odds >= 35.0 or (o1 >= 4.0 and top3_place_rate_sum < 125.0):
+        pattern_desc = "軸信頼度高め。上位3頭が比較的安定しているが、堅いほどではないレースです。"
+    elif is_konsen_a or is_konsen_b or is_konsen_c:
         race_pattern = "混戦"
-        pattern_desc = "穴馬・相手広め。人気が割れており、3連複80倍以上の波乱決着が期待されるレースです。"
+        pattern_desc = "穴馬・相手広め。4～10番人気まで支持が広がり、3連複が荒れる可能性を考えるレースです。"
     else:
         race_pattern = "やや混戦"
-        pattern_desc = "通常より注意。上位人気の信頼度がやや低く、3連複50～80倍程度のやや波乱の決着が想定されるレースです。"
+        pattern_desc = "通常より注意。堅いとも混戦とも言い切れない中間的なレースです。"
 
     # --------------------------------------------------------------------------
     # 1. 軸馬決定判定プロセス
