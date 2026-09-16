@@ -607,10 +607,12 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     # パターン別の複勝率(MC)基準の設定
     if race_pattern == "堅い":
-        mc_threshold = 20.0
+        mc_threshold = 23.0
     elif race_pattern == "やや堅い":
+        mc_threshold = 20.0
+    elif race_pattern == "やや混戦":
         mc_threshold = 18.0
-    elif race_pattern in ["やや混戦", "混戦"]:
+    elif race_pattern == "混戦":
         mc_threshold = 15.0
     else:
         mc_threshold = 0.0
