@@ -687,8 +687,8 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     aite_odds_ranks = [int(df_sorted[df_sorted['馬番'] == h]['オッズ順位'].values[0]) for h in display_aite_horses]
     
     phase6_lines.append("**【３連複１頭軸流し（オッズ順位表記）】**")
-    phase6_lines.append(f"* 軸  ：{jiku_odds_rank}位")
-    phase6_lines.append(f"* 相手：{', '.join([str(x) + '位' for x in aite_odds_ranks])}\n")
+    phase6_lines.append(f"* 軸  ：{jiku_odds_rank}")
+    phase6_lines.append(f"* 相手：{', '.join([str(x) for x in aite_odds_ranks])}\n")
 
     # --------------------------------------------------------------------------
     # 4. 入力用買い目の生成（馬番順）
