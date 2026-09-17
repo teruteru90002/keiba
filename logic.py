@@ -641,9 +641,9 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     fmt_points = len(sanrenpuku_combos)
 
     ODDS_RANGE_MAP = {
-        "堅い": "購入目安 10倍～ 3点",
-        "やや堅い": "購入目安 20倍～ 5点",
-        "やや混戦": "購入目安 30倍～ 7点",
+        "堅い": "購入目安 15倍～ 3点",
+        "やや堅い": "購入目安 25倍～ 5点",
+        "やや混戦": "購入目安 35倍～ 7点",
         "混戦": "購入目安 50倍～ 10点"
     }
     target_odds_range = ODDS_RANGE_MAP.get(race_pattern, "")
