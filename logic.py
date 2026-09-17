@@ -679,7 +679,9 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     phase6_lines.append(f"\n#### 3. 買い目（判定：【{race_pattern}】 {target_odds_range}）\n")
 
     phase6_lines.append("**【３連複１頭軸流し（馬番表記）】**")
-    phase6_lines.append(f"* 軸  ：{jiku_horse['馬番']}")
+    phase6_lines.append(f"* 軸  ：{jiku_horse['馬番']}（{jiku_horse['単勝オッズ']}倍）")
+    # オッズのみ（「倍」なし）にしたい場合は下記を使用してください
+    # phase6_lines.append(f"* 軸  ：{jiku_horse['馬番']}（{jiku_horse['単勝オッズ']}）")
     phase6_lines.append(f"* 相手：{', '.join(map(str, display_aite_horses))} （{len(display_aite_horses)}頭 / 合成順位昇順）\n")
 
     # --- オッズ順位表記の追加 ---
