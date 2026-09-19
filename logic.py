@@ -606,8 +606,8 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     # 軸馬、相手1を除外した候補リスト
     aite2_candidates = valid_aite_df[~valid_aite_df["馬番"].isin(aite1_horses)].copy()
 
-    # 相手2：能力順位上位から合成順位上位6頭を選出（合成順位上位を優先し、同順なら能力順位上位）
-    aite2_df = aite2_candidates.sort_values(by=["合成順位", "能力順位", "馬番"]).head(6)
+    # 相手2：能力順位上位から合成順位上位4頭を選出（合成順位上位を優先し、同順なら能力順位上位）
+    aite2_df = aite2_candidates.sort_values(by=["合成順位", "能力順位", "馬番"]).head(4)
     aite2_horses = aite2_df["馬番"].tolist()
 
     # 相手1 ＋ 相手2 の結合（重複除外）
