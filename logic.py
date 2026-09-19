@@ -606,21 +606,8 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     # 軸馬、相手1を除外した候補リスト
     aite2_candidates = valid_aite_df[~valid_aite_df["馬番"].isin(aite1_horses)].copy()
 
-    # パターン別の複勝率(MC)基準の設定
-    if race_pattern == "堅い":
-        mc_threshold = 23.0
-    elif race_pattern == "やや堅い":
-        mc_threshold = 20.0
-    elif race_pattern == "やや混戦":
-        mc_threshold = 18.0
-    elif race_pattern == "混戦":
-        mc_threshold = 15.0
-    else:
-        mc_threshold = 0.0
-
-    # 複勝率条件でフィルタリング後、能力順位上位から選出
-    aite2_filtered = aite2_candidates[aite2_candidates["複勝率(MC)"] >= mc_threshold]
-    aite2_df = aite2_filtered.sort_values(by=["能力順位", "馬番"])
+    # 相手2：能力順位上位から合成順位上位6頭を選出（合成順位上位を優先し、同順なら能力順位上位）
+    aite2_df = aite2_candidates.sort_values(by=["合成順位", "能力順位", "馬番"]).head(6)
     aite2_horses = aite2_df["馬番"].tolist()
 
     # 相手1 ＋ 相手2 の結合（重複除外）
@@ -641,10 +628,10 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     fmt_points = len(sanrenpuku_combos)
 
     ODDS_RANGE_MAP = {
-        "堅い": "購入目安 15倍～ 3点",
-        "やや堅い": "購入目安 25倍～ 5点",
-        "やや混戦": "購入目安 35倍～ 7点",
-        "混戦": "購入目安 50倍～ 10点"
+        "堅い": "購入目安 30倍～ 5点",
+        "やや堅い": "購入目安 30倍～ 5点",
+        "やや混戦": "購入目安 40倍～ 5点",
+        "混戦": "購入目安 50倍～ 7点"
     }
     target_odds_range = ODDS_RANGE_MAP.get(race_pattern, "")
 
@@ -680,8 +667,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     phase6_lines.append("**【３連複１頭軸流し（馬番表記）】**")
     phase6_lines.append(f"* 軸  ：{jiku_horse['馬番']}（{jiku_horse['単勝オッズ']}倍）")
-    # オッズのみ（「倍」なし）にしたい場合は下記を使用してください
-    # phase6_lines.append(f"* 軸  ：{jiku_horse['馬番']}（{jiku_horse['単勝オッズ']}）")
     phase6_lines.append(f"* 相手：{', '.join(map(str, display_aite_horses))} （{len(display_aite_horses)}頭 / 合成順位昇順）\n")
 
     # --- オッズ順位表記の追加 ---
