@@ -581,7 +581,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     prob_top3_2_or_more = prob_top3_2 + prob_top3_3
 
     # ==========================================================================
-    # 買い目選定ロジック（指定条件への変更部分）
+    # 買い目選定ロジック（更新部分）
     # ==========================================================================
 
     # 【共通除外条件】
@@ -615,10 +615,11 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         aite1_candidates = df_without_jiku.sort_values(by="オッズ順位").head(3)
         aite1_horse = aite1_candidates.sort_values(by=["合成順位", "オッズ順位"]).iloc[0]
         
-        # 相手2（確率30%未満の特別条件）：オッズ順位上位3頭を除外して上位5頭を選出（合成順位昇順）
-        # ※上位3頭（軸・相手1以外の残りオッズ上位馬含む）を除外して相手2を選定
-        top3_odds_horses = df_valid.sort_values(by="オッズ順位").head(3)["馬番"].tolist()
-        df_aite2_pool = df_without_jiku[~df_without_jiku["馬番"].isin(top3_odds_horses)].copy()
+        # 相手2（確率30%未満の特別条件）：オッズ順位上位3頭のうち合成順位上位2頭を除外して上位5頭を選出
+        top3_odds_horses = df_valid.sort_values(by="オッズ順位").head(3)
+        top2_syn_horses = top3_odds_horses.sort_values(by=["合成順位", "オッズ順位"]).head(2)["馬番"].tolist()
+        
+        df_aite2_pool = df_without_jiku[~df_without_jiku["馬番"].isin(top2_syn_horses)].copy()
         aite2_df = df_aite2_pool.sort_values(by=["合成順位", "能力順位", "馬番"]).head(5)
         
         selected_aite_df = pd.concat([pd.DataFrame([aite1_horse]), aite2_df]).drop_duplicates(subset=["馬番"])
