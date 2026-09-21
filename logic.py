@@ -519,7 +519,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     df_sorted["期待値"] = (df_sorted["単勝オッズ"] * (df_sorted["勝率(MC)"] / 100.0)).round(2)
 
     # --------------------------------------------------------------------------
-    # 3連複荒れ度判定ロジック（更新部分）
+    # 3連複荒れ度判定ロジック
     # --------------------------------------------------------------------------
     df_by_odds = df_sorted.sort_values(by="単勝オッズ").reset_index(drop=True)
     top_odds_list = df_by_odds["単勝オッズ"].tolist()
@@ -544,15 +544,12 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     # ④ 10番人気のオッズ (O10)
     O10 = top_odds_list[9] if len(top_odds_list) >= 10 else (top_odds_list[-1] if len(top_odds_list) > 0 else 99.0)
 
-    # 判定フロー（上から順に判定し、最初に該当した判定を採用）
-    # ❶ 堅い
+    # 判定フロー
     is_katai_a = (C < 12.0) and (P >= 150.0) and (M >= 15.0) and (O10 >= 20.0)
     is_katai_b = (o1 <= 2.2) and (o2 <= 4.5) and (P >= 180.0) and (M >= 15.0) and (O10 >= 20.0)
 
-    # ❷ やや堅い
     is_yaya_katai = (C < 20.0) and (P >= 140.0) and (M >= 10.0) and (O10 >= 15.0)
 
-    # ❸ 混戦
     is_konsen_a = (C >= 35.0)
     is_konsen_b = (o1 >= 4.0) and (P < 125.0)
     is_konsen_c = (M < 10.0) and (O10 < 20.0)
@@ -567,12 +564,11 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         race_pattern = "混戦"
         pattern_desc = "穴馬・相手広め。4～10番人気まで支持が広がり、3連複が荒れる可能性を考えるレースです。"
     else:
-        # ❹ やや混戦（❶～❸のどれにも該当しない場合）
         race_pattern = "やや混戦"
         pattern_desc = "通常より注意。堅いとも混戦とも言い切れない中間的なレースです。"
 
     # --------------------------------------------------------------------------
-    # オッズ1〜3位（上位3頭）の3着以内（複勝）入着頭数カウント（追加部分）
+    # オッズ1〜3位（上位3頭）の3着以内（複勝）入着頭数カウント
     # --------------------------------------------------------------------------
     top3_odds_indices = df_sorted.sort_values(by="単勝オッズ").index[:3]
     top3_in_place_counts = np.sum(ranks[:, top3_odds_indices] <= 3, axis=1)
@@ -591,7 +587,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         jiku_horse = df_odds_sorted.iloc[0]
         jiku_reason = f"レース判定が「{race_pattern}」のため、オッズ1位を選出"
     else:
-        # やや混戦、混戦の場合はオッズ順位上位2頭のうち合成順位上位1頭を選出
         jiku_candidates = df_odds_sorted.head(2)
         jiku_horse = jiku_candidates.sort_values(by=["合成順位", "オッズ順位"]).iloc[0]
         jiku_reason = f"レース判定が「{race_pattern}」のため、オッズ順位上位2頭のうち合成順位上位1頭を選出"
@@ -603,28 +598,29 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     )
 
     # --------------------------------------------------------------------------
-    # 2. 相手馬選定ロジック（共通除外：オッズ順位10位以上または単勝オッズ30倍以上）
+    # 2. 相手馬選定ロジック（修正：2頭入る確率が30%未満の場合分岐）
     # --------------------------------------------------------------------------
-    # 除外条件判定（オッズ順位10位以上または単勝オッズ30倍以上を除外）
     valid_aite_df = df_sorted[
         (df_sorted["馬番"] != jiku_horse["馬番"]) &
         (df_sorted["オッズ順位"] < 10) &
         (df_sorted["単勝オッズ"] < 30.0)
     ].copy()
 
-    # --- 相手1選定 ---
-    # 軸馬を除きオッズ順位上位3頭のうち合成順位上位2頭を選出
-    aite1_candidates = valid_aite_df.sort_values(by=["オッズ順位", "馬番"]).head(3)
-    aite1_df = aite1_candidates.sort_values(by=["合成順位", "オッズ順位", "馬番"]).head(2)
-    aite1_horses = aite1_df["馬番"].tolist()
+    if prob_top3_2 < 30.0:
+        # 上位3頭から2頭入る確率が30%未満の場合：相手1を選出せず、相手2から上位6頭を選出
+        aite1_horses = []
+        aite2_candidates = valid_aite_df.copy()
+        aite2_df = aite2_candidates.sort_values(by=["合成順位", "能力順位", "馬番"]).head(6)
+        aite2_horses = aite2_df["馬番"].tolist()
+    else:
+        # 通常時（30%以上）：相手1（2頭）＋ 相手2（4頭）を選出
+        aite1_candidates = valid_aite_df.sort_values(by=["オッズ順位", "馬番"]).head(3)
+        aite1_df = aite1_candidates.sort_values(by=["合成順位", "オッズ順位", "馬番"]).head(2)
+        aite1_horses = aite1_df["馬番"].tolist()
 
-    # --- 相手2選定 ---
-    # 軸馬、相手1を除外した候補リスト
-    aite2_candidates = valid_aite_df[~valid_aite_df["馬番"].isin(aite1_horses)].copy()
-
-    # 相手2：能力順位上位から合成順位上位4頭を選出（合成順位上位を優先し、同順なら能力順位上位）
-    aite2_df = aite2_candidates.sort_values(by=["合成順位", "能力順位", "馬番"]).head(4)
-    aite2_horses = aite2_df["馬番"].tolist()
+        aite2_candidates = valid_aite_df[~valid_aite_df["馬番"].isin(aite1_horses)].copy()
+        aite2_df = aite2_candidates.sort_values(by=["合成順位", "能力順位", "馬番"]).head(4)
+        aite2_horses = aite2_df["馬番"].tolist()
 
     # 相手1 ＋ 相手2 の結合（重複除外）
     all_aite_set = set(aite1_horses + aite2_horses)
