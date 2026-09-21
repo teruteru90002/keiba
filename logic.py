@@ -616,10 +616,10 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         aite1_horse = aite1_candidates.sort_values(by=["合成順位", "オッズ順位"]).iloc[0]
         
         # 相手2（確率30%未満の特別条件）：
-        # 「軸」および「軸を除きオッズ順位上位3頭のうち合成順位上位2頭」を除外して、合成順位上位5頭を選出
-        top2_syn_in_top3_odds = aite1_candidates.sort_values(by=["合成順位", "オッズ順位"]).head(2)["馬番"].tolist()
+        # 「軸馬」および「軸馬を除きオッズ順位上位3頭のうち合成順位上位1頭（＝相手1馬）」を除外して、合成順位上位5頭を選出
+        top1_syn_in_top3_odds = [aite1_horse["馬番"]]
         
-        df_aite2_pool = df_without_jiku[~df_without_jiku["馬番"].isin(top2_syn_in_top3_odds)].copy()
+        df_aite2_pool = df_without_jiku[~df_without_jiku["馬番"].isin(top1_syn_in_top3_odds)].copy()
         aite2_df = df_aite2_pool.sort_values(by=["合成順位", "能力順位", "馬番"]).head(5)
         
         selected_aite_df = pd.concat([pd.DataFrame([aite1_horse]), aite2_df]).drop_duplicates(subset=["馬番"])
