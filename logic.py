@@ -652,7 +652,12 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     }
     target_odds_range = ODDS_RANGE_MAP.get(race_pattern, "")
 
-    prob_2_suffix = " ◆注意◆" if prob_top3_2_or_more < 30.0 else ""
+    if prob_top3_2_or_more >= 70.0:
+        prob_2_suffix = " ◆見送り◆"
+    elif prob_top3_2_or_more < 30.0:
+        prob_2_suffix = " ◆注意◆"
+    else:
+        prob_2_suffix = " ◆買い◆"
 
     phase6_lines = [
         "#### ■ PHASE 6：最終ランキングと買い目\n",
