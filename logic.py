@@ -581,11 +581,11 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     prob_top3_2_or_more = prob_top3_2 + prob_top3_3
 
     # ==========================================================================
-    # 買い目選定ロジック（更新部分）
+    # 買い目選定ロジック
     # ==========================================================================
 
     # 【共通除外条件】
-    # オッズ順位10位以上（10位以降、即ち10～）または 単勝オッズ30倍以上 を除外
+    # オッズ順位10位以上（10, 11...）または 単勝オッズ30倍以上 を除外
     df_valid = df_sorted[
         (df_sorted["オッズ順位"] < 10) & 
         (df_sorted["単勝オッズ"] < 30.0)
@@ -606,30 +606,32 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         jiku_horse = jiku_top2.sort_values(by=["合成順位", "オッズ順位"]).iloc[0]
         jiku_reason = f"レース判定が「{race_pattern}」のため、オッズ順位上位2頭のうち合成順位上位1頭を選出"
 
-    # 2. 相手馬選定
+    # 2. 相手1および相手2の選定
     df_without_jiku = df_valid[df_valid["馬番"] != jiku_horse["馬番"]].copy()
 
     # 相手1の選考母体となる「軸馬を除くオッズ順位上位3頭」
     top3_odds_candidates = df_without_jiku.sort_values(by="オッズ順位").head(3)
 
     if prob_top3_2_or_more < 30.0:
-        # 上位3頭から2頭入る確率が30%未満の場合：
+        # 【30%未満の場合】
         # 相手1：軸馬を除きオッズ順位上位3頭のうち合成順位上位1頭を選出
         aite1_df = top3_odds_candidates.sort_values(by=["合成順位", "オッズ順位"]).head(1)
+        
+        # 相手2：軸、相手1、および相手1選定で選定されなかった馬（＝上位3頭母体の残り2頭）を除き、合成順位上位5頭を選出
+        exclude_horses = set([jiku_horse["馬番"]] + top3_odds_candidates["馬番"].tolist())
+        df_aite2_pool = df_valid[~df_valid["馬番"].isin(exclude_horses)].copy()
+        aite2_df = df_aite2_pool.sort_values(by=["合成順位", "能力順位", "馬番"]).head(5)
     else:
-        # 上位3頭から2頭入る確率が30%以上の場合：
+        # 【30%以上の場合】
         # 相手1：軸馬を除きオッズ順位上位3頭のうち2頭を選出（合成順位上位2頭）
         aite1_df = top3_odds_candidates.sort_values(by=["合成順位", "オッズ順位"]).head(2)
+        
+        # 相手2：軸馬、相手1を除き、能力順位上位から合成順位上位4頭を選出
+        exclude_horses = set([jiku_horse["馬番"]] + aite1_df["馬番"].tolist())
+        df_aite2_pool = df_valid[~df_valid["馬番"].isin(exclude_horses)].copy()
+        aite2_df = df_aite2_pool.sort_values(by=["能力順位", "合成順位", "馬番"]).head(4)
 
-    aite1_horses = aite1_df["馬番"].tolist()
-
-    # 相手2（確率にかかわらず共通）：
-    # 軸馬、相手1、および「相手1で選定されなかった馬（＝上位3頭の母体のうち相手1に入らなかった馬）」を除き、合成順位上位5頭を選出
-    exclude_horses = set([jiku_horse["馬番"]] + top3_odds_candidates["馬番"].tolist())
-    
-    df_aite2_pool = df_valid[~df_valid["馬番"].isin(exclude_horses)].copy()
-    aite2_df = df_aite2_pool.sort_values(by=["合成順位", "能力順位", "馬番"]).head(5)
-
+    # 相手1と相手2の統合（重複排除）
     selected_aite_df = pd.concat([aite1_df, aite2_df]).drop_duplicates(subset=["馬番"])
 
     # 相手馬の表示リスト作成（合成順位昇順）
@@ -645,7 +647,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         f"→ 馬番[{jiku_horse['馬番']}] {jiku_horse['馬名']}（オッズ: {jiku_horse['単勝オッズ']}倍 / オッズ順位: {jiku_horse['オッズ順位']}位 / 合成順位: {jiku_horse['合成順位']}位）を軸馬として確定。"
     )
 
-    # 3連複1頭軸流しの点数（軸1頭＋相手N頭から2頭を選ぶ組み合わせ）
+    # 3連複1頭軸流しの点数（相手N頭から2頭を選ぶ組み合わせ C(N, 2)）
     sanrenpuku_combos = list(itertools.combinations(input_aite_horses, 2))
     fmt_points = len(sanrenpuku_combos)
 
@@ -713,7 +715,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     phase6_lines.append(f"* 相手：{', '.join([str(x) for x in aite_odds_ranks])}\n")
 
     # --------------------------------------------------------------------------
-    # 4. 入力用買い目の生成（馬番順）
+    # 4. 入力用買い目の生成（馬番順・流し形式）
     # --------------------------------------------------------------------------
     phase6_lines.append("#### 4. 入力用買い目\n")
     
