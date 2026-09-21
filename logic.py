@@ -572,6 +572,17 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         pattern_desc = "通常より注意。堅いとも混戦とも言い切れない中間的なレースです。"
 
     # --------------------------------------------------------------------------
+    # オッズ1〜3位（上位3頭）の3着以内（複勝）入着頭数カウント（追加部分）
+    # --------------------------------------------------------------------------
+    top3_odds_indices = df_sorted.sort_values(by="単勝オッズ").index[:3]
+    top3_in_place_counts = np.sum(ranks[:, top3_odds_indices] <= 3, axis=1)
+
+    prob_top3_3 = (np.sum(top3_in_place_counts == 3) / NUM_SIMS) * 100
+    prob_top3_2 = (np.sum(top3_in_place_counts == 2) / NUM_SIMS) * 100
+    prob_top3_1 = (np.sum(top3_in_place_counts == 1) / NUM_SIMS) * 100
+    prob_top3_0 = (np.sum(top3_in_place_counts == 0) / NUM_SIMS) * 100
+
+    # --------------------------------------------------------------------------
     # 1. 軸馬決定判定プロセス
     # --------------------------------------------------------------------------
     df_odds_sorted = df_sorted.sort_values(by="オッズ順位", ascending=True).reset_index(drop=True)
@@ -643,7 +654,10 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     phase6_lines = [
         "#### ■ PHASE 6：最終ランキングと買い目\n",
         f"#### 1. レース情報\n[{race_name} / {track} / {distance}m]\n",
-        f"**【レース判定結果】：{race_pattern}** （{pattern_desc}）\n",
+        f"**【レース判定結果】：{race_pattern}** （{pattern_desc}）",
+        f"  * 単勝1〜3番人気の複勝(3着以内)入着シミュレーション:",
+        f"    * 2頭入る確率: **{prob_top3_2:.1f}%**",
+        f"    * 3頭入る確率: {prob_top3_3:.1f}% | 1頭入る確率: {prob_top3_1:.1f}% | 0頭入る確率: {prob_top3_0:.1f}%\n",
         "#### 2. 最終ランキング\n",
         "| 順位 | 馬(オッズ) | 合成値(順位) | オッズ(順位) | 能力(順位) | 勝率 | 複勝率 | 期待値 | 位置 | 走数 |",
         "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"
