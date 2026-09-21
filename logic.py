@@ -581,11 +581,11 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     prob_top3_2_or_more = prob_top3_2 + prob_top3_3
 
     # ==========================================================================
-    # 買い目選定ロジック（修正部分）
+    # 買い目選定ロジック（指定条件への変更部分）
     # ==========================================================================
 
     # 【共通除外条件】
-    # オッズ順位10位以上（10位以降）または 単勝オッズ30倍以上 を除外
+    # オッズ順位10位以上（10位以降、即ち10～）または 単勝オッズ30倍以上 を除外
     df_valid = df_sorted[
         (df_sorted["オッズ順位"] < 10) & 
         (df_sorted["単勝オッズ"] < 30.0)
@@ -593,7 +593,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     # 1. 軸馬選定
     if race_pattern in ["堅い", "やや堅い"]:
-        # オッズ1位を選出
+        # 堅い、やや堅い：オッズ1位を選出
         jiku_candidates = df_valid[df_valid["オッズ順位"] == 1]
         if len(jiku_candidates) > 0:
             jiku_horse = jiku_candidates.iloc[0]
@@ -615,8 +615,10 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         aite1_candidates = df_without_jiku.sort_values(by="オッズ順位").head(3)
         aite1_horse = aite1_candidates.sort_values(by=["合成順位", "オッズ順位"]).iloc[0]
         
-        # 相手2（ただし条件分岐）：軸馬、相手1を除外して上位5頭を選出（合成順位昇順）
-        df_aite2_pool = df_without_jiku[df_without_jiku["馬番"] != aite1_horse["馬番"]].copy()
+        # 相手2（確率30%未満の特別条件）：オッズ順位上位3頭を除外して上位5頭を選出（合成順位昇順）
+        # ※上位3頭（軸・相手1以外の残りオッズ上位馬含む）を除外して相手2を選定
+        top3_odds_horses = df_valid.sort_values(by="オッズ順位").head(3)["馬番"].tolist()
+        df_aite2_pool = df_without_jiku[~df_without_jiku["馬番"].isin(top3_odds_horses)].copy()
         aite2_df = df_aite2_pool.sort_values(by=["合成順位", "能力順位", "馬番"]).head(5)
         
         selected_aite_df = pd.concat([pd.DataFrame([aite1_horse]), aite2_df]).drop_duplicates(subset=["馬番"])
@@ -629,7 +631,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         
         # 相手2：軸馬、相手1を除き能力順位上位から合成順位上位4頭を選出
         df_aite2_pool = df_without_jiku[~df_without_jiku["馬番"].isin(aite1_horses)].copy()
-        # 能力順位上位でフィルタ/ソート後、上位群の中から合成順位で選出
         aite2_df = df_aite2_pool.sort_values(by=["能力順位", "合成順位", "馬番"]).head(4)
         
         selected_aite_df = pd.concat([aite1_df, aite2_df]).drop_duplicates(subset=["馬番"])
@@ -693,7 +694,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         
         if r["馬番"] in selected_horse_numbers:
             phase6_lines.append(
-                f"| **{rank_num}** | **{r['馬番']} {r['馬name'] if '馬name' in r else r['馬名']}({r['単勝オッズ']}倍)** | **{r['合成値']:.2f} ({r['合成順位']}位)** | **{r['オッズスコア']:.1f} ({r['オッズ順位']}位)** | **{r['能力スコア']:.1f} ({r['能力順位']}位)** | **{win_mc}** | **{place_mc}** | **{ev_val}** | **{pos}** | **{valid_runs}** |"
+                f"| **{rank_num}** | **{r['馬番']} {r['馬名']}({r['単勝オッズ']}倍)** | **{r['合成値']:.2f} ({r['合成順位']}位)** | **{r['オッズスコア']:.1f} ({r['オッズ順位']}位)** | **{r['能力スコア']:.1f} ({r['能力順位']}位)** | **{win_mc}** | **{place_mc}** | **{ev_val}** | **{pos}** | **{valid_runs}** |"
             )
         else:
             phase6_lines.append(
