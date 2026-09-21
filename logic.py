@@ -609,32 +609,28 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     # 2. 相手馬選定
     df_without_jiku = df_valid[df_valid["馬番"] != jiku_horse["馬番"]].copy()
 
+    # 相手1の選考母体となる「軸馬を除くオッズ順位上位3頭」
+    top3_odds_candidates = df_without_jiku.sort_values(by="オッズ順位").head(3)
+
     if prob_top3_2_or_more < 30.0:
         # 上位3頭から2頭入る確率が30%未満の場合：
         # 相手1：軸馬を除きオッズ順位上位3頭のうち合成順位上位1頭を選出
-        aite1_candidates = df_without_jiku.sort_values(by="オッズ順位").head(3)
-        aite1_horse = aite1_candidates.sort_values(by=["合成順位", "オッズ順位"]).iloc[0]
-        
-        # 相手2（確率30%未満の特別条件）：
-        # 「軸馬」および「軸馬を除きオッズ順位上位3頭のうち合成順位上位1頭（＝相手1馬）」を除外して、合成順位上位5頭を選出
-        top1_syn_in_top3_odds = [aite1_horse["馬番"]]
-        
-        df_aite2_pool = df_without_jiku[~df_without_jiku["馬番"].isin(top1_syn_in_top3_odds)].copy()
-        aite2_df = df_aite2_pool.sort_values(by=["合成順位", "能力順位", "馬番"]).head(5)
-        
-        selected_aite_df = pd.concat([pd.DataFrame([aite1_horse]), aite2_df]).drop_duplicates(subset=["馬番"])
+        aite1_df = top3_odds_candidates.sort_values(by=["合成順位", "オッズ順位"]).head(1)
     else:
         # 上位3頭から2頭入る確率が30%以上の場合：
         # 相手1：軸馬を除きオッズ順位上位3頭のうち2頭を選出（合成順位上位2頭）
-        aite1_candidates = df_without_jiku.sort_values(by="オッズ順位").head(3)
-        aite1_df = aite1_candidates.sort_values(by=["合成順位", "オッズ順位"]).head(2)
-        aite1_horses = aite1_df["馬番"].tolist()
-        
-        # 相手2：軸馬、相手1を除き能力順位上位から合成順位上位4頭を選出
-        df_aite2_pool = df_without_jiku[~df_without_jiku["馬番"].isin(aite1_horses)].copy()
-        aite2_df = df_aite2_pool.sort_values(by=["能力順位", "合成順位", "馬番"]).head(4)
-        
-        selected_aite_df = pd.concat([aite1_df, aite2_df]).drop_duplicates(subset=["馬番"])
+        aite1_df = top3_odds_candidates.sort_values(by=["合成順位", "オッズ順位"]).head(2)
+
+    aite1_horses = aite1_df["馬番"].tolist()
+
+    # 相手2（確率にかかわらず共通）：
+    # 軸馬、相手1、および「相手1で選定されなかった馬（＝上位3頭の母体のうち相手1に入らなかった馬）」を除き、合成順位上位5頭を選出
+    exclude_horses = set([jiku_horse["馬番"]] + top3_odds_candidates["馬番"].tolist())
+    
+    df_aite2_pool = df_valid[~df_valid["馬番"].isin(exclude_horses)].copy()
+    aite2_df = df_aite2_pool.sort_values(by=["合成順位", "能力順位", "馬番"]).head(5)
+
+    selected_aite_df = pd.concat([aite1_df, aite2_df]).drop_duplicates(subset=["馬番"])
 
     # 相手馬の表示リスト作成（合成順位昇順）
     display_aite_df = selected_aite_df.sort_values(by=["合成順位", "馬番"])
