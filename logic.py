@@ -598,7 +598,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     )
 
     # --------------------------------------------------------------------------
-    # 2. 相手馬選定ロジック（修正：相手1は軸馬除外オッズ順位上位2頭を選出）
+    # 2. 相手馬選定ロジック
     # --------------------------------------------------------------------------
     valid_aite_df = df_sorted[
         (df_sorted["馬番"] != jiku_horse["馬番"]) &
@@ -606,18 +606,21 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         (df_sorted["単勝オッズ"] < 30.0)
     ].copy()
 
-    # 相手1：軸馬を除き、オッズ順位上位上位2頭を選出
+    # 相手1：軸馬を除き、オッズ順位上位2頭を選出
     aite1_df = valid_aite_df.sort_values(by=["オッズ順位", "馬番"]).head(2)
     aite1_horses = aite1_df["馬番"].tolist()
 
-    if prob_top3_2 < 30.0:
-        # 上位3頭から2頭入る確率が30%未満の場合：
-        # 軸馬および相手1（aite1_horses）を除外した残り馬の中から、合成順位・能力順位上位6頭を選出
+    # 「上位3頭から2頭以上入る確率」＝ 2頭入る確率 + 3頭入る確率
+    prob_top3_2_or_more = prob_top3_2 + prob_top3_3
+
+    if prob_top3_2_or_more < 30.0:
+        # 2頭以上入る確率が30%未満の場合：
+        # 軸馬および相手1（aite1_horses）を除外した候補から、合成順位・能力順位上位6頭を選出
         aite2_candidates = valid_aite_df[~valid_aite_df["馬番"].isin(aite1_horses)].copy()
         aite2_df = aite2_candidates.sort_values(by=["合成順位", "能力順位", "馬番"]).head(6)
         aite2_horses = aite2_df["馬番"].tolist()
         
-        # 最終相手馬には相手1を含めない
+        # 相手1を除外し、選出した6頭（相手2）のみを最終相手馬とする
         all_aite_set = set(aite2_horses)
     else:
         # 通常時（30%以上）：相手1（2頭）＋ 相手2（4頭）を選出
@@ -649,7 +652,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     }
     target_odds_range = ODDS_RANGE_MAP.get(race_pattern, "")
 
-    prob_2_suffix = " ◆注意◆" if prob_top3_2 < 30.0 else ""
+    prob_2_suffix = " ★買い★" if prob_top3_2_or_more < 30.0 else ""
 
     phase6_lines = [
         "#### ■ PHASE 6：最終ランキングと買い目\n",
@@ -658,8 +661,9 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         f"  * 単勝1〜3番人気の複勝(3着以内)入着シミュレーション:",
         f"  * 0頭入る確率: **{prob_top3_0:.1f}%**",
         f"  * 1頭入る確率: **{prob_top3_1:.1f}%**",
-        f"  * 2頭入る確率: **{prob_top3_2:.1f}%{prob_2_suffix}**",
-        f"  * 3頭入る確率: **{prob_top3_3:.1f}%**\n",
+        f"  * 2頭入る確率: **{prob_top3_2:.1f}%**",
+        f"  * 3頭入る確率: **{prob_top3_3:.1f}%**",
+        f"  * (2頭以上入る合計確率: **{prob_top3_2_or_more:.1f}%{prob_2_suffix}**)\n",
         "#### 2. 最終ランキング\n",
         "| 順位 | 馬(オッズ) | 合成値(順位) | オッズ(順位) | 能力(順位) | 勝率 | 複勝率 | 期待値 | 位置 | 走数 |",
         "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"
