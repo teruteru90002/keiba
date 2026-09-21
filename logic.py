@@ -598,7 +598,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     )
 
     # --------------------------------------------------------------------------
-    # 2. 相手馬選定ロジック（修正：2頭入る確率が30%未満の場合分岐）
+    # 2. 相手馬選定ロジック（修正：30%未満は軸・相手1を除外して6頭選出）
     # --------------------------------------------------------------------------
     valid_aite_df = df_sorted[
         (df_sorted["馬番"] != jiku_horse["馬番"]) &
@@ -606,24 +606,27 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         (df_sorted["単勝オッズ"] < 30.0)
     ].copy()
 
+    # まず相手1の候補（上位3頭から選出）を特定する
+    aite1_candidates = valid_aite_df.sort_values(by=["オッズ順位", "馬番"]).head(3)
+    aite1_df = aite1_candidates.sort_values(by=["合成順位", "オッズ順位", "馬番"]).head(2)
+    aite1_horses = aite1_df["馬番"].tolist()
+
     if prob_top3_2 < 30.0:
-        # 上位3頭から2頭入る確率が30%未満の場合：相手1を選出せず、相手2から上位6頭を選出
-        aite1_horses = []
-        aite2_candidates = valid_aite_df.copy()
+        # 上位3頭から2頭入る確率が30%未満の場合：
+        # 軸馬および相手1（aite1_horses）を除外した残り馬の中から、合成順位・能力順位上位6頭を選出
+        aite2_candidates = valid_aite_df[~valid_aite_df["馬番"].isin(aite1_horses)].copy()
         aite2_df = aite2_candidates.sort_values(by=["合成順位", "能力順位", "馬番"]).head(6)
         aite2_horses = aite2_df["馬番"].tolist()
+        
+        # 最終相手馬には相手1を含めない
+        all_aite_set = set(aite2_horses)
     else:
         # 通常時（30%以上）：相手1（2頭）＋ 相手2（4頭）を選出
-        aite1_candidates = valid_aite_df.sort_values(by=["オッズ順位", "馬番"]).head(3)
-        aite1_df = aite1_candidates.sort_values(by=["合成順位", "オッズ順位", "馬番"]).head(2)
-        aite1_horses = aite1_df["馬番"].tolist()
-
         aite2_candidates = valid_aite_df[~valid_aite_df["馬番"].isin(aite1_horses)].copy()
         aite2_df = aite2_candidates.sort_values(by=["合成順位", "能力順位", "馬番"]).head(4)
         aite2_horses = aite2_df["馬番"].tolist()
-
-    # 相手1 ＋ 相手2 の結合（重複除外）
-    all_aite_set = set(aite1_horses + aite2_horses)
+        
+        all_aite_set = set(aite1_horses + aite2_horses)
 
     # 買い目（表示用）：合成順位昇順でソート
     aite_df_display = df_sorted[df_sorted["馬番"].isin(all_aite_set)].sort_values(by=["合成順位", "馬番"])
