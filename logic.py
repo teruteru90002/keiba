@@ -613,16 +613,17 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     # 「上位3頭から2頭以上入る確率」＝ 2頭入る確率 + 3頭入る確率
     prob_top3_2_or_more = prob_top3_2 + prob_top3_3
 
-    # レース判定が「混戦」かつ「2頭以上入る確率が30%未満」の場合：相手1（人気上位2頭）を除外し上位6頭を選出
-    if race_pattern == "混戦" and prob_top3_2_or_more < 30.0:
+    if prob_top3_2_or_more < 30.0:
+        # 2頭以上入る確率が30%未満の場合：
+        # 軸馬および相手1（aite1_horses）を除外した候補から、合成順位・能力順位上位6頭を選出
         aite2_candidates = valid_aite_df[~valid_aite_df["馬番"].isin(aite1_horses)].copy()
         aite2_df = aite2_candidates.sort_values(by=["合成順位", "能力順位", "馬番"]).head(6)
         aite2_horses = aite2_df["馬番"].tolist()
         
-        # 相手1（人気上位2頭）を除外し、上位6頭のみを相手に設定
+        # 軸・相手1を除外し、選出した6頭（相手2）のみを最終相手馬とする
         all_aite_set = set(aite2_horses)
     else:
-        # 通常時：相手1（2頭）＋ 相手2（4頭）を選出
+        # 通常時（30%以上）：相手1（2頭）＋ 相手2（4頭）を選出
         aite2_candidates = valid_aite_df[~valid_aite_df["馬番"].isin(aite1_horses)].copy()
         aite2_df = aite2_candidates.sort_values(by=["合成順位", "能力順位", "馬番"]).head(4)
         aite2_horses = aite2_df["馬番"].tolist()
