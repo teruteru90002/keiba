@@ -651,6 +651,8 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     }
     target_odds_range = ODDS_RANGE_MAP.get(race_pattern, "")
 
+    prob_2_suffix = " ★買い★" if prob_top3_2 <= 30.0 else ""
+
     phase6_lines = [
         "#### ■ PHASE 6：最終ランキングと買い目\n",
         f"#### 1. レース情報\n[{race_name} / {track} / {distance}m]\n",
@@ -658,7 +660,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         f"  * 単勝1〜3番人気の複勝(3着以内)入着シミュレーション:",
         f"  * 0頭入る確率: **{prob_top3_0:.1f}%**",
         f"  * 1頭入る確率: **{prob_top3_1:.1f}%**",
-        f"  * 2頭入る確率: **{prob_top3_2:.1f}%**",
+        f"  * 2頭入る確率: **{prob_top3_2:.1f}%{prob_2_suffix}**",
         f"  * 3頭入る確率: **{prob_top3_3:.1f}%**\n",
         "#### 2. 最終ランキング\n",
         "| 順位 | 馬(オッズ) | 合成値(順位) | オッズ(順位) | 能力(順位) | 勝率 | 複勝率 | 期待値 | 位置 | 走数 |",
