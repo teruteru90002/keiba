@@ -25,7 +25,7 @@ JOCKEY_RANKS = CONFIG.get("JOCKEY_RANKS", {})
 GRADE_SCORES = CONFIG.get("GRADE_SCORES", {})
 GRADE_RACE_MAP = CONFIG.get("GRADE_RACE_MAP", {})
 
-JRA_TRACKS = ["東京", "中山", "阪神", "京都", "中京", "新潟", "福島", "札幌", "函館"]
+JRA_TRACKS = ["東京", "中山", "阪神", "京都", "中京",, "小倉" "新潟", "福島", "札幌", "函館"]
 
 RACE_GRADE_DICT = {}
 for g_level, r_list in GRADE_RACE_MAP.items():
