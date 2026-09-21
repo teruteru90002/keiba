@@ -598,7 +598,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     )
 
     # --------------------------------------------------------------------------
-    # 2. 相手馬選定ロジック（修正：30%未満は軸・相手1を除外して6頭選出）
+    # 2. 相手馬選定ロジック（修正：相手1は軸馬除外オッズ順位上位2頭を選出）
     # --------------------------------------------------------------------------
     valid_aite_df = df_sorted[
         (df_sorted["馬番"] != jiku_horse["馬番"]) &
@@ -606,9 +606,8 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         (df_sorted["単勝オッズ"] < 30.0)
     ].copy()
 
-    # まず相手1の候補（上位3頭から選出）を特定する
-    aite1_candidates = valid_aite_df.sort_values(by=["オッズ順位", "馬番"]).head(3)
-    aite1_df = aite1_candidates.sort_values(by=["合成順位", "オッズ順位", "馬番"]).head(2)
+    # 相手1：軸馬を除き、オッズ順位上位上位2頭を選出
+    aite1_df = valid_aite_df.sort_values(by=["オッズ順位", "馬番"]).head(2)
     aite1_horses = aite1_df["馬番"].tolist()
 
     if prob_top3_2 < 30.0:
