@@ -620,7 +620,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         aite2_df = aite2_candidates.sort_values(by=["合成順位", "能力順位", "馬番"]).head(6)
         aite2_horses = aite2_df["馬番"].tolist()
         
-        # 相手1を除外し、選出した6頭（相手2）のみを最終相手馬とする
+        # 軸・相手1を除外し、選出した6頭（相手2）のみを最終相手馬とする
         all_aite_set = set(aite2_horses)
     else:
         # 通常時（30%以上）：相手1（2頭）＋ 相手2（4頭）を選出
