@@ -518,7 +518,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     df_sorted["期待値"] = (df_sorted["単勝オッズ"] * (df_sorted["勝率(MC)"] / 100.0)).round(2)
 
     # --------------------------------------------------------------------------
-    # 3連複荒れ度判定ロジック
+    # 3連複荒れ度判定ロジック（3分割：堅い／やや混戦／混戦）
     # --------------------------------------------------------------------------
     df_by_odds = df_sorted.sort_values(by="単勝オッズ").reset_index(drop=True)
     top_odds_list = df_by_odds["単勝オッズ"].tolist()
@@ -541,8 +541,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     is_katai_a = (C < 12.0) and (P >= 150.0) and (M >= 15.0) and (O10 >= 20.0)
     is_katai_b = (o1 <= 2.2) and (o2 <= 4.5) and (P >= 180.0) and (M >= 15.0) and (O10 >= 20.0)
 
-    is_yaya_katai = (C < 20.0) and (P >= 140.0) and (M >= 10.0) and (O10 >= 15.0)
-
     is_konsen_a = (C >= 35.0)
     is_konsen_b = (o1 >= 4.0) and (P < 125.0)
     is_konsen_c = (M < 10.0) and (O10 < 20.0)
@@ -550,15 +548,12 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     if is_katai_a or is_katai_b:
         race_pattern = "堅い"
         pattern_desc = "軸を強く信頼・絞る。上位3頭が強く、4～10番人気への支持が弱いレースです。"
-    elif is_yaya_katai:
-        race_pattern = "やや堅い"
-        pattern_desc = "軸信頼度高め。上位3頭が比較的安定しているが、堅いほどではないレースです。"
     elif is_konsen_a or is_konsen_b or is_konsen_c:
         race_pattern = "混戦"
         pattern_desc = "穴馬・相手広め。4～10番人気まで支持が広がり、3連複が荒れる可能性を考えるレースです。"
     else:
         race_pattern = "やや混戦"
-        pattern_desc = "通常より注意。堅いとも混戦とも言い切れない中間的なレースです。"
+        pattern_desc = "中間的なレース。堅いとも完全な混戦とも言い切れないため、展開やオッズに注意してください。"
 
     # --------------------------------------------------------------------------
     # オッズ1〜3位（上位3頭）の3着以内（複勝）入着頭数カウント
@@ -668,7 +663,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     ODDS_RANGE_MAP = {
         "堅い": "購入目安 30倍～ 5点",
-        "やや堅い": "購入目安 30倍～ 5点",
         "やや混戦": "購入目安 30倍～ 7点",
         "混戦": "購入目安 40倍～ 10点"
     }
