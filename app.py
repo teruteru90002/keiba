@@ -17,7 +17,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.set_page_config(page_title="Ver1.65 競馬分析システム", layout="centered", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="Ver1.66 競馬分析システム", layout="centered", initial_sidebar_state="collapsed")
 
 st.markdown("""
     <style>
@@ -33,7 +33,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown("### 🏇 競馬分析システム Ver1.65")
+st.markdown("### 🏇 競馬分析システム Ver1.66")
 st.write("提示された定義書に基づき、過去バイアスゼロ・完全固定ロジックで自動分析を実行します。")
 
 # --- セッション状態の初期化 ---
