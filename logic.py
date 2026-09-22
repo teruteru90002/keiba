@@ -603,12 +603,12 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
             odds_diff = abs(o2_val - o1_val)
             
             top2_df = df_odds_sorted.head(2)
-            if odds_diff < 0.3:
+            if odds_diff < 0.4:
                 jiku_horse = top2_df[top2_df["合成順位"] == 2].iloc[0] if (top2_df["合成順位"] == 2).any() else top2_df.sort_values(by=["合成順位", "オッズ順位"]).iloc[0]
-                jiku_reason = f"単勝オッズ3倍未満なし＆オッズ上位2頭の差が0.3未満（{odds_diff:.2f}）のため、合成順位2位を選出"
+                jiku_reason = f"単勝オッズ3倍未満なし＆オッズ上位2頭の差が0.4未満（{odds_diff:.2f}）のため、合成順位2位を選出"
             else:
                 jiku_horse = top2_df[top2_df["合成順位"] == 1].iloc[0] if (top2_df["合成順位"] == 1).any() else top2_df.sort_values(by=["合成順位", "オッズ順位"]).iloc[0]
-                jiku_reason = f"単勝オッズ3倍未満なし＆オッズ上位2頭の差が0.3以上（{odds_diff:.2f}）のため、合成順位1位を選出"
+                jiku_reason = f"単勝オッズ3倍未満なし＆オッズ上位2頭の差が0.4以上（{odds_diff:.2f}）のため、合成順位1位を選出"
         else:
             jiku_horse = df_odds_sorted.iloc[0]
             jiku_reason = "単勝オッズ3倍未満なし（対象馬1頭のみ）のため、上位馬を選出"
