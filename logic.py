@@ -304,13 +304,13 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         phase2_lines.append(f"* Dist_補正＝{dist_adj:+.2f}")
 
         w_diff = round(row["斤量"] - avg_weight, 2)
-        if w_diff <= -2.0: weight_adj = 3
-        elif w_diff <= -1.0: weight_adj = 2
+        if w_diff <= -2.0: weight_adj = 5
+        elif w_diff <= -1.0: weight_adj = 3
         elif w_diff <= -0.5: weight_adj = 1
         elif -0.5 < w_diff < 0.5: weight_adj = 0
         elif w_diff < 1.0: weight_adj = -1
-        elif w_diff < 2.0: weight_adj = -2
-        else: weight_adj = -3
+        elif w_diff < 2.0: weight_adj = -3
+        else: weight_adj = -5
 
         phase2_lines.append("\n###### 斤量補正判定プロセス")
         phase2_lines.append(f"* 平均斤量＝{avg_weight:.2f}kg | 当該馬斤量＝{row['斤量']}kg | 差＝{w_diff:+.2f}kg → Weight_補正＝{weight_adj:+d}")
