@@ -639,10 +639,17 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         df_aite2_pool = df_valid[~df_valid["馬番"].isin(exclude_horses)].copy()
         aite2_df = df_aite2_pool.sort_values(by=["合成順位", "馬番"]).head(4)
 
+    # 相手1と相手2の整列（合成順位昇順）
+    aite1_sorted = aite1_df.sort_values(by=["合成順位", "馬番"])
+    aite2_sorted = aite2_df.sort_values(by=["合成順位", "馬番"])
+
+    aite1_horses = aite1_sorted["馬番"].tolist()
+    aite2_horses = aite2_sorted["馬番"].tolist()
+
     # 相手1と相手2の統合（重複排除）
     selected_aite_df = pd.concat([aite1_df, aite2_df]).drop_duplicates(subset=["馬番"])
 
-    # 相手馬の表示リスト作成（合成順位昇順）
+    # 相手馬全体の表示リスト作成（合成順位昇順）
     display_aite_df = selected_aite_df.sort_values(by=["合成順位", "馬番"])
     display_aite_horses = display_aite_df["馬番"].tolist()
 
@@ -710,17 +717,25 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     phase6_lines.append(f"\n#### 3. 買い目（判定：【{race_pattern}】 {target_odds_range}）\n")
 
+    aite1_str = ", ".join(f"{h:>2}" for h in aite1_horses)
+    aite2_str = ", ".join(f"{h:>2}" for h in aite2_horses)
+    total_aite_count = len(display_aite_horses)
+
     phase6_lines.append("**【３連複１頭軸流し（馬番表記）】**")
-    phase6_lines.append(f"* 軸  ：{jiku_horse['馬番']}（{jiku_horse['単勝オッズ']}倍）")
-    phase6_lines.append(f"* 相手：{', '.join(map(str, display_aite_horses))} （{len(display_aite_horses)}頭 / 合成順位昇順）\n")
+    phase6_lines.append(f"軸  ：{jiku_horse['馬番']}（{jiku_horse['単勝オッズ']}倍）")
+    phase6_lines.append(f"相手1：{aite1_str}")
+    phase6_lines.append(f"相手2：{aite2_str}")
+    phase6_lines.append(f"（{total_aite_count}頭 / 合成順位昇順）\n")
 
     # --- オッズ順位表記 ---
     jiku_odds_rank = int(jiku_horse['オッズ順位'])
-    aite_odds_ranks = [int(df_sorted[df_sorted['馬番'] == h]['オッズ順位'].values[0]) for h in display_aite_horses]
+    aite1_odds_ranks = [int(df_sorted[df_sorted['馬番'] == h]['オッズ順位'].values[0]) for h in aite1_horses]
+    aite2_odds_ranks = [int(df_sorted[df_sorted['馬番'] == h]['オッズ順位'].values[0]) for h in aite2_horses]
     
     phase6_lines.append("**【３連複１頭軸流し（オッズ順位表記）】**")
-    phase6_lines.append(f"* 軸  ：{jiku_odds_rank}")
-    phase6_lines.append(f"* 相手：{', '.join([str(x) for x in aite_odds_ranks])}\n")
+    phase6_lines.append(f"軸  ：{jiku_odds_rank}")
+    phase6_lines.append(f"相手1：{', '.join([str(x) for x in aite1_odds_ranks])}")
+    phase6_lines.append(f"相手2：{', '.join([str(x) for x in aite2_odds_ranks])}\n")
 
     # --------------------------------------------------------------------------
     # 4. 入力用買い目の生成（馬番昇順・流し形式）
