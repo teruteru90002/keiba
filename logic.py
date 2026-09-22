@@ -722,9 +722,9 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     total_aite_count = len(display_aite_horses)
 
     phase6_lines.append("**【３連複１頭軸流し（馬番表記）】**")
-    phase6_lines.append(f"軸  ：{jiku_horse['馬番']}（{jiku_horse['単勝オッズ']}倍）")
-    phase6_lines.append(f"相手1：{aite1_str}")
-    phase6_lines.append(f"相手2：{aite2_str}")
+    phase6_lines.append(f"軸  ：{jiku_horse['馬番']}（{jiku_horse['単勝オッズ']}倍）  ")
+    phase6_lines.append(f"相手1：{aite1_str}  ")
+    phase6_lines.append(f"相手2：{aite2_str}  ")
     phase6_lines.append(f"（{total_aite_count}頭 / 合成順位昇順）\n")
 
     # --- オッズ順位表記 ---
