@@ -721,7 +721,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     aite2_str = ", ".join(f"{h:>2}" for h in aite2_horses)
     total_aite_count = len(display_aite_horses)
 
-    phase6_lines.append("**【３連複１頭軸流し（馬番表記）】**")
+    phase6_lines.append("**【３連複１頭軸流し（馬番表記）】**  ")
     phase6_lines.append(f"軸  ：{jiku_horse['馬番']}（{jiku_horse['単勝オッズ']}倍）  ")
     phase6_lines.append(f"相手1：{aite1_str}  ")
     phase6_lines.append(f"相手2：{aite2_str}  ")
@@ -732,9 +732,9 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     aite1_odds_ranks = [int(df_sorted[df_sorted['馬番'] == h]['オッズ順位'].values[0]) for h in aite1_horses]
     aite2_odds_ranks = [int(df_sorted[df_sorted['馬番'] == h]['オッズ順位'].values[0]) for h in aite2_horses]
     
-    phase6_lines.append("**【３連複１頭軸流し（オッズ順位表記）】**")
-    phase6_lines.append(f"軸  ：{jiku_odds_rank}")
-    phase6_lines.append(f"相手1：{', '.join([str(x) for x in aite1_odds_ranks])}")
+    phase6_lines.append("**【３連複１頭軸流し（オッズ順位表記）】**  ")
+    phase6_lines.append(f"軸  ：{jiku_odds_rank}  ")
+    phase6_lines.append(f"相手1：{', '.join([str(x) for x in aite1_odds_ranks])}  ")
     phase6_lines.append(f"相手2：{', '.join([str(x) for x in aite2_odds_ranks])}\n")
 
     # --------------------------------------------------------------------------
