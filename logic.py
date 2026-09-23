@@ -547,13 +547,13 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     if is_katai_a or is_katai_b:
         race_pattern = "堅い"
-        pattern_desc = "軸を強く信頼・絞る。上位3頭が強く、4～10番人気への支持が弱いレースです。"
+        pattern_desc = "軸を強く信頼できる。上位3頭が強いレースです。"
     elif is_konsen_a or is_konsen_b or is_konsen_c:
         race_pattern = "混戦"
-        pattern_desc = "穴馬・相手広め。4～10番人気まで支持が広がり、3連複が荒れる可能性を考えるレースです。"
+        pattern_desc = "穴馬・相手広め。3連複が荒れる可能性が高いレースです。"
     else:
-        race_pattern = "やや混戦"
-        pattern_desc = "中間的なレース。堅いとも完全な混戦とも言い切れないため、展開やオッズに注意してください。"
+        race_pattern = "普通"
+        pattern_desc = "狙い目なレース。"
 
     # --------------------------------------------------------------------------
     # オッズ1〜3位（上位3頭）の3着以内（複勝）入着頭数カウント
