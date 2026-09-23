@@ -656,18 +656,18 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     fmt_points = len(sanrenpuku_combos)
 
     ODDS_RANGE_MAP = {
-        "堅い": "購入目安 20倍～   3～5点",
-        "普通": "購入目安 30倍～   5～7点",
-        "混戦": "購入目安 50倍～   7～10点"
+        "堅い": "配当目安 ～30倍",
+        "中荒": "配当目安 30倍～80倍",
+        "大荒": "配当目安 80倍～ "
     }
     target_odds_range = ODDS_RANGE_MAP.get(race_pattern, "")
 
     if prob_top3_2_or_more >= 70.0:
-        prob_2_suffix = " ◆見送り◆"
+        prob_2_suffix = " ◆堅い◆"
     elif prob_top3_2_or_more < 30.0:
         prob_2_suffix = " ◆注意◆"
     else:
-        prob_2_suffix = " ◆買い◆"
+        prob_2_suffix = " ◆中荒◆"
 
     phase6_lines = [
         "#### ■ PHASE 6：最終ランキングと買い目\n",
