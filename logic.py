@@ -517,43 +517,110 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     df_sorted["期待値"] = (df_sorted["単勝オッズ"] * (df_sorted["勝率(MC)"] / 100.0)).round(2)
 
-    # --------------------------------------------------------------------------
+     # --------------------------------------------------------------------------
     # 3連複荒れ度判定ロジック（3分割：堅い／普通／混戦）
+    #
+    # 配当目安
+    #   堅い：～30倍
+    #   普通：30～80倍
+    #   混戦：80倍～
     # --------------------------------------------------------------------------
     df_by_odds = df_sorted.sort_values(by="単勝オッズ").reset_index(drop=True)
     top_odds_list = df_by_odds["単勝オッズ"].tolist()
 
+    # 上位3頭の単勝オッズ
     o1 = top_odds_list[0] if len(top_odds_list) > 0 else 99.0
     o2 = top_odds_list[1] if len(top_odds_list) > 1 else 99.0
     o3 = top_odds_list[2] if len(top_odds_list) > 2 else 99.0
 
+    # 上位3頭のオッズ集中度
     C = o1 * o2 * o3 * 0.20
+
+    # 上位3頭の複勝率合計
     P = df_by_odds.head(3)["複勝率(MC)"].sum()
 
+    # 4～10番人気の平均単勝オッズ
     o_4_10 = top_odds_list[3:10]
+
     if len(o_4_10) > 0:
         M = sum(o_4_10) / len(o_4_10)
     else:
         M = 99.0
 
-    O10 = top_odds_list[9] if len(top_odds_list) >= 10 else (top_odds_list[-1] if len(top_odds_list) > 0 else 99.0)
+    # 10番人気の単勝オッズ
+    O10 = (
+        top_odds_list[9]
+        if len(top_odds_list) >= 10
+        else (
+            top_odds_list[-1]
+            if len(top_odds_list) > 0
+            else 99.0
+        )
+    )
 
-    is_katai_a = (C < 12.0) and (P >= 150.0) and (M >= 15.0) and (O10 >= 20.0)
-    is_katai_b = (o1 <= 2.2) and (o2 <= 4.5) and (P >= 180.0) and (M >= 15.0) and (O10 >= 20.0)
+    # --------------------------------------------------------------------------
+    # 【堅い】
+    #
+    # 上位3頭が強く、4～10番人気との差もあるレース
+    # → 3連複30倍以下を想定
+    # --------------------------------------------------------------------------
+    is_katai_a = (
+        (C < 12.0)
+        and (P >= 150.0)
+        and (M >= 15.0)
+        and (O10 >= 20.0)
+    )
 
-    is_konsen_a = (C >= 35.0)
-    is_konsen_b = (o1 >= 4.0) and (P < 125.0)
-    is_konsen_c = (M < 10.0) and (O10 < 20.0)
+    is_katai_b = (
+        (o1 <= 2.2)
+        and (o2 <= 4.5)
+        and (P >= 180.0)
+        and (M >= 15.0)
+        and (O10 >= 20.0)
+    )
 
+    # --------------------------------------------------------------------------
+    # 【混戦】
+    #
+    # 上位3頭のオッズが割れている
+    # または上位人気の信頼度が低い
+    # または4～10番人気まで密集している
+    #
+    # → 3連複80倍以上を想定
+    # --------------------------------------------------------------------------
+    is_konsen_a = (
+        (C >= 35.0)
+        and (
+            (P < 150.0)
+            or (M < 12.0)
+            or (O10 < 25.0)
+        )
+    )
+
+    is_konsen_b = (
+        (o1 >= 4.0)
+        and (P < 125.0)
+    )
+
+    is_konsen_c = (
+        (M < 10.0)
+        and (O10 < 20.0)
+    )
+
+    # --------------------------------------------------------------------------
+    # 判定
+    # --------------------------------------------------------------------------
     if is_katai_a or is_katai_b:
         race_pattern = "堅い"
-        pattern_desc = "軸を強く信頼できる。上位3頭が強いレースです。"
+        pattern_desc = "3連複30倍以下を中心に想定。上位人気を軸にしやすいレースです。"
+
     elif is_konsen_a or is_konsen_b or is_konsen_c:
         race_pattern = "混戦"
-        pattern_desc = "穴馬・相手広め。3連複が荒れる可能性が高いレースです。"
+        pattern_desc = "3連複80倍以上を中心に想定。人気上位だけでは絞りにくいレースです。"
+
     else:
         race_pattern = "普通"
-        pattern_desc = "狙い目なレース。"
+        pattern_desc = "3連複30～80倍を中心に想定。堅さと混戦の中間的なレースです。"
 
     # --------------------------------------------------------------------------
     # オッズ1〜3位（上位3頭）の3着以内（複勝）入着頭数カウント
@@ -657,8 +724,8 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     ODDS_RANGE_MAP = {
         "堅い": "配当目安 ～30倍",
-        "中荒": "配当目安 30倍～80倍",
-        "大荒": "配当目安 80倍～ "
+        "普通": "配当目安 30倍～80倍",
+        "混戦": "配当目安 80倍～ "
     }
     target_odds_range = ODDS_RANGE_MAP.get(race_pattern, "")
 
@@ -667,7 +734,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     elif prob_top3_2_or_more < 30.0:
         prob_2_suffix = " ◆注意◆"
     else:
-        prob_2_suffix = " ◆中荒◆"
+        prob_2_suffix = " ◆普通◆"
 
     phase6_lines = [
         "#### ■ PHASE 6：最終ランキングと買い目\n",
