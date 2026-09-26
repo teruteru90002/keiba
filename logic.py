@@ -176,7 +176,6 @@ def estimate_position_type_final_corner(past_runs):
 
     ratios = []
     for run in past_runs:
-        # ご自身のデータソースのキー名に合わせて調整してください
         pass_4 = run.get("final_corner_rank") or run.get("pass_4") or run.get("corner_4")
         total_horses = run.get("total_horses") or run.get("head_count") or run.get("head_num")
 
@@ -263,7 +262,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         h_name = row["馬名"]
         past_runs = row.get("past_runs", [])[:4]
         
-        # 位置取りの取得（入力がない場合は最終コーナー基準で自動判定）
         raw_pos = row.get("位置取り")
         if not raw_pos or pd.isna(raw_pos) or str(raw_pos).strip() in ["", "nan"]:
             pos_type = estimate_position_type_final_corner(past_runs)
@@ -402,7 +400,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
             "阪神": [1600, 1800, 2400]
         }
 
-        # コースバイアス判定（漏れ修正）
         is_sashi_favored = (track == "東京") or (track in OUTER_TRACKS and distance in OUTER_TRACKS[track])
         is_nige_favored = not is_sashi_favored
 
@@ -480,7 +477,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
             "馬名": h_name,
             "単勝オッズ": row["単勝オッズ"],
             "最終能力スコア": final_ability_score,
-            "位置取り": pos_type, # 自動判定（または入力値）を保存
+            "位置取り": pos_type,
             "走数": jra_valid_count
         })
 
@@ -535,16 +532,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         ascending=[False, False, False, True]
     ).reset_index(drop=True)
     df_sorted["合成順位"] = range(1, len(df_sorted) + 1)
-
-    # 印の自動付与（合成順位ベース）
-    def assign_mark(rank):
-        if rank == 1: return "◎"
-        elif rank == 2: return "〇"
-        elif rank == 3: return "▲"
-        elif 4 <= rank <= 6: return "△"
-        else: return "・"
-
-    df_sorted["印"] = df_sorted["合成順位"].apply(assign_mark)
 
     TRACK_STD_DEV = {
         "東京": 15.0, "京都": 15.0, "阪神": 15.0, "中山": 18.0,
@@ -740,8 +727,8 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         f"  * 3頭入る確率: **{prob_top3_3:.1f}%**",
         f"  * (2頭以上入る合計確率: **{prob_top3_2_or_more:.1f}%{prob_2_suffix}**)\n",
         "#### 2. 最終ランキング\n",
-        "| 順位 | 印 | 馬(オッズ) | 合成値(順位) | オッズ(順位) | 能力(順位) | 勝率 | 複勝率 | 期待値 | 位置 | 走数 |",
-        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"
+        "| 順位 | 馬(オッズ) | 合成値(順位) | オッズ(順位) | 能力(順位) | 勝率 | 複勝率 | 期待値 | 位置 | 走数 |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"
     ]
 
     selected_horse_numbers = set([jiku_horse["馬番"]] + all_aite_nums)
@@ -756,11 +743,11 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         
         if r["馬番"] in selected_horse_numbers:
             phase6_lines.append(
-                f"| **{rank_num}** | **{r['印']}** | **{r['馬番']} {r['馬名']}({r['単勝オッズ']}倍)** | **{r['合成値']:.2f} ({r['合成順位']}位)** | **{r['オッズスコア']:.1f} ({r['オッズ順位']}位)** | **{r['能力スコア']:.1f} ({r['能力順位']}位)** | **{win_mc}** | **{place_mc}** | **{ev_val}** | **{pos}** | **{valid_runs}** |"
+                f"| **{rank_num}** | **{r['馬番']} {r['馬名']}({r['単勝オッズ']}倍)** | **{r['合成値']:.2f} ({r['合成順位']}位)** | **{r['オッズスコア']:.1f} ({r['オッズ順位']}位)** | **{r['能力スコア']:.1f} ({r['能力順位']}位)** | **{win_mc}** | **{place_mc}** | **{ev_val}** | **{pos}** | **{valid_runs}** |"
             )
         else:
             phase6_lines.append(
-                f"| {rank_num} | {r['印']} | {r['馬番']} {r['馬名']}({r['単勝オッズ']}倍) | {r['合成値']:.2f} ({r['合成順位']}位) | {r['オッズスコア']:.1f} ({r['オッズ順位']}位) | {r['能力スコア']:.1f} ({r['能力順位']}位) | {win_mc} | {place_mc} | {ev_val} | {pos} | {valid_runs} |"
+                f"| {rank_num} | {r['馬番']} {r['馬名']}({r['単勝オッズ']}倍) | {r['合成値']:.2f} ({r['合成順位']}位) | {r['オッズスコア']:.1f} ({r['オッズ順位']}位) | {r['能力スコア']:.1f} ({r['能力順位']}位) | {win_mc} | {place_mc} | {ev_val} | {pos} | {valid_runs} |"
             )
 
     phase6_lines.append(f"\n#### 3. 買い目（判定：【{race_pattern}】 {target_odds_range}）\n")
