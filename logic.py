@@ -167,6 +167,40 @@ def calc_raw_r_score(run):
     detail = f"（{race_title} / 判定格付:[{grade}]）: 格点{g_score} ＋ 着順点{r_score} ＋ 着差点{diff_score} ＋ 人気点{pop_score} ＝ 生R_Score[{total}]"
     return total, detail, True
 
+# ==============================================================================
+# 位置取り（脚質）自動判定ロジック（最終コーナーベース）
+# ==============================================================================
+def estimate_position_type_final_corner(past_runs):
+    if not past_runs:
+        return "差"
+
+    ratios = []
+    for run in past_runs:
+        # ご自身のデータソースのキー名に合わせて調整してください
+        pass_4 = run.get("final_corner_rank") or run.get("pass_4") or run.get("corner_4")
+        total_horses = run.get("total_horses") or run.get("head_count") or run.get("head_num")
+
+        if pass_4 and total_horses and total_horses > 0:
+            try:
+                ratio = float(pass_4) / float(total_horses)
+                ratios.append(ratio)
+            except (ValueError, TypeError):
+                continue
+
+    if not ratios:
+        return "差"
+
+    avg_ratio = sum(ratios) / len(ratios)
+
+    if avg_ratio <= 0.15:
+        return "逃"
+    elif avg_ratio <= 0.40:
+        return "先"
+    elif avg_ratio <= 0.75:
+        return "差"
+    else:
+        return "追"
+
 def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=False, trend="フラット"):
     if good_horses is None:
         good_horses = []
@@ -227,8 +261,14 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     for idx, row in df_target.iterrows():
         h_num = row["馬番"]
         h_name = row["馬名"]
-        pos_type = row.get("位置取り", "差") 
         past_runs = row.get("past_runs", [])[:4]
+        
+        # 位置取りの取得（入力がない場合は最終コーナー基準で自動判定）
+        raw_pos = row.get("位置取り")
+        if not raw_pos or pd.isna(raw_pos) or str(raw_pos).strip() in ["", "nan"]:
+            pos_type = estimate_position_type_final_corner(past_runs)
+        else:
+            pos_type = str(raw_pos).strip()
 
         phase1_lines.append(f"##### **【馬番{h_num}：{h_name}】")
         
@@ -362,10 +402,11 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
             "阪神": [1600, 1800, 2400]
         }
 
-        pos_adj = 0
+        # コースバイアス判定（漏れ修正）
         is_sashi_favored = (track == "東京") or (track in OUTER_TRACKS and distance in OUTER_TRACKS[track])
-        is_nige_favored = (track in ["中山", "福島", "小倉", "函館", "札幌"]) or (track == "阪神" and distance not in OUTER_TRACKS["阪神"])
+        is_nige_favored = not is_sashi_favored
 
+        pos_adj = 0
         if is_sashi_favored and pos_type in ["差", "追"]:
             pos_adj = 3
         elif is_nige_favored and pos_type in ["逃", "先"]:
@@ -439,7 +480,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
             "馬名": h_name,
             "単勝オッズ": row["単勝オッズ"],
             "最終能力スコア": final_ability_score,
-            "位置取り": pos_type,
+            "位置取り": pos_type, # 自動判定（または入力値）を保存
             "走数": jra_valid_count
         })
 
@@ -494,6 +535,16 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         ascending=[False, False, False, True]
     ).reset_index(drop=True)
     df_sorted["合成順位"] = range(1, len(df_sorted) + 1)
+
+    # 印の自動付与（合成順位ベース）
+    def assign_mark(rank):
+        if rank == 1: return "◎"
+        elif rank == 2: return "〇"
+        elif rank == 3: return "▲"
+        elif 4 <= rank <= 6: return "△"
+        else: return "・"
+
+    df_sorted["印"] = df_sorted["合成順位"].apply(assign_mark)
 
     TRACK_STD_DEV = {
         "東京": 15.0, "京都": 15.0, "阪神": 15.0, "中山": 18.0,
@@ -603,26 +654,22 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     prob_top3_2_or_more = prob_top3_2 + prob_top3_3
 
     # ==========================================================================
-    # 買い目選定ロジック（修正後）
+    # 買い目選定ロジック
     # ==========================================================================
-    # 共通除外条件：オッズ順位10位以上または単勝オッズ30倍以上（＜10、＜30.0を残す）
     df_valid = df_sorted[
         (df_sorted["オッズ順位"] < 10) & 
         (df_sorted["単勝オッズ"] < 30.0)
     ].copy()
 
-    # オッズ順に並べ替え
     df_odds_sorted = df_valid.sort_values(by="オッズ順位")
     
     if not df_odds_sorted.empty:
         o1_val = df_odds_sorted.iloc[0]["単勝オッズ"]
         
         if o1_val < 3.0:
-            # 単勝オッズ1位が3倍未満の場合
             jiku_horse = df_odds_sorted.iloc[0]
             jiku_reason = f"単勝オッズ1位が3倍未満（{o1_val}倍）のため単勝オッズ1位を選出"
         else:
-            # 単勝オッズ1位が3倍以上の場合
             if len(df_odds_sorted) >= 2:
                 o2_val = df_odds_sorted.iloc[1]["単勝オッズ"]
                 odds_diff = abs(o2_val - o1_val)
@@ -641,13 +688,9 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         jiku_horse = df_sorted.iloc[0]
         jiku_reason = "条件該当馬不在のため全体上位馬を選出"
 
-    # 相手選定用プール（軸馬を除外）
     df_without_jiku = df_valid[df_valid["馬番"] != jiku_horse["馬番"]].copy()
-
-    # 相手1：軸馬を除きオッズ順位上位2頭
     aite1_df = df_without_jiku.sort_values(by="オッズ順位").head(2)
 
-    # 条件に応じた相手2の選出頭数判定
     if (prob_top3_2_or_more < 30.0) and (race_pattern == "混戦"):
         aite2_count = 5
         aite_reason_str = "上位3頭から2頭入る確率が30%未満かつ混戦のため、相手2は軸馬・相手1を除き合成順位上位5頭選出"
@@ -655,7 +698,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         aite2_count = 4
         aite_reason_str = "通常条件のため、相手2は軸馬・相手1を除き合成順位上位4頭選出"
 
-    # 相手2：軸馬および相手1を除き合成順位上位を選出
     exclude_horses = set([jiku_horse["馬番"]] + aite1_df["馬番"].tolist())
     df_aite2_pool = df_valid[~df_valid["馬番"].isin(exclude_horses)].copy()
     aite2_df = df_aite2_pool.sort_values(by="合成順位").head(aite2_count)
@@ -663,11 +705,8 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     aite1_horses = aite1_df["馬番"].tolist()
     aite2_horses = aite2_df["馬番"].tolist()
 
-    # 全相手馬（軸馬を除く）
     selected_aite_df = pd.concat([aite1_df, aite2_df]).drop_duplicates(subset=["馬番"])
     
-    # ３連複１頭軸流し（軸 - 相手1＋相手2）の組み合わせ
-    # ※組み合わせ展開および入力用買い目の生成用（相手馬番を昇順にソート）
     all_aite_nums = sorted(selected_aite_df["馬番"].tolist())
     sanrenpuku_combos = list(itertools.combinations(all_aite_nums, 2))
     fmt_points = len(sanrenpuku_combos)
@@ -701,15 +740,15 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         f"  * 3頭入る確率: **{prob_top3_3:.1f}%**",
         f"  * (2頭以上入る合計確率: **{prob_top3_2_or_more:.1f}%{prob_2_suffix}**)\n",
         "#### 2. 最終ランキング\n",
-        "| 順位 | 馬(オッズ) | 合成値(順位) | オッズ(順位) | 能力(順位) | 勝率 | 複勝率 | 期待値 | 位置 | 走数 |",
-        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"
+        "| 順位 | 印 | 馬(オッズ) | 合成値(順位) | オッズ(順位) | 能力(順位) | 勝率 | 複勝率 | 期待値 | 位置 | 走数 |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"
     ]
 
     selected_horse_numbers = set([jiku_horse["馬番"]] + all_aite_nums)
 
     for idx, r in df_sorted.iterrows():
         rank_num = idx + 1
-        pos = r.get("位置取り", "先") 
+        pos = r.get("位置取り", "差") 
         valid_runs = r.get("走数", 0)
         win_mc = f"{r['勝率(MC)']:.1f}%"
         place_mc = f"{r['複勝率(MC)']:.1f}%"
@@ -717,16 +756,15 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         
         if r["馬番"] in selected_horse_numbers:
             phase6_lines.append(
-                f"| **{rank_num}** | **{r['馬番']} {r['馬名']}({r['単勝オッズ']}倍)** | **{r['合成値']:.2f} ({r['合成順位']}位)** | **{r['オッズスコア']:.1f} ({r['オッズ順位']}位)** | **{r['能力スコア']:.1f} ({r['能力順位']}位)** | **{win_mc}** | **{place_mc}** | **{ev_val}** | **{pos}** | **{valid_runs}** |"
+                f"| **{rank_num}** | **{r['印']}** | **{r['馬番']} {r['馬名']}({r['単勝オッズ']}倍)** | **{r['合成値']:.2f} ({r['合成順位']}位)** | **{r['オッズスコア']:.1f} ({r['オッズ順位']}位)** | **{r['能力スコア']:.1f} ({r['能力順位']}位)** | **{win_mc}** | **{place_mc}** | **{ev_val}** | **{pos}** | **{valid_runs}** |"
             )
         else:
             phase6_lines.append(
-                f"| {rank_num} | {r['馬番']} {r['馬名']}({r['単勝オッズ']}倍) | {r['合成値']:.2f} ({r['合成順位']}位) | {r['オッズスコア']:.1f} ({r['オッズ順位']}位) | {r['能力スコア']:.1f} ({r['能力順位']}位) | {win_mc} | {place_mc} | {ev_val} | {pos} | {valid_runs} |"
+                f"| {rank_num} | {r['印']} | {r['馬番']} {r['馬名']}({r['単勝オッズ']}倍) | {r['合成値']:.2f} ({r['合成順位']}位) | {r['オッズスコア']:.1f} ({r['オッズ順位']}位) | {r['能力スコア']:.1f} ({r['能力順位']}位) | {win_mc} | {place_mc} | {ev_val} | {pos} | {valid_runs} |"
             )
 
     phase6_lines.append(f"\n#### 3. 買い目（判定：【{race_pattern}】 {target_odds_range}）\n")
 
-    # 相手1のフォーマット生成
     aite1_formatted_parts = []
     for h in aite1_horses:
         p_val = df_sorted.loc[df_sorted["馬番"] == h, "複勝率(MC)"]
@@ -744,7 +782,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     phase6_lines.append(f"相手1：{aite1_display_str}  ")
     phase6_lines.append(f"相手2：{aite2_str}  \n")
 
-    # オッズ順位表記
     jiku_odds_rank = int(jiku_horse['オッズ順位'])
     aite1_odds_ranks = [int(df_sorted[df_sorted['馬番'] == h]['オッズ順位'].values[0]) for h in aite1_horses]
     aite2_odds_ranks = [int(df_sorted[df_sorted['馬番'] == h]['オッズ順位'].values[0]) for h in aite2_horses]
@@ -754,7 +791,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     phase6_lines.append(f"相手1：{', '.join([str(x) for x in aite1_odds_ranks])}  ")
     phase6_lines.append(f"相手2：{', '.join([str(x) for x in aite2_odds_ranks])}\n")
 
-    # 4. 入力用買い目の生成（馬番順）
     phase6_lines.append("#### 4. 入力用買い目\n")
     
     jiku_val = jiku_horse["馬番"]
