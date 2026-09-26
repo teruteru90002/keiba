@@ -605,41 +605,41 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     # ==========================================================================
     # 買い目選定ロジック（修正後）
     # ==========================================================================
-    # 共通除外条件：オッズ順位10位未満かつ単勝オッズ30倍未満
+    # 共通除外条件：オッズ順位10位以上または単勝オッズ30倍以上（＜10、＜30.0を残す）
     df_valid = df_sorted[
         (df_sorted["オッズ順位"] < 10) & 
         (df_sorted["単勝オッズ"] < 30.0)
     ].copy()
 
-    # オッズ1位の判定準備
-    df_odds_rank1 = df_valid[df_valid["オッズ順位"] == 1]
+    # オッズ順に並べ替え
+    df_odds_sorted = df_valid.sort_values(by="オッズ順位")
     
-    if not df_odds_rank1.empty and df_odds_rank1.iloc[0]["単勝オッズ"] < 3.0:
-        jiku_horse = df_odds_rank1.iloc[0]
-        jiku_reason = f"単勝オッズ1位が3倍未満（{jiku_horse['単勝オッズ']}倍）のため単勝オッズ1位を選出"
-    else:
-        # オッズ1位が3倍未満でない場合
-        df_odds_sorted = df_valid.sort_values(by="オッズ順位")
-        if len(df_odds_sorted) >= 2:
-            o1_val = df_odds_sorted.iloc[0]["単勝オッズ"]
-            o2_val = df_odds_sorted.iloc[1]["単勝オッズ"]
-            odds_diff = abs(o2_val - o1_val)
-            
-            top2_df = df_odds_sorted.head(2)
-            if odds_diff < 0.3:
-                # オッズ上位2頭のうち合成順位上位2位を選出
-                jiku_horse = top2_df.sort_values(by="合成順位").iloc[1]
-                jiku_reason = f"単勝オッズ1位が3倍以上＆上位2頭のオッズ差が0.3未満（{odds_diff:.2f}）のため合成順位上位2位を選出"
+    if not df_odds_sorted.empty:
+        o1_val = df_odds_sorted.iloc[0]["単勝オッズ"]
+        
+        # 単勝オッズ1位が3倍未満の場合
+        if o1_val < 3.0:
+            if len(df_odds_sorted) >= 2:
+                o2_val = df_odds_sorted.iloc[1]["単勝オッズ"]
+                odds_diff = abs(o2_val - o1_val)
+                top2_df = df_odds_sorted.head(2)
+                
+                if odds_diff < 0.3:
+                    jiku_horse = top2_df.sort_values(by="合成順位").iloc[1]
+                    jiku_reason = f"単勝オッズ1位が3倍未満で上位2頭のオッズ差が0.3未満（{odds_diff:.2f}）のため合成順位上位2位を選出"
+                else:
+                    jiku_horse = top2_df.sort_values(by="合成順位").iloc[0]
+                    jiku_reason = f"単勝オッズ1位が3倍未満で上位2頭のオッズ差が0.3以上（{odds_diff:.2f}）のため合成順位上位1位を選出"
             else:
-                # オッズ上位2頭のうち合成順位上位1位を選出
-                jiku_horse = top2_df.sort_values(by="合成順位").iloc[0]
-                jiku_reason = f"単勝オッズ1位が3倍以上＆上位2頭のオッズ差が0.3以上（{odds_diff:.2f}）のため合成順位上位1位を選出"
-        elif len(df_odds_sorted) == 1:
-            jiku_horse = df_odds_sorted.iloc[0]
-            jiku_reason = "対象馬が1頭のみのため選出"
+                jiku_horse = df_odds_sorted.iloc[0]
+                jiku_reason = f"単勝オッズ1位が3倍未満（{o1_val}倍）のため単勝オッズ1位を選出"
         else:
-            jiku_horse = df_sorted.iloc[0]
-            jiku_reason = "条件該当馬不在のため全体上位馬を選出"
+            # 3倍以上の場合のデフォルト挙動
+            jiku_horse = df_odds_sorted.iloc[0]
+            jiku_reason = f"単勝オッズ1位が3倍以上（{o1_val}倍）のため単勝オッズ1位を選出"
+    else:
+        jiku_horse = df_sorted.iloc[0]
+        jiku_reason = "条件該当馬不在のため全体上位馬を選出"
 
     # 相手選定用プール（軸馬を除外）
     df_without_jiku = df_valid[df_valid["馬番"] != jiku_horse["馬番"]].copy()
