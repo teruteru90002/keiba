@@ -207,7 +207,7 @@ def estimate_position_type_final_corner(past_runs):
         return "追"
 
 # ==============================================================================
-# 3連複オッズ★判定＆オッズ取得ロジック
+# 3連複オッズ★判定＆オッズ取得ロジック（取得精度強化版）
 # ==============================================================================
 PLACE_CODE_MAP = {
     "01": "札幌", "02": "函館", "03": "福島", "04": "新潟", "05": "東京",
@@ -219,17 +219,21 @@ async def fetch_race_odds(place_name, race_no, date_str=None):
         date_str = datetime.now().strftime("%Y%m%d")
 
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
+        browser = await p.chromium.launch(
+            headless=True,
+            args=["--no-sandbox", "--disable-setuid-sandbox"]
+        )
         context = await browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
         )
         page = await context.new_page()
 
+        # 1. race_idの取得処理（netkeiba DB検索）
         url_db = f"https://db.netkeiba.com/race/list/{date_str}/"
         target_race_id = None
         
         try:
-            await page.goto(url_db, wait_until="domcontentloaded", timeout=15000)
+            await page.goto(url_db, wait_until="networkidle", timeout=15000)
             soup = BeautifulSoup(await page.content(), "html.parser")
             for a in soup.find_all("a", href=re.compile(r"/race/\d{12}/")):
                 match = re.search(r"/race/(\d{12})/", a.get("href", ""))
@@ -248,6 +252,7 @@ async def fetch_race_odds(place_name, race_no, date_str=None):
             return "", None
 
         odds_list = []
+        # オッズ表示URLパターン（人気順ソート b7 / リスト指定 c99）
         urls = [
             f"https://race.netkeiba.com/odds/index.html?type=b7&race_id={target_race_id}&housiki=c99",
             f"https://race.netkeiba.com/odds/index.html?type=b7&race_id={target_race_id}",
@@ -255,32 +260,55 @@ async def fetch_race_odds(place_name, race_no, date_str=None):
         ]
 
         for url in urls:
-            if len(odds_list) >= 50:
+            if len(odds_list) >= 20:
                 break
             try:
-                await page.goto(url, wait_until="domcontentloaded", timeout=10000)
-                await asyncio.sleep(1.0)
+                await page.goto(url, wait_until="domcontentloaded", timeout=12000)
+                # 動的要素の読み込み待ち（オッズテーブル要素が存在するか確認）
+                try:
+                    await page.wait_for_selector("span[id^='odds-'], td.Odds_Value, td.Odds, table.Odds_Table", timeout=5000)
+                except Exception:
+                    pass
+
+                await asyncio.sleep(1.0) # 非同期レンダリングのためのバッファ時間
                 soup = BeautifulSoup(await page.content(), "html.parser")
+
+                # パターンA: スパンやTDタグからのダイレクト取得
                 elements = soup.select("span[id^='odds-'], td.Odds_Value, td[class*='Odds'] span, td.Odds")
                 for el in elements:
-                    try:
-                        val = float(el.get_text(strip=True))
+                    text = el.get_text(strip=True)
+                    # 数値（小数含む）かつ「倍」などの文字の排除
+                    match_val = re.search(r'^(\d+\.\d+)$', text)
+                    if match_val:
+                        val = float(match_val.group(1))
                         if val > 0:
                             odds_list.append(val)
-                    except ValueError:
-                        continue
+
+                # パターンB: テーブル全体テキストから数値（オッズ相当）を抽出（フォールバック）
+                if len(odds_list) < 20:
+                    tables = soup.select("table.Odds_Table, table[class*='odds']")
+                    for table in tables:
+                        for td in table.find_all(["td", "span"]):
+                            txt = td.get_text(strip=True)
+                            if re.match(r'^\d+\.\d+$', txt):
+                                val = float(txt)
+                                if 1.0 <= val <= 9999.0:
+                                    odds_list.append(val)
+
             except Exception:
                 continue
 
         await browser.close()
 
+        # 重複削除＆昇順ソート（人気順）
         odds = sorted(list(set(odds_list))) if odds_list else []
-        if len(odds) < 30:
+        
+        if len(odds) < 5:
             return "", None
 
         o1 = odds[0]
-        o20 = odds[19] if len(odds) >= 20 else None
-        o30 = odds[29] if len(odds) >= 30 else None
+        o20 = odds[19] if len(odds) >= 20 else (odds[-1] if len(odds) > 0 else None)
+        o30 = odds[29] if len(odds) >= 30 else (odds[-1] if len(odds) > 0 else None)
 
         odds_info = {"o1": o1, "o20": o20, "o30": o30}
 
