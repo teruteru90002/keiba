@@ -207,7 +207,7 @@ def estimate_position_type_final_corner(past_runs):
         return "追"
 
 # ==============================================================================
-# 3連複オッズ★判定ロジック
+# 3連複オッズ★判定＆オッズ取得ロジック
 # ==============================================================================
 PLACE_CODE_MAP = {
     "01": "札幌", "02": "函館", "03": "福島", "04": "新潟", "05": "東京",
@@ -245,7 +245,7 @@ async def fetch_race_odds(place_name, race_no, date_str=None):
 
         if not target_race_id:
             await browser.close()
-            return ""
+            return "", None
 
         odds_list = []
         urls = [
@@ -276,25 +276,27 @@ async def fetch_race_odds(place_name, race_no, date_str=None):
 
         odds = sorted(list(set(odds_list))) if odds_list else []
         if len(odds) < 30:
-            return ""
+            return "", None
 
         o1 = odds[0]
         o20 = odds[19] if len(odds) >= 20 else None
         o30 = odds[29] if len(odds) >= 30 else None
+
+        odds_info = {"o1": o1, "o20": o20, "o30": o30}
 
         cond1 = (o1 is not None) and (5.0 <= o1 <= 15.0)
         cond2 = (o20 is not None) and (50.0 <= o20 <= 80.0)
         cond3 = (o30 is not None) and (70.0 <= o30 <= 140.0)
 
         if cond1 and cond2 and cond3:
-            return "★"
-        return ""
+            return "★", odds_info
+        return "", odds_info
 
 def get_star_mark(place_name, race_no, date_str=None):
     try:
         return asyncio.run(fetch_race_odds(place_name, race_no, date_str))
     except Exception:
-        return ""
+        return "", None
 
 # ==============================================================================
 # メインパイプライン
@@ -321,13 +323,22 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     race_date_raw = race_info.get("date", "")
     date_str = re.sub(r'\D', '', str(race_date_raw)) if race_date_raw else None
 
-    star_mark = get_star_mark(track, race_no, date_str)
-    # ★判定結果に応じた条件分岐文の変更
+    star_mark, odds_info = get_star_mark(track, race_no, date_str)
+    
     if star_mark == "★":
         star_display = " 【判定: 購入】"
     else:
         star_display = " 【判定: 見送り】"
-            
+
+    # オッズ表示用の文字列作成
+    if odds_info and odds_info.get("o1") is not None:
+        o1_str = f"{odds_info['o1']:.1f}倍"
+        o20_str = f"{odds_info['o20']:.1f}倍" if odds_info.get("o20") is not None else "-"
+        o30_str = f"{odds_info['o30']:.1f}倍" if odds_info.get("o30") is not None else "-"
+        odds_display = f"1番人気: {o1_str} / 20番人気: {o20_str} / 30番人気: {o30_str}"
+    else:
+        odds_display = "データ未取得"
+
     if "ダート" in raw_text:
         surface = "ダート"
     elif "芝" in raw_text:
@@ -832,7 +843,8 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     phase6_lines = [
         "#### ■ PHASE 6：最終ランキングと買い目\n",
-        f"#### 1. レース情報\n[{race_name} / {track}{race_no}R / {distance}m]{star_display}\n",
+        f"#### 1. レース情報\n[{race_name} / {track}{race_no}R / {distance}m]{star_display}",
+        f"* **取得3連複オッズ**: {odds_display}\n",
         f"**【レース判定結果】：{race_pattern}** （{pattern_desc}）",
         f"  * 単勝1〜3番人気の複勝(3着以内)入着シミュレーション:",
         f"  * 0頭入る確率: **{prob_top3_0:.1f}%**",
