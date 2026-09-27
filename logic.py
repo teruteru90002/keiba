@@ -10,6 +10,9 @@ from datetime import datetime
 from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright
 
+# Streamlit Cloud環境などでPlaywrightを動かすためのブラウザインストール処理
+os.system("playwright install chromium")
+
 # ==============================================================================
 # 設定ファイル (config_data.json) の読み込み
 # ==============================================================================
