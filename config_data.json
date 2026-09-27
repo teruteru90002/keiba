@@ -5,11 +5,11 @@
     "阪神": {"Odds_W": 0.70, "Ability_W": 0.30},
     "中山": {"Odds_W": 0.60, "Ability_W": 0.40},
     "中京": {"Odds_W": 0.60, "Ability_W": 0.40},
-    "新潟": {"Odds_W": 0.60, "Ability_W": 0.40},
-    "福島": {"Odds_W": 0.55, "Ability_W": 0.45},
-    "小倉": {"Odds_W": 0.55, "Ability_W": 0.45},
-    "函館": {"Odds_W": 0.55, "Ability_W": 0.45},
-    "札幌": {"Odds_W": 0.55, "Ability_W": 0.45}
+    "新潟": {"Odds_W": 0.50, "Ability_W": 0.50},
+    "福島": {"Odds_W": 0.50, "Ability_W": 0.50},
+    "小倉": {"Odds_W": 0.60, "Ability_W": 0.40},
+    "函館": {"Odds_W": 0.70, "Ability_W": 0.30},
+    "札幌": {"Odds_W": 0.70, "Ability_W": 0.30}
   },
   "JOCKEY_RANKS": {
     "SS": ["C.ルメール", "川田将雅", "J.モレイラ"],
