@@ -10,6 +10,7 @@ import numpy as np
 from datetime import datetime
 from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright
+import streamlit as st  # ← 画面表示用にStreamlitをインポート
 
 # Streamlit Cloud環境などでPlaywrightを動かすためのブラウザインストール処理
 os.system("playwright install chromium")
@@ -208,7 +209,7 @@ def estimate_position_type_final_corner(past_runs):
         return "追"
 
 # ==============================================================================
-# 3連複オッズ★判定＆オッズ取得ロジック（check_odds.py 移植強化版）
+# 3連複オッズ★判定＆オッズ取得ロジック（画面表示デバッグログ版）
 # ==============================================================================
 PLACE_CODE_MAP = {
     "01": "札幌", "02": "函館", "03": "福島", "04": "新潟", "05": "東京",
@@ -216,9 +217,11 @@ PLACE_CODE_MAP = {
 }
 
 async def get_race_list(page, date_str):
+    st.text(f"[DEBUG] get_race_list開始: 日付={date_str}")
     races = []
     url_db = f"https://db.netkeiba.com/race/list/{date_str}/"
     try:
+        st.text(f"[DEBUG] DBアクセスURL: {url_db}")
         await page.goto(url_db, wait_until="domcontentloaded", timeout=15000)
         content = await page.content()
         soup = BeautifulSoup(content, "html.parser")
@@ -232,12 +235,14 @@ async def get_race_list(page, date_str):
                     race_no = int(race_id[10:12])
                     if 1 <= race_no <= 12:
                         races.append({"race_id": race_id, "場所": PLACE_CODE_MAP[p_code], "R": race_no})
+        st.text(f"[DEBUG] DBページから取得したレース数: {len(races)}")
     except Exception as e:
-        print(f"[WARN] DB取得エラー: {e}", file=sys.stderr)
+        st.text(f"[WARN] DB取得エラー: {e}")
 
     if not races:
         url_race = f"https://race.netkeiba.com/top/race_list.html?kaisai_date={date_str}"
         try:
+            st.text(f"[DEBUG] 当日アクセスURL: {url_race}")
             await page.goto(url_race, wait_until="domcontentloaded", timeout=15000)
             await page.wait_for_selector("a[href*='race_id=']", timeout=5000)
             content = await page.content()
@@ -252,21 +257,27 @@ async def get_race_list(page, date_str):
                         race_no = int(race_id[10:12])
                         if 1 <= race_no <= 12:
                             races.append({"race_id": race_id, "場所": PLACE_CODE_MAP[p_code], "R": race_no})
+            st.text(f"[DEBUG] 当日ページから取得したレース数: {len(races)}")
         except Exception as e:
-            print(f"[WARN] 当日ページ取得エラー: {e}", file=sys.stderr)
+            st.text(f"[WARN] 当日ページ取得エラー: {e}")
 
     unique_races = {}
     for r in races:
         key = f"{r['場所']}_{r['R']}"
         if key not in unique_races:
             unique_races[key] = r
+            
+    st.text(f"[DEBUG] get_race_list完了: 重複排除後のレース数={len(unique_races)}")
     return sorted(list(unique_races.values()), key=lambda x: (x["場所"], x["R"]))
 
 async def fetch_race_odds(place_name, race_no, date_str=None):
     if not date_str:
         date_str = datetime.now().strftime("%Y%m%d")
+        
+    st.text(f"[DEBUG] fetch_race_odds開始: 場所={place_name}, レース={race_no}, 日付={date_str}")
 
     async with async_playwright() as p:
+        st.text(f"[DEBUG] Playwrightブラウザ起動中...")
         browser = await p.chromium.launch(
             headless=True,
             args=["--no-sandbox", "--disable-setuid-sandbox"]
@@ -276,19 +287,21 @@ async def fetch_race_odds(place_name, race_no, date_str=None):
         )
         page = await context.new_page()
 
-        # 1. race_idの取得 (check_odds.py由来の2段階フォールバック)
         races = await get_race_list(page, date_str)
+        
         target_race_id = None
         for r in races:
             if r["場所"] == place_name and r["R"] == int(race_no):
                 target_race_id = r["race_id"]
                 break
                 
+        st.text(f"[DEBUG] ターゲットレースID: {target_race_id}")
+                
         if not target_race_id:
+            st.text(f"[DEBUG] レースIDが特定できませんでした（{place_name} {race_no}R が一覧に見つからない）")
             await browser.close()
             return "", None
 
-        # 2. 3連複オッズの取得ループ (check_odds.py由来の再試行・待機ロジック)
         odds_list = []
         urls = [
             f"https://race.netkeiba.com/odds/index.html?type=b7&race_id={target_race_id}&housiki=c99",
@@ -301,27 +314,38 @@ async def fetch_race_odds(place_name, race_no, date_str=None):
                 break
             for retry in range(2):
                 try:
+                    st.text(f"[DEBUG] オッズURLアクセス: {url} (retry: {retry})")
                     await page.goto(url, wait_until="domcontentloaded", timeout=10000)
                     await asyncio.sleep(1.2)
-                    soup = BeautifulSoup(await page.content(), "html.parser")
+                    
+                    html_content = await page.content()
+                    st.text(f"[DEBUG] HTML取得成功 (文字数: {len(html_content)})")
+                    
+                    soup = BeautifulSoup(html_content, "html.parser")
                     elements = soup.select("span[id^='odds-'], td.Odds_Value, td[class*='Odds'] span, td.Odds")
+                    st.text(f"[DEBUG] 取得できたオッズ要素数(DOM): {len(elements)}")
+                    
                     for el in elements:
                         try:
                             val = float(el.get_text(strip=True))
                             if val > 0: odds_list.append(val)
                         except ValueError: 
                             continue
+                            
+                    st.text(f"[DEBUG] 現在の取得オッズ数(変換成功数): {len(odds_list)}")
                     if len(odds_list) >= 50: 
                         break
-                except Exception:
+                except Exception as e:
+                    st.text(f"[DEBUG] URLアクセスエラー: {e}")
                     await asyncio.sleep(1.0)
 
         await browser.close()
 
-        # 重複削除＆昇順ソート
         odds = sorted(list(set(odds_list))) if odds_list else []
+        st.text(f"[DEBUG] 最終的に取得したユニークなオッズ数: {len(odds)}")
         
         if len(odds) < 30:
+            st.text("[DEBUG] オッズデータが30件未満のため、取得失敗と判定")
             return "", None
 
         o1 = odds[0]
@@ -329,8 +353,8 @@ async def fetch_race_odds(place_name, race_no, date_str=None):
         o30 = odds[29] if len(odds) >= 30 else None
 
         odds_info = {"o1": o1, "o20": o20, "o30": o30}
+        st.text(f"[DEBUG] オッズ判定情報: o1={o1}, o20={o20}, o30={o30}")
 
-        # 3. 条件判定 (check_odds.py互換)
         cond1 = (o1 is not None) and (5.0 <= o1 <= 15.0)
         cond2 = (o20 is not None) and (50.0 <= o20 <= 80.0)
         cond3 = (o30 is not None) and (70.0 <= o30 <= 140.0)
@@ -342,7 +366,8 @@ async def fetch_race_odds(place_name, race_no, date_str=None):
 def get_star_mark(place_name, race_no, date_str=None):
     try:
         return asyncio.run(fetch_race_odds(place_name, race_no, date_str))
-    except Exception:
+    except Exception as e:
+        st.text(f"[ERROR] get_star_mark内部例外: {e}")
         return "", None
 
 # ==============================================================================
@@ -370,6 +395,8 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     race_date_raw = race_info.get("date", "")
     date_str = re.sub(r'\D', '', str(race_date_raw)) if race_date_raw else None
 
+    # デバッグ追加：取得の呼び出し前
+    st.text(f"[DEBUG] run_pipeline -> get_star_mark呼び出し: 競馬場={track}, レース={race_no}, 日付={date_str}")
     star_mark, odds_info = get_star_mark(track, race_no, date_str)
     
     if star_mark == "★":
@@ -377,7 +404,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     else:
         star_display = " 【判定: 見送り】"
 
-    # オッズ表示用の文字列作成
     if odds_info and odds_info.get("o1") is not None:
         o1_str = f"{odds_info['o1']:.1f}倍"
         o20_str = f"{odds_info['o20']:.1f}倍" if odds_info.get("o20") is not None else "-"
