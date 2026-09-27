@@ -322,7 +322,11 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     date_str = re.sub(r'\D', '', str(race_date_raw)) if race_date_raw else None
 
     star_mark = get_star_mark(track, race_no, date_str)
-    star_display = f" 【判定: {star_mark}】" if star_mark else ""
+    # ★判定結果に応じた条件分岐文の変更
+    if star_mark == "★":
+        star_display = " 【判定: 購入】"
+    else:
+        star_display = " 【判定: 見送り】"
             
     if "ダート" in raw_text:
         surface = "ダート"
