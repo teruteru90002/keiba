@@ -3,9 +3,12 @@ import re
 import os
 import unicodedata
 import itertools
+import asyncio
 import pandas as pd
 import numpy as np
 from datetime import datetime
+from bs4 import BeautifulSoup
+from playwright.async_api import async_playwright
 
 # ==============================================================================
 # 設定ファイル (config_data.json) の読み込み
@@ -200,6 +203,99 @@ def estimate_position_type_final_corner(past_runs):
     else:
         return "追"
 
+# ==============================================================================
+# 3連複オッズ★判定ロジック
+# ==============================================================================
+PLACE_CODE_MAP = {
+    "01": "札幌", "02": "函館", "03": "福島", "04": "新潟", "05": "東京",
+    "06": "中山", "07": "中京", "08": "京都", "09": "阪神", "10": "小倉"
+}
+
+async def fetch_race_odds(place_name, race_no, date_str=None):
+    if not date_str:
+        date_str = datetime.now().strftime("%Y%m%d")
+
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        context = await browser.new_context(
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        )
+        page = await context.new_page()
+
+        url_db = f"https://db.netkeiba.com/race/list/{date_str}/"
+        target_race_id = None
+        
+        try:
+            await page.goto(url_db, wait_until="domcontentloaded", timeout=15000)
+            soup = BeautifulSoup(await page.content(), "html.parser")
+            for a in soup.find_all("a", href=re.compile(r"/race/\d{12}/")):
+                match = re.search(r"/race/(\d{12})/", a.get("href", ""))
+                if match:
+                    r_id = match.group(1)
+                    p_code = r_id[4:6]
+                    r_num = int(r_id[10:12])
+                    if PLACE_CODE_MAP.get(p_code) == place_name and r_num == int(race_no):
+                        target_race_id = r_id
+                        break
+        except Exception:
+            pass
+
+        if not target_race_id:
+            await browser.close()
+            return ""
+
+        odds_list = []
+        urls = [
+            f"https://race.netkeiba.com/odds/index.html?type=b7&race_id={target_race_id}&housiki=c99",
+            f"https://race.netkeiba.com/odds/index.html?type=b7&race_id={target_race_id}",
+            f"https://db.netkeiba.com/race/odds/index.html?type=b7&race_id={target_race_id}"
+        ]
+
+        for url in urls:
+            if len(odds_list) >= 50:
+                break
+            try:
+                await page.goto(url, wait_until="domcontentloaded", timeout=10000)
+                await asyncio.sleep(1.0)
+                soup = BeautifulSoup(await page.content(), "html.parser")
+                elements = soup.select("span[id^='odds-'], td.Odds_Value, td[class*='Odds'] span, td.Odds")
+                for el in elements:
+                    try:
+                        val = float(el.get_text(strip=True))
+                        if val > 0:
+                            odds_list.append(val)
+                    except ValueError:
+                        continue
+            except Exception:
+                continue
+
+        await browser.close()
+
+        odds = sorted(list(set(odds_list))) if odds_list else []
+        if len(odds) < 30:
+            return ""
+
+        o1 = odds[0]
+        o20 = odds[19] if len(odds) >= 20 else None
+        o30 = odds[29] if len(odds) >= 30 else None
+
+        cond1 = (o1 is not None) and (5.0 <= o1 <= 15.0)
+        cond2 = (o20 is not None) and (50.0 <= o20 <= 80.0)
+        cond3 = (o30 is not None) and (70.0 <= o30 <= 140.0)
+
+        if cond1 and cond2 and cond3:
+            return "★"
+        return ""
+
+def get_star_mark(place_name, race_no, date_str=None):
+    try:
+        return asyncio.run(fetch_race_odds(place_name, race_no, date_str))
+    except Exception:
+        return ""
+
+# ==============================================================================
+# メインパイプライン
+# ==============================================================================
 def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=False, trend="フラット"):
     if good_horses is None:
         good_horses = []
@@ -213,6 +309,17 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         if t in raw_text:
             track = t
             break
+
+    race_no = race_info.get("race_no") or race_info.get("R")
+    if not race_no:
+        match_r = re.search(r'(\d{1,2})\s*R', raw_text, re.IGNORECASE)
+        race_no = int(match_r.group(1)) if match_r else 11
+
+    race_date_raw = race_info.get("date", "")
+    date_str = re.sub(r'\D', '', str(race_date_raw)) if race_date_raw else None
+
+    star_mark = get_star_mark(track, race_no, date_str)
+    star_display = f" 【判定: {star_mark}】" if star_mark else ""
             
     if "ダート" in raw_text:
         surface = "ダート"
@@ -718,7 +825,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     phase6_lines = [
         "#### ■ PHASE 6：最終ランキングと買い目\n",
-        f"#### 1. レース情報\n[{race_name} / {track} / {distance}m]\n",
+        f"#### 1. レース情報\n[{race_name} / {track}{race_no}R / {distance}m]{star_display}\n",
         f"**【レース判定結果】：{race_pattern}** （{pattern_desc}）",
         f"  * 単勝1〜3番人気の複勝(3着以内)入着シミュレーション:",
         f"  * 0頭入る確率: **{prob_top3_0:.1f}%**",
