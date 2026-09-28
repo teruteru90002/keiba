@@ -790,7 +790,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     df_sorted["期待値"] = (df_sorted["単勝オッズ"] * (df_sorted["勝率(MC)"] / 100.0)).round(2)
 
     # ==========================================================================
-    # 3連複荒れ度判定ロジック（30～80倍基準の明確な3分割改修）
+    # 3連複荒れ度判定ロジック（「堅い」判定を厳格化・狭めた設定）
     # ==========================================================================
     df_by_odds = df_sorted.sort_values(by="単勝オッズ").reset_index(drop=True)
     top_odds_list = df_by_odds["単勝オッズ"].tolist()
@@ -810,13 +810,13 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     P = df_by_odds.head(3)["複勝率(MC)"].sum()
 
     # --------------------------------------------------------------------------
-    # 判定基準の定義
+    # 判定基準の定義（「堅い」条件を絞り込み・厳格化）
     # --------------------------------------------------------------------------
-    # 【堅い】：上位3頭で決まると30倍未満に収まる可能性が高い
+    # 【堅い】：真にガチガチで30倍未満が濃厚なレースのみを厳密に抽出
     is_katai = (
-        (est_top3_3renpuku < 15.0) or
-        (o1 <= 2.6 and o2 <= 4.8 and P >= 150.0) or
-        (est_top3_3renpuku < 25.0 and P >= 160.0)
+        (est_top3_3renpuku < 12.0) or
+        (o1 <= 2.3 and o2 <= 4.0 and P >= 165.0) or
+        (est_top3_3renpuku < 18.0 and P >= 170.0)
     )
 
     # 【混戦】：上位3頭が崩れるか、30〜80倍を超えて大荒れ（80倍以上）になりやすい
@@ -829,7 +829,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     # 【判定の確定】
     if is_katai:
         race_pattern = "堅い"
-        pattern_desc = "3連複30倍未満（低配当）を中心に想定。上位人気中心のレースです。"
+        pattern_desc = "3連複30倍未満（極めて低い配当）を中心に想定。圧倒的人気馬中心のレースです。"
     elif is_konsen:
         race_pattern = "混戦"
         pattern_desc = "3連複80倍以上（高配当・大荒れ）を中心に想定。穴馬の台頭に警戒が必要なレースです。"
