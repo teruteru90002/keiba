@@ -53,6 +53,11 @@ def normalize_text(text):
     text = unicodedata.normalize("NFKC", text)
     return text.upper().strip()
 
+def log_debug(msg, is_simple=False):
+    """簡易表示(is_simple=True)のときはデバッグログを出力しない"""
+    if not is_simple:
+        st.text(msg)
+
 def detect_grade(run, default="1勝C"):
     explicit_grade = run.get("grade")
     if explicit_grade:
@@ -200,19 +205,19 @@ def estimate_position_type_final_corner(past_runs):
         return "追"
 
 # ==============================================================================
-# 3連複オッズ★判定＆オッズ取得ロジック（画面表示デバッグログ版）
+# 3連複オッズ★判定＆オッズ取得ロジック
 # ==============================================================================
 PLACE_CODE_MAP = {
     "01": "札幌", "02": "函館", "03": "福島", "04": "新潟", "05": "東京",
     "06": "中山", "07": "中京", "08": "京都", "09": "阪神", "10": "小倉"
 }
 
-async def get_race_list(page, date_str):
-    st.text(f"[DEBUG] get_race_list開始: 日付={date_str}")
+async def get_race_list(page, date_str, is_simple=False):
+    log_debug(f"[DEBUG] get_race_list開始: 日付={date_str}", is_simple)
     races = []
     url_db = f"https://db.netkeiba.com/race/list/{date_str}/"
     try:
-        st.text(f"[DEBUG] DBアクセスURL: {url_db}")
+        log_debug(f"[DEBUG] DBアクセスURL: {url_db}", is_simple)
         await page.goto(url_db, wait_until="domcontentloaded", timeout=15000)
         content = await page.content()
         soup = BeautifulSoup(content, "html.parser")
@@ -226,14 +231,14 @@ async def get_race_list(page, date_str):
                     race_no = int(race_id[10:12])
                     if 1 <= race_no <= 12:
                         races.append({"race_id": race_id, "場所": PLACE_CODE_MAP[p_code], "R": race_no})
-        st.text(f"[DEBUG] DBページから取得したレース数: {len(races)}")
+        log_debug(f"[DEBUG] DBページから取得したレース数: {len(races)}", is_simple)
     except Exception as e:
-        st.text(f"[WARN] DB取得エラー: {e}")
+        log_debug(f"[WARN] DB取得エラー: {e}", is_simple)
 
     if not races:
         url_race = f"https://race.netkeiba.com/top/race_list.html?kaisai_date={date_str}"
         try:
-            st.text(f"[DEBUG] 当日アクセスURL: {url_race}")
+            log_debug(f"[DEBUG] 当日アクセスURL: {url_race}", is_simple)
             await page.goto(url_race, wait_until="domcontentloaded", timeout=15000)
             await page.wait_for_selector("a[href*='race_id=']", timeout=5000)
             content = await page.content()
@@ -248,9 +253,9 @@ async def get_race_list(page, date_str):
                         race_no = int(race_id[10:12])
                         if 1 <= race_no <= 12:
                             races.append({"race_id": race_id, "場所": PLACE_CODE_MAP[p_code], "R": race_no})
-            st.text(f"[DEBUG] 当日ページから取得したレース数: {len(races)}")
+            log_debug(f"[DEBUG] 当日ページから取得したレース数: {len(races)}", is_simple)
         except Exception as e:
-            st.text(f"[WARN] 当日ページ取得エラー: {e}")
+            log_debug(f"[WARN] 当日ページ取得エラー: {e}", is_simple)
 
     unique_races = {}
     for r in races:
@@ -258,17 +263,17 @@ async def get_race_list(page, date_str):
         if key not in unique_races:
             unique_races[key] = r
             
-    st.text(f"[DEBUG] get_race_list完了: 重複排除後のレース数={len(unique_races)}")
+    log_debug(f"[DEBUG] get_race_list完了: 重複排除後のレース数={len(unique_races)}", is_simple)
     return sorted(list(unique_races.values()), key=lambda x: (x["場所"], x["R"]))
 
-async def fetch_race_odds(place_name, race_no, date_str=None):
+async def fetch_race_odds(place_name, race_no, date_str=None, is_simple=False):
     if not date_str:
         date_str = datetime.now().strftime("%Y%m%d")
         
-    st.text(f"[DEBUG] fetch_race_odds開始: 場所={place_name}, レース={race_no}, 日付={date_str}")
+    log_debug(f"[DEBUG] fetch_race_odds開始: 場所={place_name}, レース={race_no}, 日付={date_str}", is_simple)
 
     async with async_playwright() as p:
-        st.text(f"[DEBUG] Playwrightブラウザ起動中...")
+        log_debug(f"[DEBUG] Playwrightブラウザ起動中...", is_simple)
         browser = await p.chromium.launch(
             headless=True,
             args=["--no-sandbox", "--disable-setuid-sandbox"]
@@ -278,7 +283,7 @@ async def fetch_race_odds(place_name, race_no, date_str=None):
         )
         page = await context.new_page()
 
-        races = await get_race_list(page, date_str)
+        races = await get_race_list(page, date_str, is_simple=is_simple)
         
         target_race_id = None
         for r in races:
@@ -286,10 +291,10 @@ async def fetch_race_odds(place_name, race_no, date_str=None):
                 target_race_id = r["race_id"]
                 break
                 
-        st.text(f"[DEBUG] ターゲットレースID: {target_race_id}")
+        log_debug(f"[DEBUG] ターゲットレースID: {target_race_id}", is_simple)
                 
         if not target_race_id:
-            st.text(f"[DEBUG] レースIDが特定できませんでした（{place_name} {race_no}R が一覧に見つからない）")
+            log_debug(f"[DEBUG] レースIDが特定できませんでした（{place_name} {race_no}R が一覧に見つからない）", is_simple)
             await browser.close()
             return "", None
 
@@ -305,16 +310,16 @@ async def fetch_race_odds(place_name, race_no, date_str=None):
                 break
             for retry in range(2):
                 try:
-                    st.text(f"[DEBUG] オッズURLアクセス: {url} (retry: {retry})")
+                    log_debug(f"[DEBUG] オッズURLアクセス: {url} (retry: {retry})", is_simple)
                     await page.goto(url, wait_until="domcontentloaded", timeout=10000)
                     await asyncio.sleep(1.2)
                     
                     html_content = await page.content()
-                    st.text(f"[DEBUG] HTML取得成功 (文字数: {len(html_content)})")
+                    log_debug(f"[DEBUG] HTML取得成功 (文字数: {len(html_content)})", is_simple)
                     
                     soup = BeautifulSoup(html_content, "html.parser")
                     elements = soup.select("span[id^='odds-'], td.Odds_Value, td[class*='Odds'] span, td.Odds")
-                    st.text(f"[DEBUG] 取得できたオッズ要素数(DOM): {len(elements)}")
+                    log_debug(f"[DEBUG] 取得できたオッズ要素数(DOM): {len(elements)}", is_simple)
                     
                     for el in elements:
                         try:
@@ -323,20 +328,20 @@ async def fetch_race_odds(place_name, race_no, date_str=None):
                         except ValueError: 
                             continue
                             
-                    st.text(f"[DEBUG] 現在の取得オッズ数(変換成功数): {len(odds_list)}")
+                    log_debug(f"[DEBUG] 現在の取得オッズ数(変換成功数): {len(odds_list)}", is_simple)
                     if len(odds_list) >= 50: 
                         break
                 except Exception as e:
-                    st.text(f"[DEBUG] URLアクセスエラー: {e}")
+                    log_debug(f"[DEBUG] URLアクセスエラー: {e}", is_simple)
                     await asyncio.sleep(1.0)
 
         await browser.close()
 
         odds = sorted(list(set(odds_list))) if odds_list else []
-        st.text(f"[DEBUG] 最終的に取得したユニークなオッズ数: {len(odds)}")
+        log_debug(f"[DEBUG] 最終的に取得したユニークなオッズ数: {len(odds)}", is_simple)
         
         if len(odds) < 30:
-            st.text("[DEBUG] オッズデータが30件未満のため、取得失敗と判定")
+            log_debug("[DEBUG] オッズデータが30件未満のため、取得失敗と判定", is_simple)
             return "", None
 
         o1 = odds[0]
@@ -344,7 +349,7 @@ async def fetch_race_odds(place_name, race_no, date_str=None):
         o30 = odds[29] if len(odds) >= 30 else None
 
         odds_info = {"o1": o1, "o20": o20, "o30": o30}
-        st.text(f"[DEBUG] オッズ判定情報: o1={o1}, o20={o20}, o30={o30}")
+        log_debug(f"[DEBUG] オッズ判定情報: o1={o1}, o20={o20}, o30={o30}", is_simple)
 
         cond1 = (o1 is not None) and (5.0 <= o1 <= 15.0)
         cond2 = (o20 is not None) and (50.0 <= o20 <= 80.0)
@@ -354,11 +359,11 @@ async def fetch_race_odds(place_name, race_no, date_str=None):
             return "★", odds_info
         return "", odds_info
 
-def get_star_mark(place_name, race_no, date_str=None):
+def get_star_mark(place_name, race_no, date_str=None, is_simple=False):
     try:
-        return asyncio.run(fetch_race_odds(place_name, race_no, date_str))
+        return asyncio.run(fetch_race_odds(place_name, race_no, date_str, is_simple=is_simple))
     except Exception as e:
-        st.text(f"[ERROR] get_star_mark内部例外: {e}")
+        log_debug(f"[ERROR] get_star_mark内部例外: {e}", is_simple)
         return "", None
 
 # ==============================================================================
@@ -386,9 +391,8 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     race_date_raw = race_info.get("date", "")
     date_str = re.sub(r'\D', '', str(race_date_raw)) if race_date_raw else None
 
-    # デバッグ追加：取得の呼び出し前
-    st.text(f"[DEBUG] run_pipeline -> get_star_mark呼び出し: 競馬場={track}, レース={race_no}, 日付={date_str}")
-    star_mark, odds_info = get_star_mark(track, race_no, date_str)
+    log_debug(f"[DEBUG] run_pipeline -> get_star_mark呼び出し: 競馬場={track}, レース={race_no}, 日付={date_str}", is_simple)
+    star_mark, odds_info = get_star_mark(track, race_no, date_str, is_simple=is_simple)
     
     if star_mark == "★":
         star_display = " 【判定: 購入】"
@@ -837,7 +841,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         (df_sorted["単勝オッズ"] < 30.0)
     ].copy()
 
-    # 対象馬が不十分な場合のフォールバック処理
     if len(df_valid) < 5:
         df_valid = df_sorted.head(10).copy()
 
