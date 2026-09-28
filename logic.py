@@ -399,23 +399,48 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     if star_mark == "★":
         star_display = " 【判定: 購入】"
     else:
-        star_display = " 【判定: 見送り】"
+        star_display = " 【判定: 注意】"
 
     # 出馬表からの単勝1番人気オッズを取得
     min_tansho = df["単勝オッズ"].min() if not df.empty and "単勝オッズ" in df.columns else None
     tansho_1pop_str = f"{min_tansho:.1f}倍" if min_tansho is not None else "-"
 
     if odds_info and odds_info.get("o1") is not None:
-        o1_str = f"{odds_info['o1']:.1f}倍"
-        o10_str = f"{odds_info['o10']:.1f}倍" if odds_info.get("o10") is not None else "-"
-        o20_str = f"{odds_info['o20']:.1f}倍" if odds_info.get("o20") is not None else "-"
-        o30_str = f"{odds_info['o30']:.1f}倍" if odds_info.get("o30") is not None else "-"
-        o50_str = f"{odds_info['o50']:.1f}倍" if odds_info.get("o50") is not None else "-"
+        o1 = odds_info.get("o1")
+        o10 = odds_info.get("o10")
+        o20 = odds_info.get("o20")
+        o30 = odds_info.get("o30")
+        o50 = odds_info.get("o50")
+
+        # cond1: 5.0 <= o1 <= 15.0 を満たさない場合は太字
+        c1_ok = (o1 is not None) and (5.0 <= o1 <= 15.0)
+        o1_val_str = f"{o1:.1f}倍"
+        o1_str = o1_val_str if c1_ok else f"**{o1_val_str}**"
+
+        # o10 は判定対象外のため通常表記
+        o10_str = f"{o10:.1f}倍" if o10 is not None else "-"
+
+        # cond2: 50.0 <= o20 <= 80.0 を満たさない場合は太字
+        c2_ok = (o20 is not None) and (50.0 <= o20 <= 80.0)
+        o20_val_str = f"{o20:.1f}倍" if o20 is not None else "-"
+        o20_str = o20_val_str if c2_ok else f"**{o20_val_str}**"
+
+        # cond3: 70.0 <= o30 <= 140.0 を満たさない場合は太字
+        c3_ok = (o30 is not None) and (70.0 <= o30 <= 140.0)
+        o30_val_str = f"{o30:.1f}倍" if o30 is not None else "-"
+        o30_str = o30_val_str if c3_ok else f"**{o30_val_str}**"
+
+        # o50 は判定対象外のため通常表記
+        o50_str = f"{o50:.1f}倍" if o50 is not None else "-"
     else:
-        o1_str = o10_str = o20_str = o30_str = o50_str = "未取得"
+        o1_str = "**未取得**"
+        o10_str = "未取得"
+        o20_str = "**未取得**"
+        o30_str = "**未取得**"
+        o50_str = "未取得"
 
     odds_table_md = (
-        "\n| 単勝1番人気 | 3連複1番人気 | 3連複10番人気 | 3連複20番人気 | 3連複30番人気 | 3連複50番人気 |\n"
+        "\n| 単勝1位 | 3連複1位 | 3連複10位 | 3連複20位 | 3連複30位 | 3連複50位 |\n"
         "| --- | --- | --- | --- | --- | --- |\n"
         f"| {tansho_1pop_str} | {o1_str} | {o10_str} | {o20_str} | {o30_str} | {o50_str} |"
     )
