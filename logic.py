@@ -814,7 +814,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     # --------------------------------------------------------------------------
     # 【堅い】：超本命・銀行レース級（極めて低い配当が確実）のみを判定
     is_katai = (
-        (est_top3_3renpuku < 8.0) or
+        (est_top3_3renpuku < 10.0) or
         (o1 <= 1.9 and o2 <= 3.5 and P >= 175.0) or
         (est_top3_3renpuku < 10.0 and P >= 180.0)
     )
