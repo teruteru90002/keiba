@@ -3,6 +3,7 @@ import pandas as pd
 import re
 import unicodedata
 import time
+from datetime import datetime
 from logic import run_pipeline, RACE_GRADE_DICT, detect_grade
 
 # 画面上のヘッダーや右上のメニューを非表示にする設定
@@ -144,6 +145,13 @@ def preprocess_raw_text(text):
 def parse_race_info(text):
     first_few_lines = "\n".join([line.strip() for line in text.split("\n")[:10] if line.strip()])
     
+    # 日付の抽出 (例: 2026年9月28日, 2026/09/28, 2026.09.28)
+    date_match = re.search(r'(\d{4})[年\.\/](\d{1,2})[月\.\/](\d{1,2})日?', first_few_lines)
+    if date_match:
+        race_date = f"{date_match.group(1)}{int(date_match.group(2)):02d}{int(date_match.group(3)):02d}"
+    else:
+        race_date = datetime.now().strftime("%Y%m%d")
+
     # 競馬場名の取得
     track_match = re.search(r'(東京|中山|阪神|京都|中京|小倉|新潟|福島|札幌|函館)', first_few_lines)
     track_name = track_match.group(1) if track_match else "不明"
@@ -174,6 +182,7 @@ def parse_race_info(text):
     cleaned_name = re.sub(r'\s+', ' ', cleaned_name).strip()
 
     return {
+        "date": race_date,
         "track": track,
         "distance": distance,
         "grade": grade,
