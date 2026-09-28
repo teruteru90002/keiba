@@ -53,7 +53,7 @@ def normalize_text(text):
     text = unicodedata.normalize("NFKC", text)
     return text.upper().strip()
 
-def detect_grade(run):
+def detect_grade(run, default="1勝C"):
     explicit_grade = run.get("grade")
     if explicit_grade:
         norm_grade = normalize_text(explicit_grade)
@@ -92,7 +92,7 @@ def detect_grade(run):
     elif ("未勝利" in r_name) or ("未勝" in r_name):
         return "未勝利"
 
-    raise ValueError(f"【エラー】レース格付を特定できませんでした。対象レース情報: '{r_name_raw}' (run: {run})")
+    return default
 
 def get_jockey_score_and_rank(jockey_name):
     j_str = str(jockey_name).strip()
@@ -119,11 +119,7 @@ def calc_raw_r_score(run):
     run_track = normalize_text(run.get("track", ""))
     race_title = normalize_text(run.get('race_name', '') or run.get('race_title', ''))
 
-    try:
-        grade = detect_grade(run)
-    except ValueError:
-        grade = None
-
+    grade = detect_grade(run, default="1勝C")
     is_jpn_race = (grade == "JPN")
 
     if run.get("is_foreign_or_local", False) and not is_jpn_race:
@@ -136,12 +132,7 @@ def calc_raw_r_score(run):
     if not is_valid_track and not is_jpn_race:
         return 0.0, f"対象外の競馬場（{race_title}）のため計算対象外", False
 
-    if grade is None:
-        grade = detect_grade(run)
-        
-    g_score = GRADE_SCORES.get(grade)
-    if g_score is None:
-        raise ValueError(f"【エラー】格付 '{grade}' に対応する GRADE_SCORES の定義が見つかりません。")
+    g_score = GRADE_SCORES.get(grade, 10)
 
     rank = run.get("rank", 99)
     if rank == 1: r_score = 10
@@ -381,13 +372,13 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     raw_text = str(race_info.get("raw_header", "")) + str(race_info.get("race_name", "")) + str(race_info.get("track", ""))
     
-    track = "東京" 
+    track = race_info.get("track_name", "東京")
     for t in JRA_TRACKS:
         if t in raw_text:
             track = t
             break
 
-    race_no = race_info.get("race_no") or race_info.get("R")
+    race_no = race_info.get("race_no")
     if not race_no:
         match_r = re.search(r'(\d{1,2})\s*R', raw_text, re.IGNORECASE)
         race_no = int(match_r.group(1)) if match_r else 11
@@ -427,10 +418,10 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     race_name = race_info.get("race_name", "第XX回 レース")
     
-    default_param = PARAMS.get("東京", {"Odds_W": 0.30, "Ability_W": 0.70, "Max_Odds": 999})
+    default_param = PARAMS.get("東京", {"Odds_W": 0.70, "Ability_W": 0.30})
     param = PARAMS.get(track, default_param)
-    odds_w = param["Odds_W"]
-    ability_w = param["Ability_W"]
+    odds_w = param.get("Odds_W", 0.70)
+    ability_w = param.get("Ability_W", 0.30)
 
     df_target = df.copy().reset_index(drop=True)
     df_target["is_good_condition"] = df_target["馬番"].isin(good_horses)
@@ -552,7 +543,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         phase2_lines.append(f"* 平均斤量＝{avg_weight:.2f}kg | 当該馬斤量＝{row['斤量']}kg | 差＝{w_diff:+.2f}kg → Weight_補正＝{weight_adj:+d}")
 
         j_score, j_rank, j_desc = get_jockey_score_and_rank(row["騎手"])
-        oversea_adj = 2 if len(past_runs) > 0 and past_runs[0].get("is_overseas", False) else 0
+        oversea_adj = 2 if len(past_runs) > 0 and past_runs[0].get("is_foreign_or_local", False) else 0
         
         f3_rank = f3_ranks.get(idx, 99)
         f3_adj = 0
@@ -576,7 +567,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
                 
                 race_date_raw = race_info.get("date")
                 if race_date_raw:
-                    current_date = datetime.strptime(race_date_raw.replace("/", "."), "%Y.%m.%d")
+                    current_date = datetime.strptime(race_date_raw.replace("/", "."), "%Y%m%d")
                 else:
                     current_date = datetime.now()
 
@@ -846,6 +837,10 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         (df_sorted["単勝オッズ"] < 30.0)
     ].copy()
 
+    # 対象馬が不十分な場合のフォールバック処理
+    if len(df_valid) < 5:
+        df_valid = df_sorted.head(10).copy()
+
     df_odds_sorted = df_valid.sort_values(by="オッズ順位")
     
     if not df_odds_sorted.empty:
@@ -885,6 +880,9 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     exclude_horses = set([jiku_horse["馬番"]] + aite1_df["馬番"].tolist())
     df_aite2_pool = df_valid[~df_valid["馬番"].isin(exclude_horses)].copy()
+    if df_aite2_pool.empty:
+        df_aite2_pool = df_sorted[~df_sorted["馬番"].isin(exclude_horses)].copy()
+        
     aite2_df = df_aite2_pool.sort_values(by="合成順位").head(aite2_count)
 
     aite1_horses = aite1_df["馬番"].tolist()

@@ -152,9 +152,13 @@ def parse_race_info(text):
     else:
         race_date = datetime.now().strftime("%Y%m%d")
 
+    # レース番号の取得
+    r_no_match = re.search(r'(\d{1,2})\s*R', first_few_lines, re.IGNORECASE)
+    race_no = int(r_no_match.group(1)) if r_no_match else 11
+
     # 競馬場名の取得
     track_match = re.search(r'(東京|中山|阪神|京都|中京|小倉|新潟|福島|札幌|函館)', first_few_lines)
-    track_name = track_match.group(1) if track_match else "不明"
+    track_name = track_match.group(1) if track_match else "東京"
     
     # コース種別（芝・ダート・障害）の取得
     surface_match = re.search(r'(芝|ダート|ダ|障害)', first_few_lines)
@@ -183,6 +187,8 @@ def parse_race_info(text):
 
     return {
         "date": race_date,
+        "race_no": race_no,
+        "track_name": track_name,
         "track": track,
         "distance": distance,
         "grade": grade,
@@ -228,8 +234,10 @@ def parse_past_runs(block_text):
         if not rank_m:
             rank_m = re.search(r'(\d+)着', run_str)
             rank = int(rank_m.group(1)) if rank_m else 99
+            total_horses = 16
         else:
             rank = int(rank_m.group(1))
+            total_horses = int(rank_m.group(2))
             
         pop_m = re.search(r'(\d+)番人気', run_str)
         pop = int(pop_m.group(1)) if pop_m else 99
@@ -240,10 +248,16 @@ def parse_past_runs(block_text):
         diff_m = re.search(r'[\(（]([\d\.]+)[\)）]', run_str)
         diff = float(diff_m.group(1)) if diff_m else 0.0
         
-        # 通過順の取得
+        # 通過順の取得と最終コーナー順位の算出
         pass_m = re.search(r'(\d{1,2}(?:-\d{1,2})+)', run_str)
         pass_order = pass_m.group(1) if pass_m else ""
-        
+        final_corner_rank = None
+        if pass_order:
+            try:
+                final_corner_rank = int(pass_order.split("-")[-1])
+            except (ValueError, IndexError):
+                final_corner_rank = None
+
         run_lines = [l.strip() for l in run_str.split('\n') if l.strip()]
         race_name = run_lines[1] if len(run_lines) > 1 else "過去走"
         
@@ -253,12 +267,14 @@ def parse_past_runs(block_text):
             "date": run_date,
             "race_name": race_name,
             "rank": rank,
+            "total_horses": total_horses,
             "diff": diff,
             "pop": pop,
             "distance": dist,
             "surface": surface,
             "f3_time": f3,
             "pass_order": pass_order,
+            "final_corner_rank": final_corner_rank,
             "is_foreign_or_local": is_foreign_or_local,
             "track": surface
         })
