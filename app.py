@@ -145,8 +145,8 @@ def preprocess_raw_text(text):
 def parse_race_info(text):
     first_few_lines = "\n".join([line.strip() for line in text.split("\n")[:10] if line.strip()])
     
-    # 日付の抽出 (例: 2026年9月28日, 2026/09/28, 2026.09.28)
-    date_match = re.search(r'(\d{4})[年\.\/](\d{1,2})[月\.\/](\d{1,2})日?', first_few_lines)
+    # 日付の抽出 (空白対応: 例「2026年 4月19日」「2026/04/19」「2026.4.19」)
+    date_match = re.search(r'(\d{4})\s*[年\.\/-]\s*(\d{1,2})\s*[月\.\/-]\s*(\d{1,2})\s*日?', first_few_lines)
     if date_match:
         race_date = f"{date_match.group(1)}{int(date_match.group(2)):02d}{int(date_match.group(3)):02d}"
     else:
