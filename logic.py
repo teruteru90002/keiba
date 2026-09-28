@@ -356,8 +356,9 @@ async def fetch_race_odds(place_name, race_no, date_str=None, is_simple=False):
         cond1 = (o1 is not None) and (5.0 <= o1 <= 15.0)
         cond2 = (o20 is not None) and (50.0 <= o20 <= 80.0)
         cond3 = (o30 is not None) and (70.0 <= o30 <= 140.0)
+        cond4 = (o50 is not None) and (100.0 <= o50 <= 300.0)
 
-        if cond1 and cond2 and cond3:
+        if cond1 and cond2 and cond3 and cond4:
             return "★", odds_info
         return "", odds_info
 
@@ -430,14 +431,16 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         o30_val_str = f"{o30:.1f}倍" if o30 is not None else "-"
         o30_str = o30_val_str if c3_ok else f"**{o30_val_str}**"
 
-        # o50 は判定対象外のため通常表記
-        o50_str = f"{o50:.1f}倍" if o50 is not None else "-"
+        # cond4: 100.0 <= o50 <= 300.0 を満たさない場合は太字
+        c4_ok = (o50 is not None) and (100.0 <= o50 <= 300.0)
+        o50_val_str = f"{o50:.1f}倍" if o50 is not None else "-"
+        o50_str = o50_val_str if c4_ok else f"**{o50_val_str}**"
     else:
         o1_str = "**未取得**"
         o10_str = "未取得"
         o20_str = "**未取得**"
         o30_str = "**未取得**"
-        o50_str = "未取得"
+        o50_str = "**未取得**"
 
     odds_table_md = (
         "\n| 単勝1位 | 3連複1位 | 3連複10位 | 3連複20位 | 3連複30位 | 3連複50位 |\n"
