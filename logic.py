@@ -345,11 +345,13 @@ async def fetch_race_odds(place_name, race_no, date_str=None, is_simple=False):
             return "", None
 
         o1 = odds[0]
+        o10 = odds[9] if len(odds) >= 10 else None
         o20 = odds[19] if len(odds) >= 20 else None
         o30 = odds[29] if len(odds) >= 30 else None
+        o50 = odds[49] if len(odds) >= 50 else None
 
-        odds_info = {"o1": o1, "o20": o20, "o30": o30}
-        log_debug(f"[DEBUG] オッズ判定情報: o1={o1}, o20={o20}, o30={o30}", is_simple)
+        odds_info = {"o1": o1, "o10": o10, "o20": o20, "o30": o30, "o50": o50}
+        log_debug(f"[DEBUG] オッズ判定情報: o1={o1}, o10={o10}, o20={o20}, o30={o30}, o50={o50}", is_simple)
 
         cond1 = (o1 is not None) and (5.0 <= o1 <= 15.0)
         cond2 = (o20 is not None) and (50.0 <= o20 <= 80.0)
@@ -399,13 +401,24 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     else:
         star_display = " 【判定: 見送り】"
 
+    # 出馬表からの単勝1番人気オッズを取得
+    min_tansho = df["単勝オッズ"].min() if not df.empty and "単勝オッズ" in df.columns else None
+    tansho_1pop_str = f"{min_tansho:.1f}倍" if min_tansho is not None else "-"
+
     if odds_info and odds_info.get("o1") is not None:
         o1_str = f"{odds_info['o1']:.1f}倍"
+        o10_str = f"{odds_info['o10']:.1f}倍" if odds_info.get("o10") is not None else "-"
         o20_str = f"{odds_info['o20']:.1f}倍" if odds_info.get("o20") is not None else "-"
         o30_str = f"{odds_info['o30']:.1f}倍" if odds_info.get("o30") is not None else "-"
-        odds_display = f"1番人気: {o1_str} / 20番人気: {o20_str} / 30番人気: {o30_str}"
+        o50_str = f"{odds_info['o50']:.1f}倍" if odds_info.get("o50") is not None else "-"
     else:
-        odds_display = "データ未取得"
+        o1_str = o10_str = o20_str = o30_str = o50_str = "未取得"
+
+    odds_table_md = (
+        "\n| 単勝1番人気 | 3連複1番人気 | 3連複10番人気 | 3連複20番人気 | 3連複30番人気 | 3連複50番人気 |\n"
+        "| --- | --- | --- | --- | --- | --- |\n"
+        f"| {tansho_1pop_str} | {o1_str} | {o10_str} | {o20_str} | {o30_str} | {o50_str} |"
+    )
 
     if "ダート" in raw_text:
         surface = "ダート"
@@ -918,7 +931,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     phase6_lines = [
         "#### ■ PHASE 6：最終ランキングと買い目\n",
         f"#### 1. レース情報\n[{race_name} / {track}{race_no}R / {distance}m]{star_display}",
-        f"* **取得3連複オッズ**: {odds_display}\n",
+        f"* **取得3連複オッズ**:\n{odds_table_md}\n",
         f"**【レース判定結果】：{race_pattern}** （{pattern_desc}）",
         f"  * 単勝1〜3番人気の複勝(3着以内)入着シミュレーション:",
         f"  * 0頭入る確率: **{prob_top3_0:.1f}%**",
