@@ -790,7 +790,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     df_sorted["期待値"] = (df_sorted["単勝オッズ"] * (df_sorted["勝率(MC)"] / 100.0)).round(2)
 
     # ==========================================================================
-    # 3連複荒れ度判定ロジック（3分割：堅い／普通／混戦）
+    # 3連複荒れ度判定ロジック（30～80倍基準の明確な3分割改修）
     # ==========================================================================
     df_by_odds = df_sorted.sort_values(by="単勝オッズ").reset_index(drop=True)
     top_odds_list = df_by_odds["単勝オッズ"].tolist()
@@ -799,70 +799,43 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     o2 = top_odds_list[1] if len(top_odds_list) > 1 else 99.0
     o3 = top_odds_list[2] if len(top_odds_list) > 2 else 99.0
 
-    C = o1 * o2 * o3 * 0.20
-    P = df_by_odds.head(3)["複勝率(MC)"].sum()
+    # 上位3頭による「概算3連複オッズ」の推定値（簡易近似: オッズ積 × 0.22）
+    est_top3_3renpuku = o1 * o2 * o3 * 0.22
+
+    # 4〜10番人気の平均単勝オッズ
     o_4_10 = top_odds_list[3:10]
+    M = sum(o_4_10) / len(o_4_10) if len(o_4_10) > 0 else 99.0
 
-    if len(o_4_10) > 0:
-        M = sum(o_4_10) / len(o_4_10)
-    else:
-        M = 99.0
+    # 上位3頭のシミュレーション複勝率合計
+    P = df_by_odds.head(3)["複勝率(MC)"].sum()
 
-    O10 = (
-        top_odds_list[9]
-        if len(top_odds_list) >= 10
-        else (
-            top_odds_list[-1]
-            if len(top_odds_list) > 0
-            else 99.0
-        )
+    # --------------------------------------------------------------------------
+    # 判定基準の定義
+    # --------------------------------------------------------------------------
+    # 【堅い】：上位3頭で決まると30倍未満に収まる可能性が高い
+    is_katai = (
+        (est_top3_3renpuku < 15.0) or
+        (o1 <= 2.6 and o2 <= 4.8 and P >= 150.0) or
+        (est_top3_3renpuku < 25.0 and P >= 160.0)
     )
 
-    is_katai_a = (
-        (C < 12.0)
-        and (P >= 150.0)
-        and (M >= 15.0)
-        and (O10 >= 20.0)
+    # 【混戦】：上位3頭が崩れるか、30〜80倍を超えて大荒れ（80倍以上）になりやすい
+    is_konsen = (
+        (o1 >= 4.0 and P < 120.0) or
+        (est_top3_3renpuku >= 45.0) or
+        (M < 11.0 and o1 >= 3.2)
     )
 
-    is_katai_b = (
-        (o1 <= 2.2)
-        and (o2 <= 4.5)
-        and (P >= 180.0)
-        and (M >= 15.0)
-        and (O10 >= 20.0)
-    )
-
-    is_konsen_a = (
-        (C >= 35.0)
-        and (
-            (P < 150.0)
-            or (M < 12.0)
-            or (O10 < 25.0)
-        )
-    )
-
-    is_konsen_b = (
-        (o1 >= 4.0)
-        and (P < 125.0)
-    )
-
-    is_konsen_c = (
-        (M < 10.0)
-        and (O10 < 20.0)
-    )
-
-    if is_katai_a or is_katai_b:
+    # 【判定の確定】
+    if is_katai:
         race_pattern = "堅い"
-        pattern_desc = "3連複30倍以下を中心に想定。上位人気を軸にしやすいレースです。"
-
-    elif is_konsen_a or is_konsen_b or is_konsen_c:
+        pattern_desc = "3連複30倍未満（低配当）を中心に想定。上位人気中心のレースです。"
+    elif is_konsen:
         race_pattern = "混戦"
-        pattern_desc = "3連複80倍以上を中心に想定。人気上位だけでは絞りにくいレースです。"
-
+        pattern_desc = "3連複80倍以上（高配当・大荒れ）を中心に想定。穴馬の台頭に警戒が必要なレースです。"
     else:
         race_pattern = "普通"
-        pattern_desc = "3連複30～80倍を中心に想定。堅さと混戦の中間的なレースです。"
+        pattern_desc = "3連複30～80倍（中配当ターゲット）を中心に想定。本命＋中穴の組み合わせが狙い目です。"
 
     top3_odds_indices = df_sorted.sort_values(by="単勝オッズ").index[:3]
     top3_in_place_counts = np.sum(ranks[:, top3_odds_indices] <= 3, axis=1)
