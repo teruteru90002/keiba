@@ -205,6 +205,46 @@ def estimate_position_type_final_corner(past_runs):
         return "追"
 
 # ==============================================================================
+# 配当帯確率計算ロジック
+# ==============================================================================
+def calculate_payout_probabilities(o1, o10, o20, o30, o50):
+    """
+    3連複各順位のオッズ値から、配当帯（30倍以下、30倍〜80倍、80倍以上）の推定確率を算出する
+    """
+    if o1 is None:
+        return None
+
+    # 各オッズの逆数による相対密度の推定
+    if o1 <= 8.0 and (o20 is None or o20 <= 50.0):
+        # 堅いレース展開の傾向
+        p_under_30 = max(10, min(80, int(90 - (o1 * 4) - (o10 * 0.5 if o10 else 10))))
+        p_30_80 = max(10, min(60, int(100 - p_under_30 - (o20 * 0.3 if o20 else 15))))
+        p_over_80 = max(0, 100 - p_under_30 - p_30_80)
+    elif o1 >= 15.0 or (o10 is None or o10 >= 50.0):
+        # 高配当・大荒れレース展開の傾向
+        p_under_30 = max(2, min(15, int(25 - o1)))
+        p_30_80 = max(20, min(50, int(80 - (o10 * 0.5 if o10 else 25))))
+        p_over_80 = max(35, 100 - p_under_30 - p_30_80)
+    else:
+        # 中配当〜標準的なレース展開
+        p_under_30 = max(5, min(60, int(65 - (o1 * 2.5) - (o10 * 0.3 if o10 else 5))))
+        p_30_80 = max(25, min(60, int(100 - p_under_30 - (o30 * 0.15 if o30 else 15))))
+        p_over_80 = max(5, 100 - p_under_30 - p_30_80)
+
+    # 合計100%に正規化
+    total = p_under_30 + p_30_80 + p_over_80
+    if total > 0:
+        p_under_30 = round(p_under_30 / total * 100)
+        p_30_80 = round(p_30_80 / total * 100)
+        p_over_80 = 100 - p_under_30 - p_30_80
+
+    return {
+        "30倍以下": p_under_30,
+        "30倍～80倍": p_30_80,
+        "80倍以上": p_over_80
+    }
+
+# ==============================================================================
 # 3連複オッズ★判定＆オッズ取得ロジック
 # ==============================================================================
 PLACE_CODE_MAP = {
@@ -435,18 +475,33 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         c4_ok = (o50 is not None) and (100.0 <= o50 <= 300.0)
         o50_val_str = f"{o50:.1f}倍" if o50 is not None else "-"
         o50_str = o50_val_str if c4_ok else f"**{o50_val_str}**"
+
+        # 推定確率の計算
+        payout_probs = calculate_payout_probabilities(o1, o10, o20, o30, o50)
     else:
+        o1 = o10 = o20 = o30 = o50 = None
         o1_str = "**未取得**"
         o10_str = "未取得"
         o20_str = "**未取得**"
         o30_str = "**未取得**"
         o50_str = "**未取得**"
+        payout_probs = None
 
     odds_table_md = (
         "\n| 単勝1位 | 3連複1位 | 3連複10位 | 3連複20位 | 3連複30位 | 3連複50位 |\n"
         "| --- | --- | --- | --- | --- | --- |\n"
         f"| {tansho_1pop_str} | {o1_str} | {o10_str} | {o20_str} | {o30_str} | {o50_str} |"
     )
+
+    if payout_probs:
+        prob_table_md = (
+            f"\n* **推定配当確率**: "
+            f"30倍以下: **約{payout_probs['30倍以下']}%** | "
+            f"30倍～80倍: **約{payout_probs['30倍～80倍']}%** | "
+            f"80倍以上: **約{payout_probs['80倍以上']}%**"
+        )
+    else:
+        prob_table_md = "\n* **推定配当確率**: データ不足のため算出不可"
 
     if "ダート" in raw_text:
         surface = "ダート"
@@ -795,12 +850,12 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     df_by_odds = df_sorted.sort_values(by="単勝オッズ").reset_index(drop=True)
     top_odds_list = df_by_odds["単勝オッズ"].tolist()
 
-    o1 = top_odds_list[0] if len(top_odds_list) > 0 else 99.0
-    o2 = top_odds_list[1] if len(top_odds_list) > 1 else 99.0
-    o3 = top_odds_list[2] if len(top_odds_list) > 2 else 99.0
+    o1_ts = top_odds_list[0] if len(top_odds_list) > 0 else 99.0
+    o2_ts = top_odds_list[1] if len(top_odds_list) > 1 else 99.0
+    o3_ts = top_odds_list[2] if len(top_odds_list) > 2 else 99.0
 
     # 上位3頭による「概算3連複オッズ」の推定値（簡易近似: オッズ積 × 0.22）
-    est_top3_3renpuku = o1 * o2 * o3 * 0.22
+    est_top3_3renpuku = o1_ts * o2_ts * o3_ts * 0.22
 
     # 4〜10番人気の平均単勝オッズ
     o_4_10 = top_odds_list[3:10]
@@ -814,16 +869,16 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     # --------------------------------------------------------------------------
     # 【堅い】：超本命・銀行レース級（極めて低い配当が確実）のみを判定
     is_katai = (
-        (est_top3_3renpuku < 10.0) or
-        (o1 <= 1.9 and o2 <= 3.5 and P >= 175.0) or
+        (est_top3_3renpuku < 8.0) or
+        (o1_ts <= 1.9 and o2_ts <= 3.5 and P >= 175.0) or
         (est_top3_3renpuku < 10.0 and P >= 180.0)
     )
 
     # 【混戦】：上位3頭が崩れるか、30〜80倍を超えて大荒れ（80倍以上）になりやすい
     is_konsen = (
-        (o1 >= 4.0 and P < 120.0) or
+        (o1_ts >= 4.0 and P < 120.0) or
         (est_top3_3renpuku >= 45.0) or
-        (M < 11.0 and o1 >= 3.2)
+        (M < 11.0 and o1_ts >= 3.2)
     )
 
     # 【判定の確定】
@@ -932,7 +987,8 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     phase6_lines = [
         "#### ■ PHASE 6：最終ランキングと買い目\n",
         f"#### 1. レース情報\n[{race_name} / {track}{race_no}R / {distance}m]{star_display}",
-        f"* **取得3連複オッズ**:\n{odds_table_md}\n",
+        f"* **取得3連複オッズ**:\n{odds_table_md}",
+        f"{prob_table_md}\n",
         f"**【レース判定結果】：{race_pattern}** （{pattern_desc}）",
         f"  * 単勝1〜3番人気の複勝(3着以内)入着シミュレーション:",
         f"  * 0頭入る確率: **{prob_top3_0:.1f}%**",
