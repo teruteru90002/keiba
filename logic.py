@@ -438,10 +438,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     log_debug(f"[DEBUG] run_pipeline -> get_star_mark呼び出し: 競馬場={track}, レース={race_no}, 日付={date_str}", is_simple)
     star_mark, odds_info = get_star_mark(track, race_no, date_str, is_simple=is_simple)
     
-    if star_mark == "★":
-        star_display = " 【判定: 購入】"
-    else:
-        star_display = ""
+    star_display = ""
 
     # 出馬表からの単勝1番人気オッズを取得
     min_tansho = df["単勝オッズ"].min() if not df.empty and "単勝オッズ" in df.columns else None
@@ -938,13 +935,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     }
     target_odds_range = ODDS_RANGE_MAP.get(race_pattern, "")
 
-    if prob_top3_2_or_more >= 70.0:
-        prob_2_suffix = " ◆堅い◆"
-    elif prob_top3_2_or_more < 30.0:
-        prob_2_suffix = " ◆注意◆"
-    else:
-        prob_2_suffix = " ◆普通◆"
-
     phase6_lines = [
         "#### ■ PHASE 6：最終ランキングと買い目\n",
         f"#### 1. レース情報\n[{race_name} / {track}{race_no}R / {distance}m]{star_display}",
@@ -956,7 +946,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         f"  * 1頭入る確率: **{prob_top3_1:.1f}%**",
         f"  * 2頭入る確率: **{prob_top3_2:.1f}%**",
         f"  * 3頭入る確率: **{prob_top3_3:.1f}%**",
-        f"  * (2頭以上入る合計確率: **{prob_top3_2_or_more:.1f}%{prob_2_suffix}**)\n",
+        f"  * (2頭以上入る合計確率: **{prob_top3_2_or_more:.1f}%**)\n",
         "#### 2. 最終ランキング\n",
         "| 順位 | 馬(オッズ) | 合成値(順位) | オッズ(順位) | 能力(順位) | 勝率 | 複勝率 | 期待値 | 位置 | 走数 |",
         "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"
