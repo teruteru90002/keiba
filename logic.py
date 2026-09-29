@@ -209,7 +209,7 @@ def estimate_position_type_final_corner(past_runs):
 # ==============================================================================
 def calculate_payout_probabilities(o1, o10, o20, o30, o50):
     """
-    3連複各順位のオッズ値から、配当帯（30倍以下、30〜50倍、50〜80倍、80倍以上）の推定確率を算出する
+    3連複各順位のオッズ値から、配当帯（30倍以下、30～50倍、50～80倍、80倍以上）の推定確率を算出する
     """
     if o1 is None:
         return None
@@ -472,7 +472,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         payout_probs = None
 
     odds_table_md = (
-        "\n| 単勝1位 | 3連複1位 | 3連複10位 | 3連複20位 | 3连複30位 | 3連複50位 |\n"
+        "\n| 単勝1位 | 3連複1位 | 3連複10位 | 3連複20位 | 3連複30位 | 3連複50位 |\n"
         "| --- | --- | --- | --- | --- | --- |\n"
         f"| {tansho_1pop_str} | {o1_str} | {o10_str} | {o20_str} | {o30_str} | {o50_str} |"
     )
@@ -828,7 +828,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     df_sorted["期待値"] = (df_sorted["単勝オッズ"] * (df_sorted["勝率(MC)"] / 100.0)).round(2)
 
     # ==========================================================================
-    # 3連複荒れ度判定ロジック（推定配当確率ベース）
+    # 3連複荒れ度判定ロジック（4段階化：堅・並・荒・爆）
     # ==========================================================================
     if payout_probs:
         p_under_30 = payout_probs.get("30倍以下", 0)
@@ -836,18 +836,21 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         p_50_80    = payout_probs.get("50～80倍", 0)
         p_over_80  = payout_probs.get("80倍以上", 0)
 
-        if p_under_30 >= 40 or (p_under_30 + p_30_50) >= 60:
-            race_pattern = "堅い"
+        if p_under_30 >= 45 or (p_under_30 + p_30_50) >= 65:
+            race_pattern = "堅"
             pattern_desc = "30倍以下の低配当確率が高く、本命・人気決着が濃厚なレースです。"
         elif p_over_80 >= 40 or (p_50_80 + p_over_80) >= 60:
-            race_pattern = "混戦"
-            pattern_desc = "50倍〜80倍以上の高配当確率が高く、大荒れ・波乱が警戒されるレースです。"
+            race_pattern = "爆"
+            pattern_desc = "80倍以上の超高配当確率が高く、大波乱が警戒されるレースです。"
+        elif p_50_80 >= 30 or (p_30_50 + p_50_80) >= 55:
+            race_pattern = "荒"
+            pattern_desc = "50～80倍の中高配当を中心に想定される波乱含みのレースです。"
         else:
-            race_pattern = "普通"
-            pattern_desc = "30〜80倍の中配当を中心に想定されるバランス型のレースです。"
+            race_pattern = "並"
+            pattern_desc = "30～50倍の中低配当を中心に想定される標準的なレースです。"
     else:
-        race_pattern = "普通"
-        pattern_desc = "配当データ不足のため標準判定を適用します。"
+        race_pattern = "並"
+        pattern_desc = "配当データ不足のため標準判定（並）を適用します。"
 
     top3_odds_indices = df_sorted.sort_values(by="単勝オッズ").index[:3]
     top3_in_place_counts = np.sum(ranks[:, top3_odds_indices] <= 3, axis=1)
@@ -900,9 +903,9 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     df_without_jiku = df_valid[df_valid["馬番"] != jiku_horse["馬番"]].copy()
     aite1_df = df_without_jiku.sort_values(by="オッズ順位").head(2)
 
-    if (prob_top3_2_or_more < 30.0) and (race_pattern == "混戦"):
+    if (prob_top3_2_or_more < 30.0) and (race_pattern in ["荒", "爆"]):
         aite2_count = 5
-        aite_reason_str = "上位3頭から2頭入る確率が30%未満かつ混戦のため、相手2は軸馬・相手1を除き合成順位上位5頭選出"
+        aite_reason_str = "上位3頭から2頭入る確率が30%未満かつ荒れ予想（荒・爆）のため、相手2は軸馬・相手1を除き合成順位上位5頭選出"
     else:
         aite2_count = 4
         aite_reason_str = "通常条件のため、相手2は軸馬・相手1を除き合成順位上位4頭選出"
@@ -928,9 +931,10 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     jiku_log_lines.append(f"【相手判定】：{aite_reason_str}")
 
     ODDS_RANGE_MAP = {
-        "堅い": "配当目安 ～30倍",
-        "普通": "配当目安 30倍～80倍",
-        "混戦": "配当目安 80倍～ "
+        "堅": "配当目安 ～30倍",
+        "並": "配当目安 30～50倍",
+        "荒": "配当目安 50～80倍",
+        "爆": "配当目安 80倍～"
     }
     target_odds_range = ODDS_RANGE_MAP.get(race_pattern, "")
 
