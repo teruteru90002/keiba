@@ -214,28 +214,23 @@ def calculate_payout_probabilities(o1, o10, o20, o30, o50):
     if o1 is None:
         return None
 
-    # 各オッズの逆数・分布傾向からの推定
     if o1 <= 8.0 and (o20 is None or o20 <= 50.0):
-        # 堅いレース展開の傾向
         p_under_30 = max(10, min(85, int(90 - (o1 * 4) - (o10 * 0.5 if o10 else 10))))
         p_30_50 = max(5, min(40, int((100 - p_under_30) * 0.55)))
         p_50_80 = max(3, min(30, int((100 - p_under_30) * 0.30)))
         p_over_80 = max(0, 100 - p_under_30 - p_30_50 - p_50_80)
     elif o1 >= 15.0 or (o10 is None or o10 >= 50.0):
-        # 高配当・大荒れレース展開の傾向
         p_under_30 = max(2, min(15, int(25 - o1)))
         p_30_50 = max(5, min(25, int(35 - (o1 * 0.8))))
         p_50_80 = max(15, min(35, int(45 - (o10 * 0.3 if o10 else 15))))
         p_over_80 = max(35, 100 - p_under_30 - p_30_50 - p_50_80)
     else:
-        # 中配当〜標準的なレース展開
         p_under_30 = max(5, min(60, int(65 - (o1 * 2.5) - (o10 * 0.3 if o10 else 5))))
         rem = 100 - p_under_30
         p_30_50 = round(rem * 0.45)
         p_50_80 = round(rem * 0.35)
         p_over_80 = rem - p_30_50 - p_50_80
 
-    # 合計100%に正規化
     total = p_under_30 + p_30_50 + p_50_80 + p_over_80
     if total > 0:
         p_under_30 = round(p_under_30 / total * 100)
@@ -443,10 +438,11 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     log_debug(f"[DEBUG] run_pipeline -> get_star_mark呼び出し: 競馬場={track}, レース={race_no}, 日付={date_str}", is_simple)
     star_mark, odds_info = get_star_mark(track, race_no, date_str, is_simple=is_simple)
     
+    # 判定が★の場合のみ「【判定: 購入】」を出力し、「注意」は表示しない（削除）
     if star_mark == "★":
         star_display = " 【判定: 購入】"
     else:
-        star_display = " 【判定: 注意】"
+        star_display = ""
 
     # 出馬表からの単勝1番人気オッズを取得
     min_tansho = df["単勝オッズ"].min() if not df.empty and "単勝オッズ" in df.columns else None
@@ -459,38 +455,22 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         o30 = odds_info.get("o30")
         o50 = odds_info.get("o50")
 
-        # cond1: 5.0 <= o1 <= 15.0 を満たさない場合は太字
-        c1_ok = (o1 is not None) and (5.0 <= o1 <= 15.0)
-        o1_val_str = f"{o1:.1f}倍"
-        o1_str = o1_val_str if c1_ok else f"**{o1_val_str}**"
-
-        # o10 は判定対象外のため通常表記
+        # 太字装飾（**）をすべて排除して標準文字列化
+        o1_str = f"{o1:.1f}倍"
         o10_str = f"{o10:.1f}倍" if o10 is not None else "-"
-
-        # cond2: 50.0 <= o20 <= 80.0 を満たさない場合は太字
-        c2_ok = (o20 is not None) and (50.0 <= o20 <= 80.0)
-        o20_val_str = f"{o20:.1f}倍" if o20 is not None else "-"
-        o20_str = o20_val_str if c2_ok else f"**{o20_val_str}**"
-
-        # cond3: 70.0 <= o30 <= 140.0 を満たさない場合は太字
-        c3_ok = (o30 is not None) and (70.0 <= o30 <= 140.0)
-        o30_val_str = f"{o30:.1f}倍" if o30 is not None else "-"
-        o30_str = o30_val_str if c3_ok else f"**{o30_val_str}**"
-
-        # cond4: 100.0 <= o50 <= 300.0 を満たさない場合は太字
-        c4_ok = (o50 is not None) and (100.0 <= o50 <= 300.0)
-        o50_val_str = f"{o50:.1f}倍" if o50 is not None else "-"
-        o50_str = o50_val_str if c4_ok else f"**{o50_val_str}**"
+        o20_str = f"{o20:.1f}倍" if o20 is not None else "-"
+        o30_str = f"{o30:.1f}倍" if o30 is not None else "-"
+        o50_str = f"{o50:.1f}倍" if o50 is not None else "-"
 
         # 推定確率の計算（4区分）
         payout_probs = calculate_payout_probabilities(o1, o10, o20, o30, o50)
     else:
         o1 = o10 = o20 = o30 = o50 = None
-        o1_str = "**未取得**"
+        o1_str = "未取得"
         o10_str = "未取得"
-        o20_str = "**未取得**"
-        o30_str = "**未取得**"
-        o50_str = "**未取得**"
+        o20_str = "未取得"
+        o30_str = "未取得"
+        o50_str = "未取得"
         payout_probs = None
 
     odds_table_md = (
@@ -850,7 +830,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     df_sorted["期待値"] = (df_sorted["単勝オッズ"] * (df_sorted["勝率(MC)"] / 100.0)).round(2)
 
     # ==========================================================================
-    # 3連複荒れ度判定ロジック（「堅い」判定をさらに厳格化・超本命のみに限定）
+    # 3連複荒れ度判定ロジック
     # ==========================================================================
     df_by_odds = df_sorted.sort_values(by="単勝オッズ").reset_index(drop=True)
     top_odds_list = df_by_odds["単勝オッズ"].tolist()
@@ -859,19 +839,13 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     o2_ts = top_odds_list[1] if len(top_odds_list) > 1 else 99.0
     o3_ts = top_odds_list[2] if len(top_odds_list) > 2 else 99.0
 
-    # 上位3頭による「概算3連複オッズ」の推定値（簡易近似: オッズ積 × 0.22）
     est_top3_3renpuku = o1_ts * o2_ts * o3_ts * 0.22
 
-    # 4〜10番人気の平均単勝オッズ
     o_4_10 = top_odds_list[3:10]
     M = sum(o_4_10) / len(o_4_10) if len(o_4_10) > 0 else 99.0
 
-    # 上位3頭のシミュレーション複勝率合計
     P = df_by_odds.head(3)["複勝率(MC)"].sum()
 
-    # --------------------------------------------------------------------------
-    # 判定基準の定義（「堅い」条件を極限まで絞り込み）
-    # --------------------------------------------------------------------------
     is_katai = (
         (est_top3_3renpuku < 8.0) or
         (o1_ts <= 1.9 and o2_ts <= 3.5 and P >= 175.0) or
