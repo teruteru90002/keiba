@@ -438,7 +438,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     log_debug(f"[DEBUG] run_pipeline -> get_star_mark呼び出し: 競馬場={track}, レース={race_no}, 日付={date_str}", is_simple)
     star_mark, odds_info = get_star_mark(track, race_no, date_str, is_simple=is_simple)
     
-    # 判定が★の場合のみ「【判定: 購入】」を出力し、「注意」は表示しない（削除）
     if star_mark == "★":
         star_display = " 【判定: 購入】"
     else:
@@ -455,7 +454,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         o30 = odds_info.get("o30")
         o50 = odds_info.get("o50")
 
-        # 太字装飾（**）をすべて排除して標準文字列化
         o1_str = f"{o1:.1f}倍"
         o10_str = f"{o10:.1f}倍" if o10 is not None else "-"
         o20_str = f"{o20:.1f}倍" if o20 is not None else "-"
@@ -474,7 +472,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         payout_probs = None
 
     odds_table_md = (
-        "\n| 単勝1位 | 3連複1位 | 3連複10位 | 3連複20位 | 3連複30位 | 3連複50位 |\n"
+        "\n| 単勝1位 | 3連複1位 | 3連複10位 | 3連複20位 | 3连複30位 | 3連複50位 |\n"
         "| --- | --- | --- | --- | --- | --- |\n"
         f"| {tansho_1pop_str} | {o1_str} | {o10_str} | {o20_str} | {o30_str} | {o50_str} |"
     )
@@ -830,43 +828,26 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     df_sorted["期待値"] = (df_sorted["単勝オッズ"] * (df_sorted["勝率(MC)"] / 100.0)).round(2)
 
     # ==========================================================================
-    # 3連複荒れ度判定ロジック
+    # 3連複荒れ度判定ロジック（推定配当確率ベース）
     # ==========================================================================
-    df_by_odds = df_sorted.sort_values(by="単勝オッズ").reset_index(drop=True)
-    top_odds_list = df_by_odds["単勝オッズ"].tolist()
+    if payout_probs:
+        p_under_30 = payout_probs.get("30倍以下", 0)
+        p_30_50    = payout_probs.get("30～50倍", 0)
+        p_50_80    = payout_probs.get("50～80倍", 0)
+        p_over_80  = payout_probs.get("80倍以上", 0)
 
-    o1_ts = top_odds_list[0] if len(top_odds_list) > 0 else 99.0
-    o2_ts = top_odds_list[1] if len(top_odds_list) > 1 else 99.0
-    o3_ts = top_odds_list[2] if len(top_odds_list) > 2 else 99.0
-
-    est_top3_3renpuku = o1_ts * o2_ts * o3_ts * 0.22
-
-    o_4_10 = top_odds_list[3:10]
-    M = sum(o_4_10) / len(o_4_10) if len(o_4_10) > 0 else 99.0
-
-    P = df_by_odds.head(3)["複勝率(MC)"].sum()
-
-    is_katai = (
-        (est_top3_3renpuku < 8.0) or
-        (o1_ts <= 1.9 and o2_ts <= 3.5 and P >= 175.0) or
-        (est_top3_3renpuku < 10.0 and P >= 180.0)
-    )
-
-    is_konsen = (
-        (o1_ts >= 4.0 and P < 120.0) or
-        (est_top3_3renpuku >= 45.0) or
-        (M < 11.0 and o1_ts >= 3.2)
-    )
-
-    if is_katai:
-        race_pattern = "堅い"
-        pattern_desc = "3連複極めて低い配当（超本命決着）を中心に想定。圧倒的人気馬中心のレースです。"
-    elif is_konsen:
-        race_pattern = "混戦"
-        pattern_desc = "3連複80倍以上（高配当・大荒れ）を中心に想定。穴馬の台頭に警戒が必要なレースです。"
+        if p_under_30 >= 50 or (p_under_30 + p_30_50) >= 70:
+            race_pattern = "堅い"
+            pattern_desc = "30倍以下の低配当確率が高く、本命・人気決着が濃厚なレースです。"
+        elif p_over_80 >= 35 or (p_50_80 + p_over_80) >= 50:
+            race_pattern = "混戦"
+            pattern_desc = "50倍〜80倍以上の高配当確率が高く、大荒れ・波乱が警戒されるレースです。"
+        else:
+            race_pattern = "普通"
+            pattern_desc = "30〜80倍の中配当を中心に想定されるバランス型のレースです。"
     else:
         race_pattern = "普通"
-        pattern_desc = "3連複30～80倍（中配当ターゲット）を中心に想定。本命＋中穴の組み合わせが狙い目です。"
+        pattern_desc = "配当データ不足のため標準判定を適用します。"
 
     top3_odds_indices = df_sorted.sort_values(by="単勝オッズ").index[:3]
     top3_in_place_counts = np.sum(ranks[:, top3_odds_indices] <= 3, axis=1)
@@ -964,8 +945,8 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         "#### ■ PHASE 6：最終ランキングと買い目\n",
         f"#### 1. レース情報\n[{race_name} / {track}{race_no}R / {distance}m]{star_display}",
         f"* **取得3連複オッズ**:\n{odds_table_md}",
-        f"\n* **推定配当確率**:\n{prob_table_md}\n",
-        f"**【レース判定結果】：{race_pattern}** （{pattern_desc}）",
+        f"\n* **推定配当確率**:\n{prob_table_md}",
+        f"\n**【レース判定結果】：{race_pattern}** （{pattern_desc}）\n",
         f"  * 単勝1〜3番人気の複勝(3着以内)入着シミュレーション:",
         f"  * 0頭入る確率: **{prob_top3_0:.1f}%**",
         f"  * 1頭入る確率: **{prob_top3_1:.1f}%**",
