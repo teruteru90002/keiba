@@ -836,13 +836,13 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         p_50_80    = payout_probs.get("50～80倍", 0)
         p_over_80  = payout_probs.get("80倍以上", 0)
 
-        if p_under_30 >= 40 or (p_under_30 + p_30_50) >= 60:
+        if p_under_30 >= 40 or (p_under_30 + p_30_50) >= 65:
             race_pattern = "堅"
             pattern_desc = "30倍以下の低配当確率が高く、本命・人気決着が濃厚なレースです。"
-        elif p_over_80 >= 40 or (p_50_80 + p_over_80) >= 60:
+        elif p_over_80 >= 40 or (p_50_80 + p_over_80) >= 65:
             race_pattern = "爆"
             pattern_desc = "80倍以上の超高配当確率が高く、大波乱が警戒されるレースです。"
-        elif p_50_80 >= 40 or (p_30_50 + p_50_80) >= 60:
+        elif p_50_80 >= 40 or (p_30_50 + p_50_80) >= 65:
             race_pattern = "荒"
             pattern_desc = "50～80倍の中高配当を中心に想定される波乱含みのレースです。"
         else:
