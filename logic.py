@@ -848,12 +848,15 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         elif p_50_80 >= 35 or (p_30_50 + p_50_80) >= 50:
             race_pattern = "小荒"
             pattern_desc = "50～80倍の中高配当が想定されるやや波乱含みのレースです。"
-        else:
+        elif p_30_50 >= 35 or (p_under_30 + p_30_50) >= 50:
             race_pattern = "並"
-            pattern_desc = "標準的な配当バランスが想定されるレースです。"
+            pattern_desc = "50～80倍の中高配当が想定されるやや波乱含みのレースです。"
+        else:
+            race_pattern = "不明"
+            pattern_desc = "配当データが一律のため推定できません。"
     else:
-        race_pattern = "並"
-        pattern_desc = "配当データ不足のため標準判定（並）を適用します。"
+        race_pattern = "データ不足"
+        pattern_desc = "配当データ不足のため不明を適用します。"
 
     top3_odds_indices = df_sorted.sort_values(by="単勝オッズ").index[:3]
     top3_in_place_counts = np.sum(ranks[:, top3_odds_indices] <= 3, axis=1)
