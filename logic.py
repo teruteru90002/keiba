@@ -866,21 +866,21 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         if p_under_30 >= 35 or (p_under_30 + p_30_50) >= 65:
             race_pattern = "堅い"
             pattern_desc = "30倍以下の低配当確率が高く、本命・人気決着が濃厚なレースです。"
-        elif p_over_120 >= 35 or (p_80_120 + p_over_120) >= 65:
-            race_pattern = "大荒"
-            pattern_desc = "120倍以上の超高配当確率が高く、大波乱が警戒されるレースです。"
-        elif p_80_120 >= 35 or (p_50_80 + p_80_120) >= 50:
-            race_pattern = "中荒"
-            pattern_desc = "80～120倍の高配当を中心に想定される波乱含みのレースです。"
-        elif p_50_80 >= 35 or (p_30_50 + p_50_80) >= 50:
-            race_pattern = "小荒"
-            pattern_desc = "50～80倍の中高配当が想定されるやや波乱含みのレースです。"
         elif p_30_50 >= 35 or (p_under_30 + p_30_50) >= 50:
             race_pattern = "並"
             pattern_desc = "50～80倍の中高配当が想定されるやや波乱含みのレースです。"
+        elif p_50_80 >= 35 or (p_30_50 + p_50_80) >= 50:
+            race_pattern = "小荒"
+            pattern_desc = "50～80倍の中高配当が想定されるやや波乱含みのレースです。"
+        elif p_80_120 >= 35 or (p_50_80 + p_80_120) >= 50:
+            race_pattern = "中荒"
+            pattern_desc = "80～120倍の高配当を中心に想定される波乱含みのレースです。"
+        elif p_over_120 >= 35 or (p_80_120 + p_over_120) >= 65:
+            race_pattern = "大荒"
+            pattern_desc = "120倍以上の超高配当確率が高く、大波乱が警戒されるレースです。"
         else:
             race_pattern = "不明"
-            pattern_desc = "配当データが一律のため推定できません。"
+            pattern_desc = "この配当データでは推定できません。"
     else:
         race_pattern = "データ不足"
         pattern_desc = "配当データ不足のため不明を適用します。"
