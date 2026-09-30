@@ -209,68 +209,32 @@ def estimate_position_type_final_corner(past_runs):
 # ==============================================================================
 def calculate_payout_probabilities(o1, o10, o20, o30, o50):
     """
-    3連複各順位のオッズ値（o1, o10, o20, o30, o50）から、
-    配当帯（30倍以下、30～50倍、50～80倍、80～120倍、120倍以上）の推定確率を高精度に算出する
+    3連複各順位のオッズ値から、配当帯（30倍以下、30～50倍、50～80倍、80～120倍、120倍以上）の推定確率を算出する
     """
     if o1 is None:
         return None
 
-    # 未取得データの補正用セーフティ値
-    o10_val = o10 if o10 is not None else o1 * 4.0
-    o20_val = o20 if o20 is not None else o1 * 8.0
-    o30_val = o30 if o30 is not None else o1 * 12.0
-    o50_val = o50 if o50 is not None else o1 * 20.0
-
-    # パターン判定（o30, o50 も評価に使用）
-    is_solid = (o1 <= 8.0) and (o20_val <= 50.0) and (o30_val <= 100.0)
-    is_rough = (o1 >= 15.0) or (o10_val >= 50.0) or (o30_val >= 120.0) or (o50_val >= 250.0)
-
-    if is_solid:
-        # 本命・堅いパターン：o1, o10, o30 を加味して低配当確率を高く設定
-        p_under_30 = max(10, min(85, int(90 - (o1 * 4) - (o10_val * 0.4))))
+    if o1 <= 8.0 and (o20 is None or o20 <= 50.0):
+        p_under_30 = max(10, min(85, int(90 - (o1 * 4) - (o10 * 0.5 if o10 else 10))))
         rem = 100 - p_under_30
-
-        # o30 の値によって 30~50倍 と 50~80倍 の割り振り比率を調整
-        ratio_30_50 = 0.50 if o30_val <= 70.0 else 0.35
-        p_30_50 = round(rem * ratio_30_50)
+        p_30_50 = round(rem * 0.45)
         p_50_80 = round(rem * 0.30)
         p_80_120 = round(rem * 0.15)
         p_over_120 = rem - p_30_50 - p_50_80 - p_80_120
-
-    elif is_rough:
-        # 波乱パターン：o30, o50 を直接活用して中高配当～超高配当の確率を引き上げる
+    elif o1 >= 15.0 or (o10 is None or o10 >= 50.0):
         p_under_30 = max(2, min(15, int(25 - o1)))
-        p_30_50 = max(5, min(20, int(30 - (o1 * 0.5))))
-        p_50_80 = max(10, min(30, int(40 - (o20_val * 0.2))))
-        p_80_120 = max(15, min(35, int(45 - (o30_val * 0.15))))
-        
-        # o50 の高さを直接「120倍以上」の確率に反映
-        over_120_bonus = int(o50_val * 0.05)
-        p_over_120 = max(20, min(60, 25 + over_120_bonus))
-
-        # 合計値の概算調整（正規化前処理）
-        tot_temp = p_under_30 + p_30_50 + p_50_80 + p_80_120 + p_over_120
-        p_under_30 = round(p_under_30 / tot_temp * 100)
-        p_30_50 = round(p_30_50 / tot_temp * 100)
-        p_50_80 = round(p_50_80 / tot_temp * 100)
-        p_80_120 = round(p_80_120 / tot_temp * 100)
-        p_over_120 = 100 - (p_under_30 + p_30_50 + p_50_80 + p_80_120)
-
+        p_30_50 = max(5, min(20, int(30 - (o1 * 0.6))))
+        p_50_80 = max(10, min(30, int(35 - (o10 * 0.2 if o10 else 10))))
+        p_80_120 = max(15, min(35, int(40 - (o20 * 0.1 if o20 else 10))))
+        p_over_120 = max(20, 100 - p_under_30 - p_30_50 - p_50_80 - p_80_120)
     else:
-        # 標準パターン：全オッズカーブを利用して滑らかに補間
-        p_under_30 = max(5, min(60, int(65 - (o1 * 2.0) - (o10_val * 0.3))))
+        p_under_30 = max(5, min(60, int(65 - (o1 * 2.5) - (o10 * 0.3 if o10 else 5))))
         rem = 100 - p_under_30
-
-        # o30, o50 の比率で中高配当の分配重みを変化させる
-        weight_middle = 0.35 if o30_val <= 100.0 else 0.25
-        weight_high = 0.25 if o50_val >= 200.0 else 0.15
-
-        p_30_50 = round(rem * weight_middle)
+        p_30_50 = round(rem * 0.35)
         p_50_80 = round(rem * 0.30)
-        p_80_120 = round(rem * max(0.10, 1.0 - weight_middle - 0.30 - weight_high))
+        p_80_120 = round(rem * 0.20)
         p_over_120 = rem - p_30_50 - p_50_80 - p_80_120
 
-    # 最終正規化（合計を確実に100%にする）
     total = p_under_30 + p_30_50 + p_50_80 + p_80_120 + p_over_120
     if total > 0:
         p_under_30 = round(p_under_30 / total * 100)
@@ -288,7 +252,7 @@ def calculate_payout_probabilities(o1, o10, o20, o30, o50):
     }
 
 # ==============================================================================
-# 3連複オッズ取得ロジック
+# 3連複オッズ★判定＆オッズ取得ロジック
 # ==============================================================================
 PLACE_CODE_MAP = {
     "01": "札幌", "02": "函館", "03": "福島", "04": "新潟", "05": "東京",
@@ -379,7 +343,7 @@ async def fetch_race_odds(place_name, race_no, date_str=None, is_simple=False):
         if not target_race_id:
             log_debug(f"[DEBUG] レースIDが特定できませんでした（{place_name} {race_no}R が一覧に見つからない）", is_simple)
             await browser.close()
-            return None
+            return "", None
 
         odds_list = []
         urls = [
@@ -425,7 +389,7 @@ async def fetch_race_odds(place_name, race_no, date_str=None, is_simple=False):
         
         if len(odds) < 30:
             log_debug("[DEBUG] オッズデータが30件未満のため、取得失敗と判定", is_simple)
-            return None
+            return "", None
 
         o1 = odds[0]
         o10 = odds[9] if len(odds) >= 10 else None
@@ -434,16 +398,23 @@ async def fetch_race_odds(place_name, race_no, date_str=None, is_simple=False):
         o50 = odds[49] if len(odds) >= 50 else None
 
         odds_info = {"o1": o1, "o10": o10, "o20": o20, "o30": o30, "o50": o50}
-        log_debug(f"[DEBUG] オッズ情報: o1={o1}, o10={o10}, o20={o20}, o30={o30}, o50={o50}", is_simple)
+        log_debug(f"[DEBUG] オッズ判定情報: o1={o1}, o10={o10}, o20={o20}, o30={o30}, o50={o50}", is_simple)
 
-        return odds_info
+        cond1 = (o1 is not None) and (5.0 <= o1 <= 15.0)
+        cond2 = (o20 is not None) and (50.0 <= o20 <= 80.0)
+        cond3 = (o30 is not None) and (70.0 <= o30 <= 140.0)
+        cond4 = (o50 is not None) and (100.0 <= o50 <= 300.0)
 
-def get_race_odds_data(place_name, race_no, date_str=None, is_simple=False):
+        if cond1 and cond2 and cond3 and cond4:
+            return "★", odds_info
+        return "", odds_info
+
+def get_star_mark(place_name, race_no, date_str=None, is_simple=False):
     try:
         return asyncio.run(fetch_race_odds(place_name, race_no, date_str, is_simple=is_simple))
     except Exception as e:
-        log_debug(f"[ERROR] get_race_odds_data内部例外: {e}", is_simple)
-        return None
+        log_debug(f"[ERROR] get_star_mark内部例外: {e}", is_simple)
+        return "", None
 
 # ==============================================================================
 # メインパイプライン
@@ -470,8 +441,10 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     race_date_raw = race_info.get("date", "")
     date_str = re.sub(r'\D', '', str(race_date_raw)) if race_date_raw else None
 
-    log_debug(f"[DEBUG] run_pipeline -> get_race_odds_data呼び出し: 競馬場={track}, レース={race_no}, 日付={date_str}", is_simple)
-    odds_info = get_race_odds_data(track, race_no, date_str, is_simple=is_simple)
+    log_debug(f"[DEBUG] run_pipeline -> get_star_mark呼び出し: 競馬場={track}, レース={race_no}, 日付={date_str}", is_simple)
+    star_mark, odds_info = get_star_mark(track, race_no, date_str, is_simple=is_simple)
+    
+    star_display = ""
 
     if odds_info and odds_info.get("o1") is not None:
         o1 = odds_info.get("o1")
@@ -974,7 +947,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     phase6_lines = [
         "#### ■ PHASE 6：最終ランキングと買い目\n",
-        f"#### 1. レース情報\n[{race_name} / {track}{race_no}R / {distance}m]",
+        f"#### 1. レース情報\n[{race_name} / {track}{race_no}R / {distance}m]{star_display}",
         f"* **取得3連複オッズ**:\n{odds_table_md}",
         f"\n* **推定配当確率**:\n{prob_table_md}",
         f"\n**【レース判定結果】：{race_pattern}** （{pattern_desc}）\n",
