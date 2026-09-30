@@ -252,7 +252,7 @@ def calculate_payout_probabilities(o1, o10, o20, o30, o50):
     }
 
 # ==============================================================================
-# 3連複オッズ★判定＆オッズ取得ロジック
+# 3連複オッズオッズ取得ロジック
 # ==============================================================================
 PLACE_CODE_MAP = {
     "01": "札幌", "02": "函館", "03": "福島", "04": "新潟", "05": "東京",
@@ -399,15 +399,6 @@ async def fetch_race_odds(place_name, race_no, date_str=None, is_simple=False):
 
         odds_info = {"o1": o1, "o10": o10, "o20": o20, "o30": o30, "o50": o50}
         log_debug(f"[DEBUG] オッズ判定情報: o1={o1}, o10={o10}, o20={o20}, o30={o30}, o50={o50}", is_simple)
-
-        cond1 = (o1 is not None) and (5.0 <= o1 <= 15.0)
-        cond2 = (o20 is not None) and (50.0 <= o20 <= 80.0)
-        cond3 = (o30 is not None) and (70.0 <= o30 <= 140.0)
-        cond4 = (o50 is not None) and (100.0 <= o50 <= 300.0)
-
-        if cond1 and cond2 and cond3 and cond4:
-            return "★", odds_info
-        return "", odds_info
 
 def get_star_mark(place_name, race_no, date_str=None, is_simple=False):
     try:
