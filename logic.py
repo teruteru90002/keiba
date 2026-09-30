@@ -909,9 +909,9 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     df_without_jiku = df_valid[df_valid["馬番"] != jiku_horse["馬番"]].copy()
     aite1_df = df_without_jiku.sort_values(by="オッズ順位").head(2)
 
-    if (prob_top3_2_or_more < 30.0) and (race_pattern in ["小荒", "中荒", "大荒"]):
+    if (prob_top3_2_or_more < 30.0) and (race_pattern in ["中荒", "大荒"]):
         aite2_count = 5
-        aite_reason_str = "上位3頭から2頭入る確率が30%未満かつ荒れ予想（小荒・中荒・大荒）のため、相手2は軸馬・相手1を除き合成順位上位5頭選出"
+        aite_reason_str = "上位3頭から2頭入る確率が30%未満かつ荒れ予想（中荒・大荒）のため、相手2は軸馬・相手1を除き合成順位上位5頭選出"
     else:
         aite2_count = 4
         aite_reason_str = "通常条件のため、相手2は軸馬・相手1を除き合成順位上位4頭選出"
