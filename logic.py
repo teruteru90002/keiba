@@ -252,7 +252,7 @@ def calculate_payout_probabilities(o1, o10, o20, o30, o50):
     }
 
 # ==============================================================================
-# 3連複オッズオッズ取得ロジック
+# 3連複オッズ取得ロジック
 # ==============================================================================
 PLACE_CODE_MAP = {
     "01": "札幌", "02": "函館", "03": "福島", "04": "新潟", "05": "東京",
@@ -343,7 +343,7 @@ async def fetch_race_odds(place_name, race_no, date_str=None, is_simple=False):
         if not target_race_id:
             log_debug(f"[DEBUG] レースIDが特定できませんでした（{place_name} {race_no}R が一覧に見つからない）", is_simple)
             await browser.close()
-            return "", None
+            return None
 
         odds_list = []
         urls = [
@@ -389,7 +389,7 @@ async def fetch_race_odds(place_name, race_no, date_str=None, is_simple=False):
         
         if len(odds) < 30:
             log_debug("[DEBUG] オッズデータが30件未満のため、取得失敗と判定", is_simple)
-            return "", None
+            return None
 
         o1 = odds[0]
         o10 = odds[9] if len(odds) >= 10 else None
@@ -400,21 +400,14 @@ async def fetch_race_odds(place_name, race_no, date_str=None, is_simple=False):
         odds_info = {"o1": o1, "o10": o10, "o20": o20, "o30": o30, "o50": o50}
         log_debug(f"[DEBUG] オッズ判定情報: o1={o1}, o10={o10}, o20={o20}, o30={o30}, o50={o50}", is_simple)
 
-        cond1 = (o1 is not None) and (5.0 <= o1 <= 15.0)
-        cond2 = (o20 is not None) and (50.0 <= o20 <= 80.0)
-        cond3 = (o30 is not None) and (70.0 <= o30 <= 140.0)
-        cond4 = (o50 is not None) and (100.0 <= o50 <= 300.0)
+        return odds_info
 
-        if cond1 and cond2 and cond3 and cond4:
-            return "★", odds_info
-        return "", odds_info
-
-def get_star_mark(place_name, race_no, date_str=None, is_simple=False):
+def get_race_odds(place_name, race_no, date_str=None, is_simple=False):
     try:
         return asyncio.run(fetch_race_odds(place_name, race_no, date_str, is_simple=is_simple))
     except Exception as e:
-        log_debug(f"[ERROR] get_star_mark内部例外: {e}", is_simple)
-        return "", None
+        log_debug(f"[ERROR] get_race_odds内部例外: {e}", is_simple)
+        return None
 
 # ==============================================================================
 # メインパイプライン
@@ -441,10 +434,8 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     race_date_raw = race_info.get("date", "")
     date_str = re.sub(r'\D', '', str(race_date_raw)) if race_date_raw else None
 
-    log_debug(f"[DEBUG] run_pipeline -> get_star_mark呼び出し: 競馬場={track}, レース={race_no}, 日付={date_str}", is_simple)
-    star_mark, odds_info = get_star_mark(track, race_no, date_str, is_simple=is_simple)
-    
-    star_display = ""
+    log_debug(f"[DEBUG] run_pipeline -> get_race_odds呼び出し: 競馬場={track}, レース={race_no}, 日付={date_str}", is_simple)
+    odds_info = get_race_odds(track, race_no, date_str, is_simple=is_simple)
 
     if odds_info and odds_info.get("o1") is not None:
         o1 = odds_info.get("o1")
@@ -947,7 +938,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     phase6_lines = [
         "#### ■ PHASE 6：最終ランキングと買い目\n",
-        f"#### 1. レース情報\n[{race_name} / {track}{race_no}R / {distance}m]{star_display}",
+        f"#### 1. レース情報\n[{race_name} / {track}{race_no}R / {distance}m]",
         f"* **取得3連複オッズ**:\n{odds_table_md}",
         f"\n* **推定配当確率**:\n{prob_table_md}",
         f"\n**【レース判定結果】：{race_pattern}** （{pattern_desc}）\n",
