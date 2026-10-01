@@ -832,7 +832,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
             pattern_desc = "30倍以下の低配当確率が高く、本命・人気決着が濃厚なレースです。"
         elif p_30_50 >= 35 or (p_under_30 + p_30_50) >= 50:
             race_pattern = "並"
-            pattern_desc = "50～80倍の中高配当が想定されるやや波乱含みのレースです。"
+            pattern_desc = "30～50倍の中配当が中心となる標準的な波乱度のレースです。"
         elif p_50_80 >= 35 or (p_30_50 + p_50_80) >= 50:
             race_pattern = "小荒"
             pattern_desc = "50～80倍の中高配当が想定されるやや波乱含みのレースです。"
