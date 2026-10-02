@@ -251,65 +251,71 @@ def calculate_payout_probabilities(o1, o10, o20, o30, o50):
 # ==============================================================================
 # 3連複オッズ取得ロジック（JRA公式サイト版）
 # ==============================================================================
+# ==============================================================================
+# 3連複オッズ取得ロジック（JRA公式サイト版・デバッグ強化・セレクタ改善）
+# ==============================================================================
 async def fetch_race_odds(place_name, race_no, date_str=None, is_simple=False):
     if not date_str:
         date_str = datetime.now().strftime("%Y%m%d")
         
-    log_debug(f"[DEBUG] fetch_race_odds開始(JRA版): 場所={place_name}, レース={race_no}, 日付={date_str}", is_simple)
+    log_debug(f"[DEBUG] fetch_race_odds開始(JRA版): 場所={place_name}, レース={race_no}", is_simple)
 
     async with async_playwright() as p:
-        log_debug(f"[DEBUG] Playwrightブラウザ起動中...", is_simple)
         browser = await p.chromium.launch(
             headless=True,
-            args=["--no-sandbox", "--disable-setuid-sandbox"]
+            args=["--no-sandbox", "--disable-setuid-sandbox", "--window-size=1280,1080"]
         )
         context = await browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            viewport={"width": 1280, "height": 1080}
         )
         page = await context.new_page()
-
         odds_info = None
 
         try:
             # 1. JRAトップページへアクセス
             url_jra = "https://www.jra.go.jp/"
-            log_debug(f"[DEBUG] JRAトップページへアクセス: {url_jra}", is_simple)
-            await page.goto(url_jra, wait_until="domcontentloaded", timeout=15000)
-            await asyncio.sleep(1.0)
+            log_debug(f"[DEBUG] 1. JRAトップページへアクセス: {url_jra}", is_simple)
+            await page.goto(url_jra, wait_until="networkidle", timeout=15000)
             
-            # 2. 「オッズ」リンクをクリック
-            log_debug("[DEBUG] 「オッズ」メニューをクリック...", is_simple)
-            await page.locator("text=オッズ").first.click(timeout=5000)
+            # 2. 「オッズ」リンクをクリック（テキストまたはalt属性の画像を探す）
+            log_debug("[DEBUG] 2. 「オッズ」メニューをクリック...", is_simple)
+            odds_locator = page.locator("a:has-text('オッズ'), img[alt*='オッズ']").first
+            await odds_locator.wait_for(state="visible", timeout=10000)
+            await odds_locator.click()
             await page.wait_for_load_state("domcontentloaded")
-            await asyncio.sleep(1.0)
+            await asyncio.sleep(2.0)
             
-            # 3. 開催場を選択
-            log_debug(f"[DEBUG] 開催場「{place_name}」を選択...", is_simple)
-            await page.locator(f"text={place_name}").first.click(timeout=5000)
+            # 3. 開催場を選択（部分一致で探す）
+            log_debug(f"[DEBUG] 3. 開催場「{place_name}」を選択...", is_simple)
+            track_locator = page.locator(f"a:has-text('{place_name}')").first
+            await track_locator.wait_for(state="visible", timeout=10000)
+            await track_locator.click()
             await page.wait_for_load_state("domcontentloaded")
-            await asyncio.sleep(1.0)
+            await asyncio.sleep(2.0)
             
-            # 4. レース番号を選択
+            # 4. レース番号を選択（「11R」などのテキスト）
             race_str = f"{int(race_no):d}R"
-            log_debug(f"[DEBUG] レース番号「{race_str}」を選択...", is_simple)
-            await page.locator(f"text={race_str}").first.click(timeout=5000)
+            log_debug(f"[DEBUG] 4. レース番号「{race_str}」を選択...", is_simple)
+            race_locator = page.locator(f"a:has-text('{race_str}')").first
+            await race_locator.wait_for(state="visible", timeout=10000)
+            await race_locator.click()
             await page.wait_for_load_state("domcontentloaded")
-            await asyncio.sleep(1.0)
+            await asyncio.sleep(2.0)
             
             # 5. 「3連複」タブを選択
-            log_debug("[DEBUG] 「3連複」を選択...", is_simple)
-            await page.locator("text=3連複").first.click(timeout=5000)
-            await page.wait_for_load_state("domcontentloaded")
-            await asyncio.sleep(1.5)
+            log_debug("[DEBUG] 5. 「3連複」を選択...", is_simple)
+            sanrenpuku_locator = page.locator("a:has-text('3連複'), th:has-text('3連複')").first
+            await sanrenpuku_locator.wait_for(state="visible", timeout=10000)
+            await sanrenpuku_locator.click()
+            await page.wait_for_load_state("networkidle") # オッズ表が完全に描画されるまで待機
+            await asyncio.sleep(2.0)
             
-            # 6. HTMLを取得してBeautifulSoupで解析
+            # 6. HTMLを取得してオッズ抽出
             html_content = await page.content()
-            log_debug(f"[DEBUG] HTML取得成功 (文字数: {len(html_content)})", is_simple)
-            
             soup = BeautifulSoup(html_content, "html.parser")
             
             odds_list = []
-            # JRAのオッズ表はクラス構成が動的になることがあるため、全td要素から小数付き数値を正規表現で抽出
             elements = soup.find_all("td")
             for el in elements:
                 text = el.get_text(strip=True)
@@ -321,24 +327,30 @@ async def fetch_race_odds(place_name, race_no, date_str=None, is_simple=False):
                     except ValueError: 
                         continue
                         
-            # 重複削除(set)を行わず、純粋に昇順ソートして本来の人気順位を確保
             odds = sorted(odds_list) if odds_list else []
-            log_debug(f"[DEBUG] JRAから取得したオッズ数(ソート済み): {len(odds)}", is_simple)
+            log_debug(f"[DEBUG] 取得オッズ数(ソート済み): {len(odds)}件", is_simple)
             
             if len(odds) >= 30:
-                o1 = odds[0]
-                o10 = odds[9] if len(odds) >= 10 else None
-                o20 = odds[19] if len(odds) >= 20 else None
-                o30 = odds[29] if len(odds) >= 30 else None
-                o50 = odds[49] if len(odds) >= 50 else None
-
-                odds_info = {"o1": o1, "o10": o10, "o20": o20, "o30": o30, "o50": o50}
-                log_debug(f"[DEBUG] オッズ判定情報: o1={o1}, o10={o10}, o20={o20}, o30={o30}, o50={o50}", is_simple)
+                odds_info = {
+                    "o1": odds[0],
+                    "o10": odds[9] if len(odds) >= 10 else None,
+                    "o20": odds[19] if len(odds) >= 20 else None,
+                    "o30": odds[29] if len(odds) >= 30 else None,
+                    "o50": odds[49] if len(odds) >= 50 else None
+                }
             else:
-                log_debug("[DEBUG] オッズデータが30件未満のため、取得失敗と判定", is_simple)
+                log_debug("[DEBUG] オッズデータが30件未満のため取得失敗判定", is_simple)
+                # データが足りない時の画面状態を保存
+                await page.screenshot(path="debug_jra_insufficient_data.png")
 
         except Exception as e:
-            log_debug(f"[ERROR] JRAオッズ取得プロセスでエラーが発生しました: {e}", is_simple)
+            # どこで失敗したかをターミナル（または画面）に出力し、スクリーンショットを保存
+            log_debug(f"[ERROR] JRAクリック処理の途中でエラー: {e}", is_simple)
+            try:
+                await page.screenshot(path="error_jra_scraping.png")
+                log_debug("[DEBUG] エラー発生時のスクリーンショットを 'error_jra_scraping.png' に保存しました。", is_simple)
+            except:
+                pass
 
         finally:
             await browser.close()
