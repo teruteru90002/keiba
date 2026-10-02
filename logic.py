@@ -252,13 +252,13 @@ def calculate_payout_probabilities(o1, o10, o20, o30, o50):
 # 3連複オッズ取得ロジック（JRA公式サイト版）
 # ==============================================================================
 # ==============================================================================
-# 3連複オッズ取得ロジック（JRA公式サイト版・デバッグ強化・セレクタ改善）
+# 3連複オッズ取得ロジック（JRA公式サイト・直接URLアクセス版）
 # ==============================================================================
 async def fetch_race_odds(place_name, race_no, date_str=None, is_simple=False):
     if not date_str:
         date_str = datetime.now().strftime("%Y%m%d")
         
-    log_debug(f"[DEBUG] fetch_race_odds開始(JRA版): 場所={place_name}, レース={race_no}", is_simple)
+    log_debug(f"[DEBUG] fetch_race_odds開始(JRA直接アクセス版): 場所={place_name}, レース={race_no}, 日付={date_str}", is_simple)
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(
@@ -273,58 +273,68 @@ async def fetch_race_odds(place_name, race_no, date_str=None, is_simple=False):
         odds_info = None
 
         try:
-            # 1. JRAトップページへアクセス
-            url_jra = "https://www.jra.go.jp/"
-            log_debug(f"[DEBUG] 1. JRAトップページへアクセス: {url_jra}", is_simple)
-            await page.goto(url_jra, wait_until="networkidle", timeout=15000)
+            # JRAの開催日ごとのレース一覧ページへ直接アクセス（例: 開催日を指定したページ）
+            # または、JRAのトップからメニューを開く代わりに、直接レース選択ページへ遷移を試みます
+            # 安定性を高めるため、JRAの「今週の開催レース」または「出馬表・オッズ」の共通エントリポイントを使用
             
-            # 2. 「オッズ」リンクをクリック（テキストまたはalt属性の画像を探す）
-            log_debug("[DEBUG] 2. 「オッズ」メニューをクリック...", is_simple)
-            odds_locator = page.locator("a:has-text('オッズ'), img[alt*='オッズ']").first
-            await odds_locator.wait_for(state="visible", timeout=10000)
-            await odds_locator.click()
-            await page.wait_for_load_state("domcontentloaded")
+            # まずJRAのトップにアクセスしてセッションCookieやリファラーを通す
+            await page.goto("https://www.jra.go.jp/", wait_until="domcontentloaded", timeout=10000)
+            await asyncio.sleep(1.0)
+
+            # JRAのレース一覧・オッズページへの直接URL（JRAの構造上の共通パス）
+            # 開催日(date_str)を利用したJRAの出馬表・オッズ導線ページへ移動
+            # ※JRAのURL構造に合わせ、メニューの「出馬表」や「オッズ」のリンク先にあるJavaScript関数（doActionなど）を直接叩くか、遷移します。
+            
+            # 先ほどエラーログにあった hidden 要素の onclick 属性にヒントがあります:
+            # onclick="doAction('/JRADB/accessO.html','pw15oli00/6D');return false;"
+            # このJS関数を直接実行することで、メニューを開かずに直接オッズ系のシステムへ飛ぶことができます。
+            
+            log_debug("[DEBUG] JRAのオッズシステムへ直接JavaScriptを実行して遷移...", is_simple)
+            # 該当のリンク要素を強制的にクリック（force=True を使うことで hidden であっても強制クリック可能）
+            odds_menu = page.locator("a[onclick*='accessO.html']").first
+            if await odds_menu.count() > 0:
+                await odds_menu.click(force=True)
+                await page.wait_for_load_state("domcontentloaded")
+                await asyncio.sleep(2.0)
+            else:
+                # 見つからない場合は直接URLへフォールバック
+                await page.goto("https://www.jra.go.jp/keiba/bamei/", wait_until="domcontentloaded") # 仮のフォールバック
+            
+            # その後、開催場（東京、中山など）とレース番号のリンクを画面内から探してクリック
+            log_debug(f"[DEBUG] 画面内から「{place_name}」と「{int(race_no)}R」を探してクリック...", is_simple)
+            
+            # 開催場をクリック
+            track_loc = page.locator(f"text={place_name}").first
+            await track_loc.wait_for(state="visible", timeout=5000)
+            await track_loc.click()
+            await asyncio.sleep(1.5)
+            
+            # レース番号をクリック
+            race_str = f"{int(race_no)}R"
+            race_loc = page.locator(f"text={race_str}").first
+            await race_loc.wait_for(state="visible", timeout=5000)
+            await race_loc.click()
+            await asyncio.sleep(1.5)
+            
+            # 3連複タブをクリック
+            sanrenpuku_loc = page.locator("text=3連複").first
+            await sanrenpuku_loc.wait_for(state="visible", timeout=5000)
+            await sanrenpuku_loc.click()
             await asyncio.sleep(2.0)
-            
-            # 3. 開催場を選択（部分一致で探す）
-            log_debug(f"[DEBUG] 3. 開催場「{place_name}」を選択...", is_simple)
-            track_locator = page.locator(f"a:has-text('{place_name}')").first
-            await track_locator.wait_for(state="visible", timeout=10000)
-            await track_locator.click()
-            await page.wait_for_load_state("domcontentloaded")
-            await asyncio.sleep(2.0)
-            
-            # 4. レース番号を選択（「11R」などのテキスト）
-            race_str = f"{int(race_no):d}R"
-            log_debug(f"[DEBUG] 4. レース番号「{race_str}」を選択...", is_simple)
-            race_locator = page.locator(f"a:has-text('{race_str}')").first
-            await race_locator.wait_for(state="visible", timeout=10000)
-            await race_locator.click()
-            await page.wait_for_load_state("domcontentloaded")
-            await asyncio.sleep(2.0)
-            
-            # 5. 「3連複」タブを選択
-            log_debug("[DEBUG] 5. 「3連複」を選択...", is_simple)
-            sanrenpuku_locator = page.locator("a:has-text('3連複'), th:has-text('3連複')").first
-            await sanrenpuku_locator.wait_for(state="visible", timeout=10000)
-            await sanrenpuku_locator.click()
-            await page.wait_for_load_state("networkidle") # オッズ表が完全に描画されるまで待機
-            await asyncio.sleep(2.0)
-            
-            # 6. HTMLを取得してオッズ抽出
+
+            # HTMLからオッズ抽出
             html_content = await page.content()
             soup = BeautifulSoup(html_content, "html.parser")
             
             odds_list = []
-            elements = soup.find_all("td")
-            for el in elements:
+            for el in soup.find_all("td"):
                 text = el.get_text(strip=True)
                 match = re.search(r'\b(\d+\.\d+)\b', text)
                 if match:
                     try:
                         val = float(match.group(1))
                         if val > 0: odds_list.append(val)
-                    except ValueError: 
+                    except ValueError:
                         continue
                         
             odds = sorted(odds_list) if odds_list else []
@@ -339,16 +349,13 @@ async def fetch_race_odds(place_name, race_no, date_str=None, is_simple=False):
                     "o50": odds[49] if len(odds) >= 50 else None
                 }
             else:
-                log_debug("[DEBUG] オッズデータが30件未満のため取得失敗判定", is_simple)
-                # データが足りない時の画面状態を保存
-                await page.screenshot(path="debug_jra_insufficient_data.png")
+                log_debug("[DEBUG] オッズデータが30件未満のため取得失敗", is_simple)
+                await page.screenshot(path="debug_jra_direct_fail.png")
 
         except Exception as e:
-            # どこで失敗したかをターミナル（または画面）に出力し、スクリーンショットを保存
-            log_debug(f"[ERROR] JRAクリック処理の途中でエラー: {e}", is_simple)
+            log_debug(f"[ERROR] 直接アクセス版処理エラー: {e}", is_simple)
             try:
-                await page.screenshot(path="error_jra_scraping.png")
-                log_debug("[DEBUG] エラー発生時のスクリーンショットを 'error_jra_scraping.png' に保存しました。", is_simple)
+                await page.screenshot(path="error_jra_direct.png")
             except:
                 pass
 
