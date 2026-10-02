@@ -208,6 +208,9 @@ def estimate_position_type_final_corner(past_runs):
 # 配当帯確率計算ロジック（5区分化：30倍以下、30～50倍、50～80倍、80～120倍、120倍以上）
 # ==============================================================================
 def calculate_payout_probabilities(o1, o10, o20, o30, o50):
+    """
+    3連複各順位のオッズ値から、配当帯（30倍以下、30～50倍、50～80倍、80～120倍、120倍以上）の推定確率を算出する
+    """
     if o1 is None:
         return None
 
@@ -249,118 +252,167 @@ def calculate_payout_probabilities(o1, o10, o20, o30, o50):
     }
 
 # ==============================================================================
-# 3連複オッズ取得ロジック（JRA公式サイト版）
+# 3連複オッズ取得ロジック
 # ==============================================================================
-# ==============================================================================
-# 3連複オッズ取得ロジック（JRA公式サイト・直接URLアクセス版）
-# ==============================================================================
+PLACE_CODE_MAP = {
+    "01": "札幌", "02": "函館", "03": "福島", "04": "新潟", "05": "東京",
+    "06": "中山", "07": "中京", "08": "京都", "09": "阪神", "10": "小倉"
+}
+
+async def get_race_list(page, date_str, is_simple=False):
+    log_debug(f"[DEBUG] get_race_list開始: 日付={date_str}", is_simple)
+    races = []
+    url_db = f"https://db.netkeiba.com/race/list/{date_str}/"
+    try:
+        log_debug(f"[DEBUG] DBアクセスURL: {url_db}", is_simple)
+        await page.goto(url_db, wait_until="domcontentloaded", timeout=15000)
+        content = await page.content()
+        soup = BeautifulSoup(content, "html.parser")
+        for a in soup.find_all("a", href=re.compile(r"/race/\d{12}/")):
+            href = a.get("href", "")
+            match = re.search(r"/race/(\d{12})/", href)
+            if match:
+                race_id = match.group(1)
+                p_code = race_id[4:6]
+                if p_code in PLACE_CODE_MAP:
+                    race_no = int(race_id[10:12])
+                    if 1 <= race_no <= 12:
+                        races.append({"race_id": race_id, "場所": PLACE_CODE_MAP[p_code], "R": race_no})
+        log_debug(f"[DEBUG] DBページから取得したレース数: {len(races)}", is_simple)
+    except Exception as e:
+        log_debug(f"[WARN] DB取得エラー: {e}", is_simple)
+
+    if not races:
+        url_race = f"https://race.netkeiba.com/top/race_list.html?kaisai_date={date_str}"
+        try:
+            log_debug(f"[DEBUG] 当日アクセスURL: {url_race}", is_simple)
+            await page.goto(url_race, wait_until="domcontentloaded", timeout=15000)
+            await page.wait_for_selector("a[href*='race_id=']", timeout=5000)
+            content = await page.content()
+            soup = BeautifulSoup(content, "html.parser")
+            for a in soup.find_all("a", href=re.compile(r"race_id=\d{12}")):
+                href = a.get("href", "")
+                match = re.search(r"race_id=(\d{12})", href)
+                if match:
+                    race_id = match.group(1)
+                    p_code = race_id[4:6]
+                    if p_code in PLACE_CODE_MAP:
+                        race_no = int(race_id[10:12])
+                        if 1 <= race_no <= 12:
+                            races.append({"race_id": race_id, "場所": PLACE_CODE_MAP[p_code], "R": race_no})
+            log_debug(f"[DEBUG] 当日ページから取得したレース数: {len(races)}", is_simple)
+        except Exception as e:
+            log_debug(f"[WARN] 当日ページ取得エラー: {e}", is_simple)
+
+    unique_races = {}
+    for r in races:
+        key = f"{r['場所']}_{r['R']}"
+        if key not in unique_races:
+            unique_races[key] = r
+            
+    log_debug(f"[DEBUG] get_race_list完了: 重複排除後のレース数={len(unique_races)}", is_simple)
+    return sorted(list(unique_races.values()), key=lambda x: (x["場所"], x["R"]))
+
 async def fetch_race_odds(place_name, race_no, date_str=None, is_simple=False):
     if not date_str:
         date_str = datetime.now().strftime("%Y%m%d")
         
-    log_debug(f"[DEBUG] fetch_race_odds開始(JRA直接アクセス版): 場所={place_name}, レース={race_no}, 日付={date_str}", is_simple)
+    log_debug(f"[DEBUG] fetch_race_odds開始: 場所={place_name}, レース={race_no}, 日付={date_str}", is_simple)
 
     async with async_playwright() as p:
+        log_debug(f"[DEBUG] Playwrightブラウザ起動中...", is_simple)
         browser = await p.chromium.launch(
             headless=True,
-            args=["--no-sandbox", "--disable-setuid-sandbox", "--window-size=1280,1080"]
+            args=["--no-sandbox", "--disable-setuid-sandbox"]
         )
         context = await browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            viewport={"width": 1280, "height": 1080}
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         )
         page = await context.new_page()
-        odds_info = None
 
-        try:
-            # JRAの開催日ごとのレース一覧ページへ直接アクセス（例: 開催日を指定したページ）
-            # または、JRAのトップからメニューを開く代わりに、直接レース選択ページへ遷移を試みます
-            # 安定性を高めるため、JRAの「今週の開催レース」または「出馬表・オッズ」の共通エントリポイントを使用
-            
-            # まずJRAのトップにアクセスしてセッションCookieやリファラーを通す
-            await page.goto("https://www.jra.go.jp/", wait_until="domcontentloaded", timeout=10000)
-            await asyncio.sleep(1.0)
-
-            # JRAのレース一覧・オッズページへの直接URL（JRAの構造上の共通パス）
-            # 開催日(date_str)を利用したJRAの出馬表・オッズ導線ページへ移動
-            # ※JRAのURL構造に合わせ、メニューの「出馬表」や「オッズ」のリンク先にあるJavaScript関数（doActionなど）を直接叩くか、遷移します。
-            
-            # 先ほどエラーログにあった hidden 要素の onclick 属性にヒントがあります:
-            # onclick="doAction('/JRADB/accessO.html','pw15oli00/6D');return false;"
-            # このJS関数を直接実行することで、メニューを開かずに直接オッズ系のシステムへ飛ぶことができます。
-            
-            log_debug("[DEBUG] JRAのオッズシステムへ直接JavaScriptを実行して遷移...", is_simple)
-            # 該当のリンク要素を強制的にクリック（force=True を使うことで hidden であっても強制クリック可能）
-            odds_menu = page.locator("a[onclick*='accessO.html']").first
-            if await odds_menu.count() > 0:
-                await odds_menu.click(force=True)
-                await page.wait_for_load_state("domcontentloaded")
-                await asyncio.sleep(2.0)
-            else:
-                # 見つからない場合は直接URLへフォールバック
-                await page.goto("https://www.jra.go.jp/keiba/bamei/", wait_until="domcontentloaded") # 仮のフォールバック
-            
-            # その後、開催場（東京、中山など）とレース番号のリンクを画面内から探してクリック
-            log_debug(f"[DEBUG] 画面内から「{place_name}」と「{int(race_no)}R」を探してクリック...", is_simple)
-            
-            # 開催場をクリック
-            track_loc = page.locator(f"text={place_name}").first
-            await track_loc.wait_for(state="visible", timeout=5000)
-            await track_loc.click()
-            await asyncio.sleep(1.5)
-            
-            # レース番号をクリック
-            race_str = f"{int(race_no)}R"
-            race_loc = page.locator(f"text={race_str}").first
-            await race_loc.wait_for(state="visible", timeout=5000)
-            await race_loc.click()
-            await asyncio.sleep(1.5)
-            
-            # 3連複タブをクリック
-            sanrenpuku_loc = page.locator("text=3連複").first
-            await sanrenpuku_loc.wait_for(state="visible", timeout=5000)
-            await sanrenpuku_loc.click()
-            await asyncio.sleep(2.0)
-
-            # HTMLからオッズ抽出
-            html_content = await page.content()
-            soup = BeautifulSoup(html_content, "html.parser")
-            
-            odds_list = []
-            for el in soup.find_all("td"):
-                text = el.get_text(strip=True)
-                match = re.search(r'\b(\d+\.\d+)\b', text)
-                if match:
-                    try:
-                        val = float(match.group(1))
-                        if val > 0: odds_list.append(val)
-                    except ValueError:
-                        continue
-                        
-            odds = sorted(odds_list) if odds_list else []
-            log_debug(f"[DEBUG] 取得オッズ数(ソート済み): {len(odds)}件", is_simple)
-            
-            if len(odds) >= 30:
-                odds_info = {
-                    "o1": odds[0],
-                    "o10": odds[9] if len(odds) >= 10 else None,
-                    "o20": odds[19] if len(odds) >= 20 else None,
-                    "o30": odds[29] if len(odds) >= 30 else None,
-                    "o50": odds[49] if len(odds) >= 50 else None
-                }
-            else:
-                log_debug("[DEBUG] オッズデータが30件未満のため取得失敗", is_simple)
-                await page.screenshot(path="debug_jra_direct_fail.png")
-
-        except Exception as e:
-            log_debug(f"[ERROR] 直接アクセス版処理エラー: {e}", is_simple)
-            try:
-                await page.screenshot(path="error_jra_direct.png")
-            except:
-                pass
-
-        finally:
+        races = await get_race_list(page, date_str, is_simple=is_simple)
+        
+        target_race_id = None
+        for r in races:
+            if r["場所"] == place_name and r["R"] == int(race_no):
+                target_race_id = r["race_id"]
+                break
+                
+        log_debug(f"[DEBUG] ターゲットレースID: {target_race_id}", is_simple)
+                
+        if not target_race_id:
+            log_debug(f"[DEBUG] レースIDが特定できませんでした（{place_name} {race_no}R が一覧に見つからない）", is_simple)
             await browser.close()
+            return None
+
+        odds_list = []
+        urls = [
+            f"https://race.netkeiba.com/odds/index.html?type=b7&race_id={target_race_id}&housiki=c99",
+            f"https://race.netkeiba.com/odds/index.html?type=b7&race_id={target_race_id}",
+            f"https://db.netkeiba.com/race/odds/index.html?type=b7&race_id={target_race_id}"
+        ]
+
+        for url in urls:
+            if len(odds_list) > 0: 
+                break
+            for retry in range(2):
+                try:
+                    log_debug(f"[DEBUG] オッズURLアクセス: {url} (retry: {retry})", is_simple)
+                    await page.goto(url, wait_until="domcontentloaded", timeout=10000)
+                    await asyncio.sleep(1.2)
+                    
+                    html_content = await page.content()
+                    log_debug(f"[DEBUG] HTML取得成功 (文字数: {len(html_content)})", is_simple)
+                    
+                    soup = BeautifulSoup(html_content, "html.parser")
+                    
+                    # 親要素と子要素の重複取得を防ぐため、一番確実な要素に絞って取得する
+                    elements = soup.select("span[id^='odds-']")
+                    if not elements:
+                        elements = soup.select("td.Odds_Value")
+                    if not elements:
+                        elements = soup.select("td.Odds")
+                        
+                    log_debug(f"[DEBUG] 取得できたオッズ要素数(DOM): {len(elements)}", is_simple)
+                    
+                    # 全オッズを取得（途中breakしないことで全組み合わせを網羅し、ソート後の順位を正確にする）
+                    for el in elements:
+                        try:
+                            val = float(el.get_text(strip=True))
+                            if val > 0: odds_list.append(val)
+                        except ValueError: 
+                            continue
+                            
+                    log_debug(f"[DEBUG] 現在の取得オッズ数(変換成功数): {len(odds_list)}", is_simple)
+                    
+                    if len(odds_list) > 0: 
+                        break
+                except Exception as e:
+                    log_debug(f"[DEBUG] URLアクセスエラー: {e}", is_simple)
+                    await asyncio.sleep(1.0)
+            
+            # このURLで1件でも取得できたら、次のフォールバックURLには行かない
+            if len(odds_list) > 0:
+                break
+
+        await browser.close()
+
+        # 重複削除(set)を行わず、純粋に昇順ソートして本来の人気順位を確保する
+        odds = sorted(odds_list) if odds_list else []
+        log_debug(f"[DEBUG] 最終的に取得したオッズ数(ソート済み): {len(odds)}", is_simple)
+        
+        if len(odds) < 30:
+            log_debug("[DEBUG] オッズデータが30件未満のため、取得失敗と判定", is_simple)
+            return None
+
+        o1 = odds[0]
+        o10 = odds[9] if len(odds) >= 10 else None
+        o20 = odds[19] if len(odds) >= 20 else None
+        o30 = odds[29] if len(odds) >= 30 else None
+        o50 = odds[49] if len(odds) >= 50 else None
+
+        odds_info = {"o1": o1, "o10": o10, "o20": o20, "o30": o30, "o50": o50}
+        log_debug(f"[DEBUG] オッズ判定情報: o1={o1}, o10={o10}, o20={o20}, o30={o30}, o50={o50}", is_simple)
 
         return odds_info
 
