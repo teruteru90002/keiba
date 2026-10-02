@@ -353,7 +353,7 @@ async def fetch_race_odds(place_name, race_no, date_str=None, is_simple=False):
         ]
 
         for url in urls:
-            if len(odds_list) >= 50: 
+            if len(odds_list) > 0: 
                 break
             for retry in range(2):
                 try:
@@ -365,9 +365,17 @@ async def fetch_race_odds(place_name, race_no, date_str=None, is_simple=False):
                     log_debug(f"[DEBUG] HTML取得成功 (文字数: {len(html_content)})", is_simple)
                     
                     soup = BeautifulSoup(html_content, "html.parser")
-                    elements = soup.select("span[id^='odds-'], td.Odds_Value, td[class*='Odds'] span, td.Odds")
+                    
+                    # 親要素と子要素の重複取得を防ぐため、一番確実な要素に絞って取得する
+                    elements = soup.select("span[id^='odds-']")
+                    if not elements:
+                        elements = soup.select("td.Odds_Value")
+                    if not elements:
+                        elements = soup.select("td.Odds")
+                        
                     log_debug(f"[DEBUG] 取得できたオッズ要素数(DOM): {len(elements)}", is_simple)
                     
+                    # 全オッズを取得（途中breakしないことで全組み合わせを網羅し、ソート後の順位を正確にする）
                     for el in elements:
                         try:
                             val = float(el.get_text(strip=True))
@@ -376,16 +384,22 @@ async def fetch_race_odds(place_name, race_no, date_str=None, is_simple=False):
                             continue
                             
                     log_debug(f"[DEBUG] 現在の取得オッズ数(変換成功数): {len(odds_list)}", is_simple)
-                    if len(odds_list) >= 50: 
+                    
+                    if len(odds_list) > 0: 
                         break
                 except Exception as e:
                     log_debug(f"[DEBUG] URLアクセスエラー: {e}", is_simple)
                     await asyncio.sleep(1.0)
+            
+            # このURLで1件でも取得できたら、次のフォールバックURLには行かない
+            if len(odds_list) > 0:
+                break
 
         await browser.close()
 
-        odds = sorted(list(set(odds_list))) if odds_list else []
-        log_debug(f"[DEBUG] 最終的に取得したユニークなオッズ数: {len(odds)}", is_simple)
+        # 重複削除(set)を行わず、純粋に昇順ソートして本来の人気順位を確保する
+        odds = sorted(odds_list) if odds_list else []
+        log_debug(f"[DEBUG] 最終的に取得したオッズ数(ソート済み): {len(odds)}", is_simple)
         
         if len(odds) < 30:
             log_debug("[DEBUG] オッズデータが30件未満のため、取得失敗と判定", is_simple)
@@ -690,6 +704,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
         is_inner_favored = (
             (track == "東京" and "芝" in surface and distance == 2000) or
+            (track == "中山" and "芝" in surface and distance == 2000) or
             (track == "中山" and "芝" in surface and distance == 2000) or
             (track == "中山" and "芝" in surface and distance == 1800) or
             (track == "中山" and "芝" in surface and distance == 2200) or
