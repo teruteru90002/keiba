@@ -929,8 +929,8 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         
     aite2_df = df_aite2_pool.sort_values(by="合成順位").head(aite2_count)
 
-    aite1_horses = aite1_df["馬番"].tolist()
-    aite2_horses = aite2_df["馬番"].tolist()
+    aite1_horses = sorted(aite1_df["馬番"].tolist())
+    aite2_horses = sorted(aite2_df["馬番"].tolist())
 
     selected_aite_df = pd.concat([aite1_df, aite2_df]).drop_duplicates(subset=["馬番"])
     
@@ -1025,7 +1025,12 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     
     jiku_val = jiku_horse["馬番"]
     aite_str = ",".join(map(str, all_aite_nums))
+    aite1_str_input = ",".join(map(str, aite1_horses))
+    aite2_str_input = ",".join(map(str, aite2_horses))
+
     phase6_lines.append(f"* ３連複１頭軸流し：{jiku_val} - {aite_str}（{fmt_points}点）")
+    fmt_formation_points = len(aite1_horses) * len(aite2_horses)
+    phase6_lines.append(f"* ３連複フォーメーション：{jiku_val} - {aite1_str_input} - {aite2_str_input}（{fmt_formation_points}点）")
 
     full_report = []
     if is_simple:
