@@ -970,8 +970,8 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         f"    ★2頭以上入る合計確率: **{prob_top3_2_or_more:.1f}%**  "
     ]
 
-    if prob_top3_2_or_more >= 70.0:
-        phase6_lines.append("    **  70%以上は相手1注意**  ")
+    if prob_top3_2_or_more >= 60.0:
+        phase6_lines.append("    **  60%以上はフォーメーション検討**  ")
     if prob_top3_2_or_more <= 30.0:
         phase6_lines.append("    **  30%以下は軸注意**  ")
 
@@ -1033,8 +1033,8 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     aite1_str_input = ",".join(map(str, sorted(aite1_horses)))
     aite2_str_input = ",".join(map(str, sorted(aite2_horses)))
 
-    phase6_lines.append(f"* ３連複１頭軸流し：{jiku_val} - {aite_str}（{fmt_points}点）")
-    phase6_lines.append(f"* ３連複フォーメーション：{jiku_val} - {aite1_str_input} - {aite2_str_input}（{fmt_formation_points}点）")
+    phase6_lines.append(f"* 小荒、中荒、大荒：{jiku_val} - {aite_str}（{fmt_points}点）")
+    phase6_lines.append(f"* 軸2頭60%以上、並、堅い：{jiku_val} - {aite1_str_input} - {aite2_str_input}（{fmt_formation_points}点）")
 
     full_report = []
     if is_simple:
