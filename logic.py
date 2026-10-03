@@ -966,9 +966,9 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     ]
 
     if prob_top3_2_or_more >= 70.0:
-        phase6_lines.append("      70%以上は相手1注意  ")
+        phase6_lines.append("    **  70%以上は相手1注意**  ")
     if prob_top3_2_or_more <= 30.0:
-        phase6_lines.append("      30%以下は軸注意  ")
+        phase6_lines.append("    **  30%以下は軸注意**  ")
 
     phase6_lines.append("\n#### 2. 最終ランキング\n")
     phase6_lines.append("| 順位 | 馬(オッズ) | 合成値(順位) | オッズ(順位) | 能力(順位) | 勝率 | 複勝率 | 期待値 | 位置 | 走数 |")
