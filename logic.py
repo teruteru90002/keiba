@@ -929,14 +929,19 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         
     aite2_df = df_aite2_pool.sort_values(by="合成順位").head(aite2_count)
 
-    aite1_horses = sorted(aite1_df["馬番"].tolist())
-    aite2_horses = sorted(aite2_df["馬番"].tolist())
+    # 合成順位（df_sortedの順序）で相手1・相手2のリストを作成
+    aite1_df_syn_sorted = df_sorted[df_sorted["馬番"].isin(aite1_df["馬番"].tolist())]
+    aite2_df_syn_sorted = df_sorted[df_sorted["馬番"].isin(aite2_df["馬番"].tolist())]
+
+    aite1_horses = aite1_df_syn_sorted["馬番"].tolist()
+    aite2_horses = aite2_df_syn_sorted["馬番"].tolist()
 
     selected_aite_df = pd.concat([aite1_df, aite2_df]).drop_duplicates(subset=["馬番"])
     
     all_aite_nums = sorted(selected_aite_df["馬番"].tolist())
     sanrenpuku_combos = list(itertools.combinations(all_aite_nums, 2))
     fmt_points = len(sanrenpuku_combos)
+    fmt_formation_points = len(aite1_horses) * len(aite2_horses)
 
     jiku_log_lines = ["\n#### ■ 3-3. 軸馬・相手馬決定判定プロセス"]
     jiku_log_lines.append(f"【軸馬判定】：{jiku_reason} → 馬番{jiku_horse['馬番']}（{jiku_horse['馬名']}）")
@@ -1025,11 +1030,10 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     
     jiku_val = jiku_horse["馬番"]
     aite_str = ",".join(map(str, all_aite_nums))
-    aite1_str_input = ",".join(map(str, aite1_horses))
-    aite2_str_input = ",".join(map(str, aite2_horses))
+    aite1_str_input = ",".join(map(str, sorted(aite1_horses)))
+    aite2_str_input = ",".join(map(str, sorted(aite2_horses)))
 
     phase6_lines.append(f"* ３連複１頭軸流し：{jiku_val} - {aite_str}（{fmt_points}点）")
-    fmt_formation_points = len(aite1_horses) * len(aite2_horses)
     phase6_lines.append(f"* ３連複フォーメーション：{jiku_val} - {aite1_str_input} - {aite2_str_input}（{fmt_formation_points}点）")
 
     full_report = []
