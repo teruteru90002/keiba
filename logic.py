@@ -946,7 +946,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         "堅い": "配当目安 ～30倍",
         "並": "配当目安 30～60倍",
         "小荒": "配当目安 50～80倍",
-        "中荒": "配当目安 80～130倍～",
+        "中荒": "配当目安 80～130倍",
         "大荒": "配当目安 120倍～"
     }
     target_odds_range = ODDS_RANGE_MAP.get(race_pattern, "")
@@ -963,6 +963,8 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         f"  * 2頭入る確率: **{prob_top3_2:.1f}%**",
         f"  * 3頭入る確率: **{prob_top3_3:.1f}%**",
         f"  * (2頭以上入る合計確率: **{prob_top3_2_or_more:.1f}%**)\n",
+        f"  * ★70%以上はフォーメーション検討\n",
+        f"  * ★30%以下は軸注意\n",
         "#### 2. 最終ランキング\n",
         "| 順位 | 馬(オッズ) | 合成値(順位) | オッズ(順位) | 能力(順位) | 勝率 | 複勝率 | 期待値 | 位置 | 走数 |",
         "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"
