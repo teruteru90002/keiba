@@ -261,9 +261,8 @@ def calculate_payout_probabilities(o1, o10, o20, o30, o50):
 # ==============================================================================
 def get_best_30x_odds_range(payout_probs):
     """
-    推定配当確率から中心位置(best_start)を算出し、
+    6区分の推定配当確率から中心位置(best_start)を正確に算出し、
     下限を best_start - 10.0倍、上限を best_start + 20.0倍（計30倍幅）として推奨範囲を確定する
-    （下限ガードなし）
     """
     if not payout_probs:
         return 0.0, 10.0, 40.0
@@ -288,7 +287,10 @@ def get_best_30x_odds_range(payout_probs):
         best_start = round(55.0 + (ratio * 20.0), 1)
     elif p_90_120 + p_120_150 >= 40:
         ratio = p_120_150 / (p_90_120 + p_120_150 + 1e-5)
-        best_start = round(85.0 + (ratio * 20.0), 1)
+        best_start = round(75.0 + (ratio * 20.0), 1)
+    elif p_120_150 + p_over_150 >= 35:
+        ratio = p_over_150 / (p_120_150 + p_over_150 + 1e-5)
+        best_start = round(95.0 + (ratio * 30.0), 1)
     else:
         best_start = 110.0
 
