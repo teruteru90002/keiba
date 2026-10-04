@@ -252,24 +252,16 @@ def calculate_payout_probabilities(o1, o10, o20, o30, o50):
     }
 
 # ==============================================================================
-# 30〜70倍特化型：買う／見判定 ＆ 4区分オッズ帯別確率算出ロジック
+# 5段階オッズ帯別発生確率算出ロジック
 # ==============================================================================
-def evaluate_30_70_strategy(df_sorted, odds_info, payout_probs, prob_top3_2_or_more):
+def evaluate_5tier_odds_probabilities(payout_probs):
     """
-    配当確率および単勝オッズ順位から「買う/見」判定、スタイル選択、
-    および 4つのオッズ帯（30倍以下/30-50倍/50-80倍/80倍以上）ごとの発生確率を算出する関数
+    payout_probs から 5段階（〜30, 30〜50, 50〜80, 80〜120, 120〜）の発生確率を算出する関数
     """
-    if not payout_probs or not odds_info:
+    if not payout_probs:
         return {
-            "decision": "見（SKIP）",
-            "reason": "オッズデータ不足のため判定不可",
-            "prob_under_30": 0, "prob_30_50": 0, "prob_50_80": 0, "prob_over_80": 0,
-            "form_type": "-",
-            "jiku_horse_str": "-",
-            "aite_horses_str": "-",
-            "aite1_horses_str": "-",
-            "aite2_horses_str": "-",
-            "base_points": 0
+            "p_under_30": 0, "p_30_50": 0, "p_50_80": 0,
+            "p_80_120": 0, "p_over_120": 0
         }
 
     p_under_20 = payout_probs.get("20倍以下", 0)
@@ -278,66 +270,29 @@ def evaluate_30_70_strategy(df_sorted, odds_info, payout_probs, prob_top3_2_or_m
     p_80_120   = payout_probs.get("80～120倍", 0)
     p_over_120 = payout_probs.get("120倍以上", 0)
 
-    # 4区分のオッズ帯発生確率の集計
-    # 30倍以下の概算 = 20倍以下 + 20〜50倍の一部(約1/3)
-    prob_under_30 = round(p_under_20 + (p_20_50 * 0.33))
-    prob_30_50    = round(p_20_50 * 0.67)
-    prob_50_80    = p_50_80
-    prob_over_80  = round(p_80_120 + p_over_120)
+    # 5区分オッズ帯発生確率の再割り当て
+    # 〜30倍 = 20倍以下 + 20〜50倍の一部(約1/3)
+    p_under_30 = round(p_under_20 + (p_20_50 * 0.33))
+    p_30_50    = round(p_20_50 * 0.67)
+    p_50_80    = p_50_80
+    p_80_120   = p_80_120
+    p_over_120 = p_over_120
 
     # 合計100%への正規化
-    total_p = prob_under_30 + prob_30_50 + prob_50_80 + prob_over_80
+    total_p = p_under_30 + p_30_50 + p_50_80 + p_80_120 + p_over_120
     if total_p > 0:
-        prob_under_30 = round(prob_under_30 / total_p * 100)
-        prob_30_50    = round(prob_30_50 / total_p * 100)
-        prob_50_80    = round(prob_50_80 / total_p * 100)
-        prob_over_80  = 100 - (prob_under_30 + prob_30_50 + prob_50_80)
-
-    df_odds_order = df_sorted.sort_values(by="単勝オッズ").reset_index(drop=True)
-    
-    jiku_row = df_odds_order.iloc[0]
-    jiku_num = jiku_row["馬番"]
-    jiku_odds = jiku_row["単勝オッズ"]
-    jiku_str = f"馬番{jiku_num}（{jiku_row['馬名']} / {jiku_odds}倍）"
-
-    # 見（SKIP）判定：30倍以下の発生確率が55%以上、または1番人気が2.0倍未満
-    if prob_under_30 >= 55 or jiku_odds < 2.0:
-        decision = "見（SKIP）"
-        reason = f"30倍以下の低配当確率が高い（30倍以下想定: 約{prob_under_30}% / 1番人気: {jiku_odds:.1f}倍）"
-    else:
-        decision = "買い（BUY）"
-        reason = f"30〜80倍ゾーンの発生期待度高（30〜80倍想定: 約{prob_30_50 + prob_50_80}%）"
-
-    # 相手馬の取得（単勝人気順位ベース）
-    aite_流し_rows = df_odds_order.iloc[1:7] if len(df_odds_order) >= 7 else df_odds_order.iloc[1:]
-    aite_流し_nums = aite_流し_rows["馬番"].tolist()
-
-    aite1_fmt_rows = df_odds_order.iloc[1:3] if len(df_odds_order) >= 3 else df_odds_order.iloc[1:]
-    aite2_fmt_rows = df_odds_order.iloc[3:9] if len(df_odds_order) >= 9 else df_odds_order.iloc[3:]
-    aite1_fmt_nums = aite1_fmt_rows["馬番"].tolist()
-    aite2_fmt_nums = aite2_fmt_rows["馬番"].tolist()
-
-    # スタイル選択判定
-    if prob_top3_2_or_more >= 60.0:
-        form_type = "フォーメーション（1番人気 - 2,3番人気 - 4〜9番人気）"
-        base_points = len(aite1_fmt_nums) * len(aite2_fmt_nums)
-    else:
-        form_type = "１頭軸流し（1番人気 - 2〜7番人気）"
-        base_points = len(list(itertools.combinations(aite_流し_nums, 2)))
+        p_under_30 = round(p_under_30 / total_p * 100)
+        p_30_50    = round(p_30_50 / total_p * 100)
+        p_50_80    = round(p_50_80 / total_p * 100)
+        p_80_120   = round(p_80_120 / total_p * 100)
+        p_over_120 = 100 - (p_under_30 + p_30_50 + p_50_80 + p_80_120)
 
     return {
-        "decision": decision,
-        "reason": reason,
-        "prob_under_30": prob_under_30,
-        "prob_30_50": prob_30_50,
-        "prob_50_80": prob_50_80,
-        "prob_over_80": prob_over_80,
-        "form_type": form_type,
-        "jiku_horse_str": jiku_str,
-        "aite_horses_str": ", ".join(map(str, aite_流し_nums)),
-        "aite1_horses_str": ", ".join(map(str, aite1_fmt_nums)),
-        "aite2_horses_str": ", ".join(map(str, aite2_fmt_nums)),
-        "base_points": base_points
+        "p_under_30": p_under_30,
+        "p_30_50": p_30_50,
+        "p_50_80": p_50_80,
+        "p_80_120": p_80_120,
+        "p_over_120": p_over_120
     }
 
 # ==============================================================================
@@ -957,8 +912,8 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     prob_top3_2_or_more = prob_top3_2 + prob_top3_3
 
-    # 30〜70倍特化型戦略判定の呼び出し
-    eval_30_70 = evaluate_30_70_strategy(df_sorted, odds_info, payout_probs, prob_top3_2_or_more)
+    # 5段階オッズ帯確率の算出
+    eval_5tier = evaluate_5tier_odds_probabilities(payout_probs)
 
     # ==========================================================================
     # 買い目選定ロジック（標準機能）
@@ -1122,30 +1077,16 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     phase6_lines.append(f"* 軸2頭60%以上、並、堅い：{jiku_val} - {aite1_str_input} - {aite2_str_input}（{fmt_formation_points}点）")
 
     # ==========================================================================
-    # 30〜70倍特化型買い目（4区分オッズ帯別発生確率ガイド付き）
+    # 5. オッズ帯別 アクションガイド（5区分テーブルのみ出力）
     # ==========================================================================
     phase6_lines.append("\n#### 🎯 5. オッズ帯別 アクションガイド\n")
-    phase6_lines.append(f"* **判定**: **【{eval_30_70['decision']}】** ({eval_30_70['reason']})")
-    
-    if eval_30_70["decision"] == "買い（BUY）":
-        phase6_lines.append(f"* **推薦スタイル**: {eval_30_70['form_type']}")
-        phase6_lines.append(f"* **軸馬**: {eval_30_70['jiku_horse_str']}")
-        if "フォーメーション" in eval_30_70['form_type']:
-            phase6_lines.append(f"* **相手1（2,3人気）**: 馬番 {eval_30_70['aite1_horses_str']}")
-            phase6_lines.append(f"* **相手2（4〜9人気）**: 馬番 {eval_30_70['aite2_horses_str']}")
-        else:
-            phase6_lines.append(f"* **相手馬（2〜7人気）**: 馬番 {eval_30_70['aite_horses_str']}")
-        
-        phase6_lines.append("\n**【オッズ帯別・発生確率＆直前チェック】**")
-        phase6_lines.append("| オッズ帯 | 想定発生確率 | 判定 | アクション |")
-        phase6_lines.append("| --- | --- | --- | --- |")
-        phase6_lines.append(f"| **30倍以下** | **約 {eval_30_70['prob_under_30']}%** | ❌ 見送り | 安配当・トリガミ防止のためカット |")
-        phase6_lines.append(f"| **30〜50倍** | **約 {eval_30_70['prob_30_50']}%** | 🎯 **主力買い目** | **最優先で購入（中心オッズゾーン）** |")
-        phase6_lines.append(f"| **50〜80倍** | **約 {eval_30_70['prob_50_80']}%** | 🎯 **狙い目** | **購入対象（70倍以下を中心にカバー）** |")
-        phase6_lines.append(f"| **80倍以上** | **約 {eval_30_70['prob_over_80']}%** | ❌ 見送り | 荒れすぎリスク回避のためカット |")
-        phase6_lines.append(f"\n* ※発走直前の3連複オッズを確認し、候補（ベース{eval_30_70['base_points']}点）の中から **「30〜50倍」および「50〜80倍」**（想定確率計 {eval_30_70['prob_30_50'] + eval_30_70['prob_50_80']}%）に該当する点数のみを購入してください。")
-    else:
-        phase6_lines.append("* **購入指定**: 30倍以下の低配当になる可能性が高いため、本レースでの投資は見送り（SKIP）を推奨します。")
+    phase6_lines.append("| オッズ帯 | 想定発生確率 |")
+    phase6_lines.append("| --- | --- |")
+    phase6_lines.append(f"| **～30** | 約 {eval_5tier['p_under_30']}% |")
+    phase6_lines.append(f"| **30～50** | 約 {eval_5tier['p_30_50']}% |")
+    phase6_lines.append(f"| **50～80** | 約 {eval_5tier['p_50_80']}% |")
+    phase6_lines.append(f"| **80～120** | 約 {eval_5tier['p_80_120']}% |")
+    phase6_lines.append(f"| **120～** | 約 {eval_5tier['p_over_120']}% |")
 
     full_report = []
     if is_simple:
