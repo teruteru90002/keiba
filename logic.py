@@ -205,50 +205,50 @@ def estimate_position_type_final_corner(past_runs):
         return "追"
 
 # ==============================================================================
-# 配当帯確率計算ロジック（5区分化：20倍以下、20～50倍、50～80倍、80～120倍、120倍以上）
+# 配当帯確率計算ロジック（5区分化：～30、30～50、50～80、80～120、120～）
 # ==============================================================================
 def calculate_payout_probabilities(o1, o10, o20, o30, o50):
     """
-    3連複各順位のオッズ値から、配当帯（20倍以下、20～50倍、50～80倍、80～120倍、120倍以上）の推定確率を算出する
+    3連複各順位のオッズ値から、配当帯（～30、30～50、50～80、80～120、120～）の推定確率を算出する
     """
     if o1 is None:
         return None
 
     if o1 <= 8.0 and (o20 is None or o20 <= 50.0):
-        p_under_20 = max(10, min(85, int(90 - (o1 * 4) - (o10 * 0.5 if o10 else 10))))
-        rem = 100 - p_under_20
-        p_20_50 = round(rem * 0.45)
+        p_under_30 = max(10, min(85, int(92 - (o1 * 3.5) - (o10 * 0.4 if o10 else 10))))
+        rem = 100 - p_under_30
+        p_30_50 = round(rem * 0.40)
         p_50_80 = round(rem * 0.30)
-        p_80_120 = round(rem * 0.15)
-        p_over_120 = rem - p_20_50 - p_50_80 - p_80_120
+        p_80_120 = round(rem * 0.18)
+        p_over_120 = rem - p_30_50 - p_50_80 - p_80_120
     elif o1 >= 15.0 or (o10 is None or o10 >= 50.0):
-        p_under_20 = max(2, min(15, int(25 - o1)))
-        p_20_50 = max(5, min(20, int(30 - (o1 * 0.6))))
+        p_under_30 = max(5, min(25, int(35 - o1)))
+        p_30_50 = max(5, min(25, int(35 - (o1 * 0.5))))
         p_50_80 = max(10, min(30, int(35 - (o10 * 0.2 if o10 else 10))))
         p_80_120 = max(15, min(35, int(40 - (o20 * 0.1 if o20 else 10))))
-        p_over_120 = max(20, 100 - p_under_20 - p_20_50 - p_50_80 - p_80_120)
+        p_over_120 = max(20, 100 - p_under_30 - p_30_50 - p_50_80 - p_80_120)
     else:
-        p_under_20 = max(5, min(60, int(65 - (o1 * 2.5) - (o10 * 0.3 if o10 else 5))))
-        rem = 100 - p_under_20
-        p_20_50 = round(rem * 0.35)
+        p_under_30 = max(10, min(70, int(75 - (o1 * 2.2) - (o10 * 0.25 if o10 else 5))))
+        rem = 100 - p_under_30
+        p_30_50 = round(rem * 0.35)
         p_50_80 = round(rem * 0.30)
         p_80_120 = round(rem * 0.20)
-        p_over_120 = rem - p_20_50 - p_50_80 - p_80_120
+        p_over_120 = rem - p_30_50 - p_50_80 - p_80_120
 
-    total = p_under_20 + p_20_50 + p_50_80 + p_80_120 + p_over_120
+    total = p_under_30 + p_30_50 + p_50_80 + p_80_120 + p_over_120
     if total > 0:
-        p_under_20 = round(p_under_20 / total * 100)
-        p_20_50 = round(p_20_50 / total * 100)
+        p_under_30 = round(p_under_30 / total * 100)
+        p_30_50 = round(p_30_50 / total * 100)
         p_50_80 = round(p_50_80 / total * 100)
         p_80_120 = round(p_80_120 / total * 100)
-        p_over_120 = 100 - (p_under_20 + p_20_50 + p_50_80 + p_80_120)
+        p_over_120 = 100 - (p_under_30 + p_30_50 + p_50_80 + p_80_120)
 
     return {
-        "20倍以下": p_under_20,
-        "20～50倍": p_20_50,
-        "50～80倍": p_50_80,
-        "80～120倍": p_80_120,
-        "120倍以上": p_over_120
+        "～30": p_under_30,
+        "30～50": p_30_50,
+        "50～80": p_50_80,
+        "80～120": p_80_120,
+        "120～": p_over_120
     }
 
 # ==============================================================================
@@ -483,9 +483,9 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     if payout_probs:
         prob_table_md = (
-            "\n| 20倍以下 | 20～50倍 | 50～80倍 | 80～120倍 | 120倍以上 |\n"
+            "\n| ～30 | 30～50 | 50～80 | 80～120 | 120～ |\n"
             "| --- | --- | --- | --- | --- |\n"
-            f"| **約{payout_probs['20倍以下']}%** | **約{payout_probs['20～50倍']}%** | **約{payout_probs['50～80倍']}%** | **約{payout_probs['80～120倍']}%** | **約{payout_probs['120倍以上']}%** |"
+            f"| **約{payout_probs['～30']}%** | **約{payout_probs['30～50']}%** | **約{payout_probs['50～80']}%** | **約{payout_probs['80～120']}%** | **約{payout_probs['120～']}%** |"
         )
     else:
         prob_table_md = "\n* **推定配当確率**: データ不足のため算出不可"
@@ -833,22 +833,22 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     df_sorted["期待値"] = (df_sorted["単勝オッズ"] * (df_sorted["勝率(MC)"] / 100.0)).round(2)
 
     # ==========================================================================
-    # 3連複荒れ度判定ロジック（5段階化：堅い・小荒・中荒・大荒・並）
+    # 3連複荒れ度判定ロジック
     # ==========================================================================
     if payout_probs:
-        p_under_20 = payout_probs.get("20倍以下", 0)
-        p_20_50    = payout_probs.get("20～50倍", 0)
-        p_50_80    = payout_probs.get("50～80倍", 0)
-        p_80_120   = payout_probs.get("80～120倍", 0)
-        p_over_120 = payout_probs.get("120倍以上", 0)
+        p_under_30 = payout_probs.get("～30", 0)
+        p_30_50    = payout_probs.get("30～50", 0)
+        p_50_80    = payout_probs.get("50～80", 0)
+        p_80_120   = payout_probs.get("80～120", 0)
+        p_over_120 = payout_probs.get("120～", 0)
 
-        if p_under_20 >= 35 or (p_under_20 + p_20_50) >= 65:
+        if p_under_30 >= 35 or (p_under_30 + p_30_50) >= 65:
             race_pattern = "堅い"
-            pattern_desc = "20倍以下の低配当確率が高く、本命・人気決着が濃厚なレースです。"
-        elif p_20_50 >= 35 or (p_under_20 + p_20_50) >= 50:
+            pattern_desc = "30倍以下の低配当確率が高く、本命・人気決着が濃厚なレースです。"
+        elif p_30_50 >= 35 or (p_under_30 + p_30_50) >= 50:
             race_pattern = "並"
-            pattern_desc = "20～50倍の中配当が中心となる標準的なレースです。"
-        elif p_50_80 >= 35 or (p_20_50 + p_50_80) >= 50:
+            pattern_desc = "30～50倍の中配当が中心となる標準的なレースです。"
+        elif p_50_80 >= 35 or (p_30_50 + p_50_80) >= 50:
             race_pattern = "小荒"
             pattern_desc = "50～80倍の中高配当が想定されるやや波乱含みのレースです。"
         elif p_80_120 >= 35 or (p_50_80 + p_80_120) >= 50:
@@ -948,8 +948,8 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     jiku_log_lines.append(f"【相手判定】：{aite_reason_str}")
 
     ODDS_RANGE_MAP = {
-        "堅い": "配当目安 ～20倍",
-        "並": "配当目安 20～50倍",
+        "堅い": "配当目安 ～30倍",
+        "並": "配当目安 30～50倍",
         "小荒": "配当目安 50～80倍",
         "中荒": "配当目安 80～120倍",
         "大荒": "配当目安 120倍～"
