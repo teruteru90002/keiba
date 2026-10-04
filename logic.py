@@ -252,16 +252,16 @@ def calculate_payout_probabilities(o1, o10, o20, o30, o50):
     }
 
 # ==============================================================================
-# BEST推奨購入範囲（30倍幅：best_start-10倍 〜 best_start+20倍）自動算出ロジック
+# BEST推奨購入範囲（30倍幅：best_start - 10倍 〜 best_start + 20倍）自動算出ロジック
 # ==============================================================================
-def get_best_30x_odds_range(payout_probs, total_points=12):
+def get_best_30x_odds_range(payout_probs):
     """
     推定配当確率から中心位置(best_start)を算出し、
     下限を best_start - 10.0倍、上限を best_start + 20.0倍（計30倍幅）として推奨範囲を確定する
+    （下限ガードなし）
     """
     if not payout_probs:
-        min_line = round(total_points * 1.2, 1)
-        return min_line, round(min_line + 30.0, 1)
+        return 0.0, 10.0, 40.0
 
     p_under_30 = payout_probs.get("～30倍", 0)
     p_30_60    = payout_probs.get("30～60倍", 0)
@@ -287,13 +287,7 @@ def get_best_30x_odds_range(payout_probs, total_points=12):
     best_min = round(best_start - 10.0, 1)
     best_max = round(best_start + 20.0, 1)
 
-    # トリガミ防止ガード（点数×1.2）を下限値に適用
-    min_limit = round(total_points * 1.2, 1)
-    if best_min < min_limit:
-        best_min = min_limit
-        best_max = round(best_min + 30.0, 1)
-
-    return best_min, best_max
+    return best_start, best_min, best_max
 
 # ==============================================================================
 # 3連複オッズ取得ロジック
@@ -982,8 +976,8 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     fmt_points = len(sanrenpuku_combos)
     fmt_formation_points = len(aite1_horses) * len(aite2_horses)
 
-    # BEST推奨購入範囲（30倍幅：best_start - 10倍 〜 best_start + 20倍）の算出
-    best_min, best_max = get_best_30x_odds_range(payout_probs, total_points=fmt_points)
+    # BEST推奨購入範囲（best_start - 10倍 〜 best_start + 20倍）の算出
+    best_start, best_min, best_max = get_best_30x_odds_range(payout_probs)
 
     jiku_log_lines = ["\n#### ■ 3-3. 軸馬・相手馬決定判定プロセス"]
     jiku_log_lines.append(f"【軸馬判定】：{jiku_reason} → 馬番{jiku_horse['馬番']}（{jiku_horse['馬名']}）")
@@ -995,6 +989,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         f"* **取得3連複オッズ**:\n{odds_table_md}",
         f"\n* **推定配当確率**:\n{prob_table_md}",
         f"\n**【レース判定結果】：{race_pattern}** （{pattern_desc}）  ",
+        f"★ **【オッズ中心位置 (best_start)】：{best_start:.1f}倍**  ",
         f"★ **【BEST推奨購入範囲（30倍幅）】：{best_min:.1f}倍 ～ {best_max:.1f}倍**\n",
         f"  * 単勝1〜3番人気の複勝(3着以内)入着シミュレーション:",
         f"    0頭入る確率: **{prob_top3_0:.1f}%**  ",
