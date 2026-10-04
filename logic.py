@@ -252,12 +252,12 @@ def calculate_payout_probabilities(o1, o10, o20, o30, o50):
     }
 
 # ==============================================================================
-# BEST推奨購入範囲（30倍幅）自動算出ロジック
+# BEST推奨購入範囲（30倍幅：best_start-10倍 〜 best_start+20倍）自動算出ロジック
 # ==============================================================================
 def get_best_30x_odds_range(payout_probs, total_points=12):
     """
-    推定配当確率および購入点数（トリガミ防止ライン）から、
-    最も期待値・確率のバランスが良い「BEST 30倍幅（例: 35.0倍 ～ 65.0倍）」を算出する
+    推定配当確率から中心位置(best_start)を算出し、
+    下限を best_start - 10.0倍、上限を best_start + 20.0倍（計30倍幅）として推奨範囲を確定する
     """
     if not payout_probs:
         min_line = round(total_points * 1.2, 1)
@@ -283,12 +283,17 @@ def get_best_30x_odds_range(payout_probs, total_points=12):
     else:
         best_start = 90.0
 
-    min_limit = round(total_points * 1.2, 1)
-    if best_start < min_limit:
-        best_start = min_limit
+    # best_start を基準に下限 (-10倍) と上限 (+20倍) を算出
+    best_min = round(best_start - 10.0, 1)
+    best_max = round(best_start + 20.0, 1)
 
-    best_end = round(best_start + 30.0, 1)
-    return best_start, best_end
+    # トリガミ防止ガード（点数×1.2）を下限値に適用
+    min_limit = round(total_points * 1.2, 1)
+    if best_min < min_limit:
+        best_min = min_limit
+        best_max = round(best_min + 30.0, 1)
+
+    return best_min, best_max
 
 # ==============================================================================
 # 3連複オッズ取得ロジック
@@ -977,7 +982,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     fmt_points = len(sanrenpuku_combos)
     fmt_formation_points = len(aite1_horses) * len(aite2_horses)
 
-    # BEST推奨購入範囲（30倍幅）の算出
+    # BEST推奨購入範囲（30倍幅：best_start - 10倍 〜 best_start + 20倍）の算出
     best_min, best_max = get_best_30x_odds_range(payout_probs, total_points=fmt_points)
 
     jiku_log_lines = ["\n#### ■ 3-3. 軸馬・相手馬決定判定プロセス"]
