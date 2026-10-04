@@ -483,9 +483,9 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     if payout_probs:
         prob_table_md = (
-            "\n| ～30 | 30～50 | 50～80 | 80～120 | 120～ |\n"
+            "\n| ～30倍 | 30～50倍 | 50～80倍 | 80～120倍 | 120倍～ |\n"
             "| --- | --- | --- | --- | --- |\n"
-            f"| **約{payout_probs['～30']}%** | **約{payout_probs['30～50']}%** | **約{payout_probs['50～80']}%** | **約{payout_probs['80～120']}%** | **約{payout_probs['120～']}%** |"
+            f"| **{payout_probs['～30']}%** | **{payout_probs['30～50']}%** | **{payout_probs['50～80']}%** | **{payout_probs['80～120']}%** | **{payout_probs['120～']}%** |"
         )
     else:
         prob_table_md = "\n* **推定配当確率**: データ不足のため算出不可"
