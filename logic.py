@@ -252,50 +252,6 @@ def calculate_payout_probabilities(o1, o10, o20, o30, o50):
     }
 
 # ==============================================================================
-# 5段階オッズ帯別発生確率算出ロジック
-# ==============================================================================
-def evaluate_5tier_odds_probabilities(payout_probs):
-    """
-    payout_probs から 5段階（〜30, 30〜50, 50〜80, 80〜120, 120〜）の発生確率を算出する関数
-    """
-    if not payout_probs:
-        return {
-            "p_under_30": 0, "p_30_50": 0, "p_50_80": 0,
-            "p_80_120": 0, "p_over_120": 0
-        }
-
-    p_under_20 = payout_probs.get("20倍以下", 0)
-    p_20_50    = payout_probs.get("20～50倍", 0)
-    p_50_80    = payout_probs.get("50～80倍", 0)
-    p_80_120   = payout_probs.get("80～120倍", 0)
-    p_over_120 = payout_probs.get("120倍以上", 0)
-
-    # 5区分オッズ帯発生確率の再割り当て
-    # 〜30倍 = 20倍以下 + 20〜50倍の一部(約1/3)
-    p_under_30 = round(p_under_20 + (p_20_50 * 0.33))
-    p_30_50    = round(p_20_50 * 0.67)
-    p_50_80    = p_50_80
-    p_80_120   = p_80_120
-    p_over_120 = p_over_120
-
-    # 合計100%への正規化
-    total_p = p_under_30 + p_30_50 + p_50_80 + p_80_120 + p_over_120
-    if total_p > 0:
-        p_under_30 = round(p_under_30 / total_p * 100)
-        p_30_50    = round(p_30_50 / total_p * 100)
-        p_50_80    = round(p_50_80 / total_p * 100)
-        p_80_120   = round(p_80_120 / total_p * 100)
-        p_over_120 = 100 - (p_under_30 + p_30_50 + p_50_80 + p_80_120)
-
-    return {
-        "p_under_30": p_under_30,
-        "p_30_50": p_30_50,
-        "p_50_80": p_50_80,
-        "p_80_120": p_80_120,
-        "p_over_120": p_over_120
-    }
-
-# ==============================================================================
 # 3連複オッズ取得ロジック
 # ==============================================================================
 PLACE_CODE_MAP = {
@@ -410,6 +366,7 @@ async def fetch_race_odds(place_name, race_no, date_str=None, is_simple=False):
                     
                     soup = BeautifulSoup(html_content, "html.parser")
                     
+                    # 親要素と子要素の重複取得を防ぐため、一番確実な要素に絞って取得する
                     elements = soup.select("span[id^='odds-']")
                     if not elements:
                         elements = soup.select("td.Odds_Value")
@@ -418,6 +375,7 @@ async def fetch_race_odds(place_name, race_no, date_str=None, is_simple=False):
                         
                     log_debug(f"[DEBUG] 取得できたオッズ要素数(DOM): {len(elements)}", is_simple)
                     
+                    # 全オッズを取得（途中breakしないことで全組み合わせを網羅し、ソート後の順位を正確にする）
                     for el in elements:
                         try:
                             val = float(el.get_text(strip=True))
@@ -433,11 +391,13 @@ async def fetch_race_odds(place_name, race_no, date_str=None, is_simple=False):
                     log_debug(f"[DEBUG] URLアクセスエラー: {e}", is_simple)
                     await asyncio.sleep(1.0)
             
+            # このURLで1件でも取得できたら、次のフォールバックURLには行かない
             if len(odds_list) > 0:
                 break
 
         await browser.close()
 
+        # 重複削除(set)を行わず、純粋に昇順ソートして本来の人気順位を確保する
         odds = sorted(odds_list) if odds_list else []
         log_debug(f"[DEBUG] 最終的に取得したオッズ数(ソート済み): {len(odds)}", is_simple)
         
@@ -504,6 +464,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         o30_str = f"{o30:.1f}倍" if o30 is not None else "-"
         o50_str = f"{o50:.1f}倍" if o50 is not None else "-"
 
+        # 推定確率の計算（5区分）
         payout_probs = calculate_payout_probabilities(o1, o10, o20, o30, o50)
     else:
         o1 = o10 = o20 = o30 = o50 = None
@@ -744,6 +705,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         is_inner_favored = (
             (track == "東京" and "芝" in surface and distance == 2000) or
             (track == "中山" and "芝" in surface and distance == 2000) or
+            (track == "中山" and "芝" in surface and distance == 2000) or
             (track == "中山" and "芝" in surface and distance == 1800) or
             (track == "中山" and "芝" in surface and distance == 2200) or
             (track == "阪神" and "芝" in surface and distance == 1400) or
@@ -912,11 +874,8 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     prob_top3_2_or_more = prob_top3_2 + prob_top3_3
 
-    # 5段階オッズ帯確率の算出
-    eval_5tier = evaluate_5tier_odds_probabilities(payout_probs)
-
     # ==========================================================================
-    # 買い目選定ロジック（標準機能）
+    # 買い目選定ロジック
     # ==========================================================================
     df_valid = df_sorted[
         (df_sorted["オッズ順位"] < 10) & 
@@ -970,6 +929,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         
     aite2_df = df_aite2_pool.sort_values(by="合成順位").head(aite2_count)
 
+    # 合成順位（df_sortedの順序）で相手1・相手2のリストを作成
     aite1_df_syn_sorted = df_sorted[df_sorted["馬番"].isin(aite1_df["馬番"].tolist())]
     aite2_df_syn_sorted = df_sorted[df_sorted["馬番"].isin(aite2_df["馬番"].tolist())]
 
@@ -1038,7 +998,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
                 f"| {rank_num} | {r['馬番']} {r['馬名']}({r['単勝オッズ']}倍) | {r['合成値']:.2f} ({r['合成順位']}位) | {r['オッズスコア']:.1f} ({r['オッズ順位']}位) | {r['能力スコア']:.1f} ({r['能力順位']}位) | {win_mc} | {place_mc} | {ev_val} | {pos} | {valid_runs} |"
             )
 
-    phase6_lines.append(f"\n#### 3. 標準買い目（判定：【{race_pattern}】 {target_odds_range}）\n")
+    phase6_lines.append(f"\n#### 3. 買い目（判定：【{race_pattern}】 {target_odds_range}）\n")
 
     aite1_formatted_parts = []
     for h in aite1_horses:
@@ -1075,18 +1035,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     phase6_lines.append(f"* 小荒、中荒、大荒：{jiku_val} - {aite_str}（{fmt_points}点）")
     phase6_lines.append(f"* 軸2頭60%以上、並、堅い：{jiku_val} - {aite1_str_input} - {aite2_str_input}（{fmt_formation_points}点）")
-
-    # ==========================================================================
-    # 5. オッズ帯別 アクションガイド（5区分テーブルのみ出力）
-    # ==========================================================================
-    phase6_lines.append("\n#### 5. オッズ帯別発生確率\n")
-    phase6_lines.append("| オッズ帯 | 想定発生確率 |")
-    phase6_lines.append("| --- | --- |")
-    phase6_lines.append(f"| **～30倍** | 約 {eval_5tier['p_under_30']}% |")
-    phase6_lines.append(f"| **30～50倍** | 約 {eval_5tier['p_30_50']}% |")
-    phase6_lines.append(f"| **50～80倍** | 約 {eval_5tier['p_50_80']}% |")
-    phase6_lines.append(f"| **80～120倍** | 約 {eval_5tier['p_80_120']}% |")
-    phase6_lines.append(f"| **120倍～** | 約 {eval_5tier['p_over_120']}% |")
 
     full_report = []
     if is_simple:
