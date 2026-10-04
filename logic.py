@@ -1079,14 +1079,14 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     # ==========================================================================
     # 5. オッズ帯別 アクションガイド（5区分テーブルのみ出力）
     # ==========================================================================
-    phase6_lines.append("\n#### 🎯 5. オッズ帯別 アクションガイド\n")
+    phase6_lines.append("\n#### 5. オッズ帯別発生確率\n")
     phase6_lines.append("| オッズ帯 | 想定発生確率 |")
     phase6_lines.append("| --- | --- |")
-    phase6_lines.append(f"| **～30** | 約 {eval_5tier['p_under_30']}% |")
-    phase6_lines.append(f"| **30～50** | 約 {eval_5tier['p_30_50']}% |")
-    phase6_lines.append(f"| **50～80** | 約 {eval_5tier['p_50_80']}% |")
-    phase6_lines.append(f"| **80～120** | 約 {eval_5tier['p_80_120']}% |")
-    phase6_lines.append(f"| **120～** | 約 {eval_5tier['p_over_120']}% |")
+    phase6_lines.append(f"| **～30倍** | 約 {eval_5tier['p_under_30']}% |")
+    phase6_lines.append(f"| **30～50倍** | 約 {eval_5tier['p_30_50']}% |")
+    phase6_lines.append(f"| **50～80倍** | 約 {eval_5tier['p_50_80']}% |")
+    phase6_lines.append(f"| **80～120倍** | 約 {eval_5tier['p_80_120']}% |")
+    phase6_lines.append(f"| **120倍～** | 約 {eval_5tier['p_over_120']}% |")
 
     full_report = []
     if is_simple:
