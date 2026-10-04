@@ -252,6 +252,92 @@ def calculate_payout_probabilities(o1, o10, o20, o30, o50):
     }
 
 # ==============================================================================
+# 30〜70倍特化型：買う／見判定 ＆ 買目抽出ロジック
+# ==============================================================================
+def evaluate_30_70_strategy(df_sorted, odds_info, payout_probs, prob_top3_2_or_more):
+    """
+    30〜70倍ゾーン（オッズ30.0〜70.0倍）を狙うための買う/見判定および買い目抽出関数
+    """
+    if not payout_probs or not odds_info:
+        return {
+            "decision": "見（SKIP）",
+            "reason": "オッズデータ不足のため判定不可",
+            "form_type": "-",
+            "jiku_horse_str": "-",
+            "aite_horses_str": "-",
+            "aite1_horses_str": "-",
+            "aite2_horses_str": "-",
+            "aite_ranks_str": "-",
+            "aite1_ranks_str": "-",
+            "aite2_ranks_str": "-",
+            "base_points": 0
+        }
+
+    p_under_20 = payout_probs.get("20倍以下", 0)
+    p_20_50 = payout_probs.get("20～50倍", 0)
+    p_50_80 = payout_probs.get("50～80倍", 0)
+    o1_val = odds_info.get("o1", 99.0)
+
+    # 単勝オッズ順に並べ替えたマッピング情報
+    df_odds_order = df_sorted.sort_values(by="単勝オッズ").reset_index(drop=True)
+    
+    # 軸馬（単勝1番人気）
+    jiku_row = df_odds_order.iloc[0]
+    jiku_num = jiku_row["馬番"]
+    jiku_odds = jiku_row["単勝オッズ"]
+    jiku_str = f"馬番{jiku_num}（{jiku_row['馬名']} / {jiku_odds}倍）"
+
+    # 見（SKIP）判定：堅い決着の可能性が高い場合
+    if p_under_20 >= 40.0 or jiku_odds < 2.0:
+        return {
+            "decision": "見（SKIP）",
+            "reason": f"堅い決着傾向が高い（20倍以下確率: {p_under_20}% / 1番人気オッズ: {jiku_odds:.1f}倍）",
+            "form_type": "-",
+            "jiku_horse_str": jiku_str,
+            "aite_horses_str": "-",
+            "aite1_horses_str": "-",
+            "aite2_horses_str": "-",
+            "aite_ranks_str": "-",
+            "aite1_ranks_str": "-",
+            "aite2_ranks_str": "-",
+            "base_points": 0
+        }
+
+    # 相手馬の取得（単勝人気順位ベース）
+    # 2〜7番人気（1頭軸流し用）
+    aite_流し_rows = df_odds_order.iloc[1:7] if len(df_odds_order) >= 7 else df_odds_order.iloc[1:]
+    aite_流し_nums = aite_流し_rows["馬番"].tolist()
+    aite_流し_ranks = [i + 2 for i in range(len(aite_流し_nums))]
+
+    # 2〜3番人気および4〜9番人気（フォーメーション用）
+    aite1_fmt_rows = df_odds_order.iloc[1:3] if len(df_odds_order) >= 3 else df_odds_order.iloc[1:]
+    aite2_fmt_rows = df_odds_order.iloc[3:9] if len(df_odds_order) >= 9 else df_odds_order.iloc[3:]
+    aite1_fmt_nums = aite1_fmt_rows["馬番"].tolist()
+    aite2_fmt_nums = aite2_fmt_rows["馬番"].tolist()
+
+    # スタイル選択判定：1番人気+2〜3番人気が非常に堅実な場合はフォーメーション、それ以外は1頭軸流し
+    if prob_top3_2_or_more >= 60.0:
+        form_type = "フォーメーション（1番人気 - 2,3番人気 - 4〜9番人気）"
+        base_points = len(aite1_fmt_nums) * len(aite2_fmt_nums)
+    else:
+        form_type = "１頭軸流し（1番人気 - 2〜7番人気）"
+        base_points = len(list(itertools.combinations(aite_流し_nums, 2)))
+
+    return {
+        "decision": "買い（BUY）",
+        "reason": f"30〜70倍ゾーンの発生期待度高（20〜80倍合計確率: {p_20_50 + p_50_80}%）",
+        "form_type": form_type,
+        "jiku_horse_str": jiku_str,
+        "aite_horses_str": ", ".join(map(str, aite_流し_nums)),
+        "aite1_horses_str": ", ".join(map(str, aite1_fmt_nums)),
+        "aite2_horses_str": ", ".join(map(str, aite2_fmt_nums)),
+        "aite_ranks_str": "2, 3, 4, 5, 6, 7人気",
+        "aite1_ranks_str": "2, 3人気",
+        "aite2_ranks_str": "4, 5, 6, 7, 8, 9人気",
+        "base_points": base_points
+    }
+
+# ==============================================================================
 # 3連複オッズ取得ロジック
 # ==============================================================================
 PLACE_CODE_MAP = {
@@ -366,7 +452,6 @@ async def fetch_race_odds(place_name, race_no, date_str=None, is_simple=False):
                     
                     soup = BeautifulSoup(html_content, "html.parser")
                     
-                    # 親要素と子要素の重複取得を防ぐため、一番確実な要素に絞って取得する
                     elements = soup.select("span[id^='odds-']")
                     if not elements:
                         elements = soup.select("td.Odds_Value")
@@ -375,7 +460,6 @@ async def fetch_race_odds(place_name, race_no, date_str=None, is_simple=False):
                         
                     log_debug(f"[DEBUG] 取得できたオッズ要素数(DOM): {len(elements)}", is_simple)
                     
-                    # 全オッズを取得（途中breakしないことで全組み合わせを網羅し、ソート後の順位を正確にする）
                     for el in elements:
                         try:
                             val = float(el.get_text(strip=True))
@@ -391,13 +475,11 @@ async def fetch_race_odds(place_name, race_no, date_str=None, is_simple=False):
                     log_debug(f"[DEBUG] URLアクセスエラー: {e}", is_simple)
                     await asyncio.sleep(1.0)
             
-            # このURLで1件でも取得できたら、次のフォールバックURLには行かない
             if len(odds_list) > 0:
                 break
 
         await browser.close()
 
-        # 重複削除(set)を行わず、純粋に昇順ソートして本来の人気順位を確保する
         odds = sorted(odds_list) if odds_list else []
         log_debug(f"[DEBUG] 最終的に取得したオッズ数(ソート済み): {len(odds)}", is_simple)
         
@@ -705,7 +787,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         is_inner_favored = (
             (track == "東京" and "芝" in surface and distance == 2000) or
             (track == "中山" and "芝" in surface and distance == 2000) or
-            (track == "中山" and "芝" in surface and distance == 2000) or
             (track == "中山" and "芝" in surface and distance == 1800) or
             (track == "中山" and "芝" in surface and distance == 2200) or
             (track == "阪神" and "芝" in surface and distance == 1400) or
@@ -874,8 +955,11 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     prob_top3_2_or_more = prob_top3_2 + prob_top3_3
 
+    # 30〜70倍特化型戦略判定の呼び出し
+    eval_30_70 = evaluate_30_70_strategy(df_sorted, odds_info, payout_probs, prob_top3_2_or_more)
+
     # ==========================================================================
-    # 買い目選定ロジック
+    # 買い目選定ロジック（標準機能）
     # ==========================================================================
     df_valid = df_sorted[
         (df_sorted["オッズ順位"] < 10) & 
@@ -929,7 +1013,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         
     aite2_df = df_aite2_pool.sort_values(by="合成順位").head(aite2_count)
 
-    # 合成順位（df_sortedの順序）で相手1・相手2のリストを作成
     aite1_df_syn_sorted = df_sorted[df_sorted["馬番"].isin(aite1_df["馬番"].tolist())]
     aite2_df_syn_sorted = df_sorted[df_sorted["馬番"].isin(aite2_df["馬番"].tolist())]
 
@@ -998,7 +1081,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
                 f"| {rank_num} | {r['馬番']} {r['馬名']}({r['単勝オッズ']}倍) | {r['合成値']:.2f} ({r['合成順位']}位) | {r['オッズスコア']:.1f} ({r['オッズ順位']}位) | {r['能力スコア']:.1f} ({r['能力順位']}位) | {win_mc} | {place_mc} | {ev_val} | {pos} | {valid_runs} |"
             )
 
-    phase6_lines.append(f"\n#### 3. 買い目（判定：【{race_pattern}】 {target_odds_range}）\n")
+    phase6_lines.append(f"\n#### 3. 標準買い目（判定：【{race_pattern}】 {target_odds_range}）\n")
 
     aite1_formatted_parts = []
     for h in aite1_horses:
@@ -1035,6 +1118,24 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     phase6_lines.append(f"* 小荒、中荒、大荒：{jiku_val} - {aite_str}（{fmt_points}点）")
     phase6_lines.append(f"* 軸2頭60%以上、並、堅い：{jiku_val} - {aite1_str_input} - {aite2_str_input}（{fmt_formation_points}点）")
+
+    # ==========================================================================
+    # 30〜70倍特化型買い目（追加セクション）
+    # ==========================================================================
+    phase6_lines.append("\n#### 🎯 5. 30〜70倍特化型 アクションガイド\n")
+    phase6_lines.append(f"* **判定**: **【{eval_30_70['decision']}】** ({eval_30_70['reason']})")
+    
+    if eval_30_70["decision"] == "買い（BUY）":
+        phase6_lines.append(f"* **推薦スタイ**: {eval_30_70['form_type']}")
+        phase6_lines.append(f"* **軸馬**: {eval_30_70['jiku_horse_str']}")
+        if "フォーメーション" in eval_30_70['form_type']:
+            phase6_lines.append(f"* **相手1（{eval_30_70['aite1_ranks_str']}）**: 馬番 {eval_30_70['aite1_horses_str']}")
+            phase6_lines.append(f"* **相手2（{eval_30_70['aite2_ranks_str']}）**: 馬番 {eval_30_70['aite2_horses_str']}")
+        else:
+            phase6_lines.append(f"* **相手馬（{eval_30_70['aite_ranks_str']}）**: 馬番 {eval_30_70['aite_horses_str']}")
+        phase6_lines.append(f"* **購入指定**: 上記の組（ベース{eval_30_70['base_points']}点）から、発走直前オッズが **30.0倍 〜 70.0倍** の買い目のみを選択して購入（平均3〜5点に自動縮小）")
+    else:
+        phase6_lines.append("* **購入指定**: 本レースは配当が低く抑えらえる可能性が高いため、30〜70倍狙いの投資は見送り（SKIP）を推奨します。")
 
     full_report = []
     if is_simple:
