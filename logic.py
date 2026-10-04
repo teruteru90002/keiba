@@ -252,6 +252,45 @@ def calculate_payout_probabilities(o1, o10, o20, o30, o50):
     }
 
 # ==============================================================================
+# BEST推奨購入範囲（30倍幅）自動算出ロジック
+# ==============================================================================
+def get_best_30x_odds_range(payout_probs, total_points=12):
+    """
+    推定配当確率および購入点数（トリガミ防止ライン）から、
+    最も期待値・確率のバランスが良い「BEST 30倍幅（例: 35.0倍 ～ 65.0倍）」を算出する
+    """
+    if not payout_probs:
+        min_line = round(total_points * 1.2, 1)
+        return min_line, round(min_line + 30.0, 1)
+
+    p_under_30 = payout_probs.get("～30倍", 0)
+    p_30_60    = payout_probs.get("30～60倍", 0)
+    p_60_90    = payout_probs.get("60～90倍", 0)
+    p_90_120   = payout_probs.get("90～120倍", 0)
+    p_over_120 = payout_probs.get("120倍～", 0)
+
+    if p_under_30 >= 40:
+        best_start = max(12.0, round(10.0 + (100 - p_under_30) * 0.2, 1))
+    elif p_under_30 + p_30_60 >= 60:
+        ratio = p_30_60 / (p_under_30 + p_30_60 + 1e-5)
+        best_start = round(15.0 + (ratio * 20.0), 1)
+    elif p_30_60 + p_60_90 >= 50:
+        ratio = p_60_90 / (p_30_60 + p_60_90 + 1e-5)
+        best_start = round(35.0 + (ratio * 20.0), 1)
+    elif p_60_90 + p_90_120 >= 40:
+        ratio = p_90_120 / (p_60_90 + p_90_120 + 1e-5)
+        best_start = round(55.0 + (ratio * 20.0), 1)
+    else:
+        best_start = 90.0
+
+    min_limit = round(total_points * 1.2, 1)
+    if best_start < min_limit:
+        best_start = min_limit
+
+    best_end = round(best_start + 30.0, 1)
+    return best_start, best_end
+
+# ==============================================================================
 # 3連複オッズ取得ロジック
 # ==============================================================================
 PLACE_CODE_MAP = {
@@ -366,7 +405,6 @@ async def fetch_race_odds(place_name, race_no, date_str=None, is_simple=False):
                     
                     soup = BeautifulSoup(html_content, "html.parser")
                     
-                    # 親要素と子要素の重複取得を防ぐため、一番確実な要素に絞って取得する
                     elements = soup.select("span[id^='odds-']")
                     if not elements:
                         elements = soup.select("td.Odds_Value")
@@ -375,7 +413,6 @@ async def fetch_race_odds(place_name, race_no, date_str=None, is_simple=False):
                         
                     log_debug(f"[DEBUG] 取得できたオッズ要素数(DOM): {len(elements)}", is_simple)
                     
-                    # 全オッズを取得（途中breakしないことで全組み合わせを網羅し、ソート後の順位を正確にする）
                     for el in elements:
                         try:
                             val = float(el.get_text(strip=True))
@@ -391,13 +428,11 @@ async def fetch_race_odds(place_name, race_no, date_str=None, is_simple=False):
                     log_debug(f"[DEBUG] URLアクセスエラー: {e}", is_simple)
                     await asyncio.sleep(1.0)
             
-            # このURLで1件でも取得できたら、次のフォールバックURLには行かない
             if len(odds_list) > 0:
                 break
 
         await browser.close()
 
-        # 重複削除(set)を行わず、純粋に昇順ソートして本来の人気順位を確保する
         odds = sorted(odds_list) if odds_list else []
         log_debug(f"[DEBUG] 最終的に取得したオッズ数(ソート済み): {len(odds)}", is_simple)
         
@@ -833,7 +868,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     df_sorted["期待値"] = (df_sorted["単勝オッズ"] * (df_sorted["勝率(MC)"] / 100.0)).round(2)
 
     # ==========================================================================
-    # 3連複荒れ度判定ロジック（更新後の区分に基づく判定）
+    # 3連複荒れ度判定ロジック
     # ==========================================================================
     if payout_probs:
         p_under_30 = payout_probs.get("～30倍", 0)
@@ -929,7 +964,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         
     aite2_df = df_aite2_pool.sort_values(by="合成順位").head(aite2_count)
 
-    # 合成順位（df_sortedの順序）で相手1・相手2のリストを作成
     aite1_df_syn_sorted = df_sorted[df_sorted["馬番"].isin(aite1_df["馬番"].tolist())]
     aite2_df_syn_sorted = df_sorted[df_sorted["馬番"].isin(aite2_df["馬番"].tolist())]
 
@@ -943,25 +977,20 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     fmt_points = len(sanrenpuku_combos)
     fmt_formation_points = len(aite1_horses) * len(aite2_horses)
 
+    # BEST推奨購入範囲（30倍幅）の算出
+    best_min, best_max = get_best_30x_odds_range(payout_probs, total_points=fmt_points)
+
     jiku_log_lines = ["\n#### ■ 3-3. 軸馬・相手馬決定判定プロセス"]
     jiku_log_lines.append(f"【軸馬判定】：{jiku_reason} → 馬番{jiku_horse['馬番']}（{jiku_horse['馬名']}）")
     jiku_log_lines.append(f"【相手判定】：{aite_reason_str}")
-
-    ODDS_RANGE_MAP = {
-        "堅い": "配当目安 ～30倍",
-        "並": "配当目安 30～60倍",
-        "小荒": "配当目安 60～90倍",
-        "中荒": "配当目安 90～120倍",
-        "大荒": "配当目安 120倍～"
-    }
-    target_odds_range = ODDS_RANGE_MAP.get(race_pattern, "")
 
     phase6_lines = [
         "#### ■ PHASE 6：最終ランキングと買い目\n",
         f"#### 1. レース情報\n[{race_name} / {track}{race_no}R / {distance}m]",
         f"* **取得3連複オッズ**:\n{odds_table_md}",
         f"\n* **推定配当確率**:\n{prob_table_md}",
-        f"\n**【レース判定結果】：{race_pattern}** （{pattern_desc}）\n",
+        f"\n**【レース判定結果】：{race_pattern}** （{pattern_desc}）  ",
+        f"★ **【BEST推奨購入範囲（30倍幅）】：{best_min:.1f}倍 ～ {best_max:.1f}倍**\n",
         f"  * 単勝1〜3番人気の複勝(3着以内)入着シミュレーション:",
         f"    0頭入る確率: **{prob_top3_0:.1f}%**  ",
         f"    1頭入る確率: **{prob_top3_1:.1f}%**  ",
@@ -998,7 +1027,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
                 f"| {rank_num} | {r['馬番']} {r['馬名']}({r['単勝オッズ']}倍) | {r['合成値']:.2f} ({r['合成順位']}位) | {r['オッズスコア']:.1f} ({r['オッズ順位']}位) | {r['能力スコア']:.1f} ({r['能力順位']}位) | {win_mc} | {place_mc} | {ev_val} | {pos} | {valid_runs} |"
             )
 
-    phase6_lines.append(f"\n#### 3. 買い目（判定：【{race_pattern}】 {target_odds_range}）\n")
+    phase6_lines.append(f"\n#### 3. 買い目（判定：【{race_pattern}】 BEST目安 {best_min:.1f}倍～{best_max:.1f}倍）\n")
 
     aite1_formatted_parts = []
     for h in aite1_horses:
