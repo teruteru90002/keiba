@@ -444,9 +444,10 @@ async def fetch_race_odds(place_name, race_no, date_str=None, is_simple=False):
         o20 = odds[19] if len(odds) >= 20 else None
         o30 = odds[29] if len(odds) >= 30 else None
         o50 = odds[49] if len(odds) >= 50 else None
+        o100 = odds[99] if len(odds) >= 100 else None
 
-        odds_info = {"o1": o1, "o10": o10, "o20": o20, "o30": o30, "o50": o50}
-        log_debug(f"[DEBUG] オッズ判定情報: o1={o1}, o10={o10}, o20={o20}, o30={o30}, o50={o50}", is_simple)
+        odds_info = {"o1": o1, "o10": o10, "o20": o20, "o30": o30, "o50": o50, "o100": o100}
+        log_debug(f"[DEBUG] オッズ判定情報: o1={o1}, o10={o10}, o20={o20}, o30={o30}, o50={o50}, o100={o100}", is_simple)
 
         return odds_info
 
@@ -491,28 +492,31 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         o20 = odds_info.get("o20")
         o30 = odds_info.get("o30")
         o50 = odds_info.get("o50")
+        o100 = odds_info.get("o100")
 
         o1_str = f"{o1:.1f}倍"
         o10_str = f"{o10:.1f}倍" if o10 is not None else "-"
         o20_str = f"{o20:.1f}倍" if o20 is not None else "-"
         o30_str = f"{o30:.1f}倍" if o30 is not None else "-"
         o50_str = f"{o50:.1f}倍" if o50 is not None else "-"
+        o100_str = f"{o100:.1f}倍" if o100 is not None else "-"
 
         # 推定確率の計算（5区分）
         payout_probs = calculate_payout_probabilities(o1, o10, o20, o30, o50)
     else:
-        o1 = o10 = o20 = o30 = o50 = None
+        o1 = o10 = o20 = o30 = o50 = o100 = None
         o1_str = "未取得"
         o10_str = "未取得"
         o20_str = "未取得"
         o30_str = "未取得"
         o50_str = "未取得"
+        o100_str = "未取得"
         payout_probs = None
 
     odds_table_md = (
-        "\n| 3連複1位 | 3連複10位 | 3連複20位 | 3連複30位 | 3連複50位 |\n"
-        "| --- | --- | --- | --- | --- |\n"
-        f"| {o1_str} | {o10_str} | {o20_str} | {o30_str} | {o50_str} |"
+        "\n| 3連複1位 | 3連複10位 | 3連複20位 | 3連複30位 | 3連複50位 | 3連複100位 |\n"
+        "| --- | --- | --- | --- | --- | --- |\n"
+        f"| {o1_str} | {o10_str} | {o20_str} | {o30_str} | {o50_str} | {o100_str} |"
     )
 
     if payout_probs:
