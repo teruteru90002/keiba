@@ -261,38 +261,29 @@ def calculate_payout_probabilities(o1, o10, o20, o30, o50):
 # ==============================================================================
 def get_best_30x_odds_range(payout_probs):
     """
-    6区分の推定配当確率から中心位置(best_start)を正確に算出し、
+    6区分の推定配当確率から確率の加重平均（全体の重心）を用いて中心位置(best_start)を正確に算出し、
     下限を best_start - 10.0倍、上限を best_start + 20.0倍（計30倍幅）として推奨範囲を確定する
     """
     if not payout_probs:
         return 0.0, 10.0, 40.0
 
-    p_under_30 = payout_probs.get("～30倍", 0)
-    p_30_60    = payout_probs.get("30～60倍", 0)
-    p_60_90    = payout_probs.get("60～90倍", 0)
-    p_90_120   = payout_probs.get("90～120倍", 0)
-    p_120_150  = payout_probs.get("120倍～150倍", 0)
-    p_over_150 = payout_probs.get("150倍～", 0)
+    # 各配当帯域の代表値（中央値）
+    centers = {
+        "～30倍": 15.0,
+        "30～60倍": 45.0,
+        "60～90倍": 75.0,
+        "90～120倍": 105.0,
+        "120倍～150倍": 135.0,
+        "150倍～": 180.0
+    }
 
-    if p_under_30 >= 40:
-        best_start = max(12.0, round(10.0 + (100 - p_under_30) * 0.2, 1))
-    elif p_under_30 + p_30_60 >= 60:
-        ratio = p_30_60 / (p_under_30 + p_30_60 + 1e-5)
-        best_start = round(15.0 + (ratio * 20.0), 1)
-    elif p_30_60 + p_60_90 >= 50:
-        ratio = p_60_90 / (p_30_60 + p_60_90 + 1e-5)
-        best_start = round(35.0 + (ratio * 20.0), 1)
-    elif p_60_90 + p_90_120 >= 40:
-        ratio = p_90_120 / (p_60_90 + p_90_120 + 1e-5)
-        best_start = round(55.0 + (ratio * 20.0), 1)
-    elif p_90_120 + p_120_150 >= 40:
-        ratio = p_120_150 / (p_90_120 + p_120_150 + 1e-5)
-        best_start = round(75.0 + (ratio * 20.0), 1)
-    elif p_120_150 + p_over_150 >= 35:
-        ratio = p_over_150 / (p_120_150 + p_over_150 + 1e-5)
-        best_start = round(95.0 + (ratio * 30.0), 1)
+    # 配当確率に基づく加重平均（確率分布の重心）を計算
+    total_prob = sum(payout_probs.values())
+    if total_prob > 0:
+        weighted_sum = sum(centers[k] * payout_probs.get(k, 0) for k in centers if k in payout_probs)
+        best_start = round(weighted_sum / total_prob, 1)
     else:
-        best_start = 110.0
+        best_start = 45.0  # 配当データが不十分な場合の中位デフォルト値
 
     # best_start を基準に下限 (-10倍) と上限 (+20倍) を算出
     best_min = round(best_start - 10.0, 1)
