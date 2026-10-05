@@ -860,13 +860,13 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         # 1. 累積確率による基本判定
         if p_under_30 >= 30 or (p_under_30 + p_30_60) >= 50:
             race_pattern = "堅い"
-        elif p_30_60 >= 30 or (p_under_30 + p_30_60) >= 40:
+        elif p_30_60 >= 30 or (p_30_60 + p_60_90) >= 40:
             race_pattern = "並"
-        elif p_60_90 >= 30 or (p_30_60 + p_60_90) >= 40:
+        elif p_60_90 >= 30 or (p_60_90 + p_90_120) >= 40:
             race_pattern = "小荒"
-        elif p_90_120 >= 30 or (p_60_90 + p_90_120) >= 40:
+        elif p_90_120 >= 30 or (p_90_120 + p_over_120) >= 40:
             race_pattern = "中荒"
-        elif p_over_120 >= 30 or (p_90_120 + p_over_120) >= 50:
+        elif p_over_120 >= 30:
             race_pattern = "大荒"
         else:
             max_key = max(payout_probs, key=payout_probs.get)
