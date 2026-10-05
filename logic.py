@@ -881,12 +881,19 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
         pattern_desc = PATTERN_DESCS.get(race_pattern, "")
 
-        # 2. 単勝上位3頭の2頭以上入着確率(MC)による安全弁補正（60%以上で1ランク堅めへ調整）
-        if prob_top3_2_or_more >= 60.0 and race_pattern in PATTERNS_ORDER:
+        # 2. 単勝上位3頭の2頭以上入着確率(MC)による安全弁補正（60%以上で1ランク、80%以上で2ランク堅めへ調整）
+        if race_pattern in PATTERNS_ORDER:
             current_idx = PATTERNS_ORDER.index(race_pattern)
-            if current_idx > 0:
-                race_pattern = PATTERNS_ORDER[current_idx - 1]
-                pattern_desc = f"{PATTERN_DESCS[race_pattern]}（※単勝上位の複勝率が高め（60%以上）のため、1ランク堅めへ調整されました）"
+            shift = 0
+            if prob_top3_2_or_more >= 80.0:
+                shift = 2
+            elif prob_top3_2_or_more >= 60.0:
+                shift = 1
+
+            if shift > 0 and current_idx > 0:
+                new_idx = max(0, current_idx - shift)
+                race_pattern = PATTERNS_ORDER[new_idx]
+                pattern_desc = f"{PATTERN_DESCS[race_pattern]}（※単勝上位の複勝率が高め（{prob_top3_2_or_more:.1f}%）のため、{shift}ランク堅めへ調整されました）"
     else:
         race_pattern = "データ不足"
         pattern_desc = "配当データ不足のため不明を適用します。"
