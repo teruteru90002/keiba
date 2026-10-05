@@ -858,7 +858,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         p_over_120 = payout_probs.get("120倍～", 0)
 
         # 1. 累積確率による基本判定
-        if p_under_30 >= 35 or (p_under_30 + p_30_60) >= 60:
+        if p_under_30 >= 35 or (p_under_30 + p_30_60) >= 50:
             race_pattern = "堅い"
         elif p_30_60 >= 30 or (p_under_30 + p_30_60) >= 45:
             race_pattern = "並"
