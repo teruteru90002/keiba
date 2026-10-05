@@ -366,7 +366,6 @@ async def fetch_race_odds(place_name, race_no, date_str=None, is_simple=False):
                     
                     soup = BeautifulSoup(html_content, "html.parser")
                     
-                    # 親要素と子要素の重複取得を防ぐため、一番確実な要素に絞って取得する
                     elements = soup.select("span[id^='odds-']")
                     if not elements:
                         elements = soup.select("td.Odds_Value")
@@ -375,7 +374,6 @@ async def fetch_race_odds(place_name, race_no, date_str=None, is_simple=False):
                         
                     log_debug(f"[DEBUG] 取得できたオッズ要素数(DOM): {len(elements)}", is_simple)
                     
-                    # 全オッズを取得（途中breakしないことで全組み合わせを網羅し、ソート後の順位を正確にする）
                     for el in elements:
                         try:
                             val = float(el.get_text(strip=True))
@@ -391,13 +389,11 @@ async def fetch_race_odds(place_name, race_no, date_str=None, is_simple=False):
                     log_debug(f"[DEBUG] URLアクセスエラー: {e}", is_simple)
                     await asyncio.sleep(1.0)
             
-            # このURLで1件でも取得できたら、次のフォールバックURLには行かない
             if len(odds_list) > 0:
                 break
 
         await browser.close()
 
-        # 重複削除(set)を行わず、純粋に昇順ソートして本来の人気順位を確保する
         odds = sorted(odds_list) if odds_list else []
         log_debug(f"[DEBUG] 最終的に取得したオッズ数(ソート済み): {len(odds)}", is_simple)
         
@@ -843,8 +839,17 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     prob_top3_2_or_more = prob_top3_2 + prob_top3_3
 
     # ==========================================================================
-    # 3連複荒れ度判定ロジック（改修版：5区分化に適用）
+    # 3連複荒れ度判定ロジック（改修版：動的1ランクUP/1ランクDOWN適用）
     # ==========================================================================
+    PATTERNS_ORDER = ["堅い", "並", "小荒", "中荒", "大荒"]
+    PATTERN_DESCS = {
+        "堅い": "30倍以下の低配当確率が高く、本命・人気決着が濃厚なレースです。",
+        "並": "30～60倍の中配当が中心となる標準的なレースです。",
+        "小荒": "60～90倍の中高配当が想定されるやや波乱含みのレースです。",
+        "中荒": "90～120倍の高配当を中心に想定される波乱含みのレースです。",
+        "大荒": "120倍以上の超高配当確率が高く、大波乱が警戒されるレースです。"
+    }
+
     if payout_probs:
         p_under_30 = payout_probs.get("～30倍", 0)
         p_30_60    = payout_probs.get("30～60倍", 0)
@@ -853,41 +858,40 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         p_over_120 = payout_probs.get("120倍～", 0)
 
         # 1. 累積確率による基本判定
-        if p_under_30 >= 35 or (p_under_30 + p_30_60) >= 60:
+        if p_under_30 >= 35 or (p_under_30 + p_30_60) >= 50:
             race_pattern = "堅い"
-            pattern_desc = "30倍以下の低配当確率が高く、本命・人気決着が濃厚なレースです。"
         elif p_30_60 >= 30 or (p_under_30 + p_30_60) >= 45:
             race_pattern = "並"
-            pattern_desc = "30～60倍の中配当が中心となる標準的なレースです。"
         elif p_60_90 >= 25 or (p_30_60 + p_60_90) >= 45:
             race_pattern = "小荒"
-            pattern_desc = "60～90倍の中高配当が想定されるやや波乱含みのレースです。"
         elif p_90_120 >= 25 or (p_60_90 + p_90_120) >= 40:
             race_pattern = "中荒"
-            pattern_desc = "90～120倍の高配当を中心に想定される波乱含みのレースです。"
         elif p_over_120 >= 30 or (p_90_120 + p_over_120) >= 55:
             race_pattern = "大荒"
-            pattern_desc = "120倍以上の超高配当確率が高く、大波乱が警戒されるレースです。"
         else:
-            # 確率が分散してどの条件にも届かない場合のフォールバック（最も高い確率の帯域を採用）
             max_key = max(payout_probs, key=payout_probs.get)
             pattern_map = {
-                "～30倍": ("堅い", "30倍以下の低配当確率が高く、本命・人気決着が濃厚なレースです。"),
-                "30～60倍": ("並", "30～60倍の中配当が中心となる標準的なレースです。"),
-                "60～90倍": ("小荒", "60～90倍の中高配当が想定されるやや波乱含みのレースです。"),
-                "90～120倍": ("中荒", "90～120倍の高配当を中心に想定される波乱含みのレースです。"),
-                "120倍～": ("大荒", "120倍以上の超高配当確率が高く、大波乱が警戒されるレースです。")
+                "～30倍": "堅い",
+                "30～60倍": "並",
+                "60～90倍": "小荒",
+                "90～120倍": "中荒",
+                "120倍～": "大荒"
             }
-            race_pattern, base_desc = pattern_map.get(max_key, ("並", "30～60倍の中配当が中心となる標準的なレースです。"))
-            pattern_desc = f"確率が分散していますが、最も比率が高い【{max_key}】を中心に想定されるレースです。"
+            race_pattern = pattern_map.get(max_key, "並")
 
-        # 2. 単勝上位3頭の2頭以上入着確率(MC)による安全弁補正
-        if prob_top3_2_or_more >= 80.0 and race_pattern in ["中荒", "大荒"]:
-            race_pattern = "小荒"
-            pattern_desc = "60～90倍の中高配当が想定されるやや波乱含みのレースです。（※ただし単勝上位の複勝率が極めて高く、軸崩れリスクは低めです）"
-        elif prob_top3_2_or_more <= 30.0 and race_pattern in ["堅い", "並"]:
-            race_pattern = "小荒"
-            pattern_desc = "60～90倍の中高配当が想定されるやや波乱含みのレースです。（※上位人気馬の信頼度が低いため、波乱に注意が必要です）"
+        pattern_desc = PATTERN_DESCS.get(race_pattern, "")
+
+        # 2. 単勝上位3頭の2頭以上入着確率(MC)による安全弁補正（1ランク調整）
+        if prob_top3_2_or_more >= 60.0 and race_pattern in PATTERNS_ORDER:
+            current_idx = PATTERNS_ORDER.index(race_pattern)
+            if current_idx > 0:
+                race_pattern = PATTERNS_ORDER[current_idx - 1]
+                pattern_desc = f"{PATTERN_DESCS[race_pattern]}（※単勝上位の複勝率が高め（60%以上）のため、1ランク堅めへ調整されました）"
+        elif prob_top3_2_or_more <= 30.0 and race_pattern in PATTERNS_ORDER:
+            current_idx = PATTERNS_ORDER.index(race_pattern)
+            if current_idx < len(PATTERNS_ORDER) - 1:
+                race_pattern = PATTERNS_ORDER[current_idx + 1]
+                pattern_desc = f"{PATTERN_DESCS[race_pattern]}（※上位人気馬の信頼度が低いため（30%以下）、1ランク荒れ方向へ調整されました）"
     else:
         race_pattern = "データ不足"
         pattern_desc = "配当データ不足のため不明を適用します。"
