@@ -832,38 +832,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     df_sorted["期待値"] = (df_sorted["単勝オッズ"] * (df_sorted["勝率(MC)"] / 100.0)).round(2)
 
-    # ==========================================================================
-    # 3連複荒れ度判定ロジック（5段階化：堅い・小荒・中荒・大荒・並）
-    # ==========================================================================
-    if payout_probs:
-        p_under_20 = payout_probs.get("20倍以下", 0)
-        p_20_50    = payout_probs.get("20～50倍", 0)
-        p_50_80    = payout_probs.get("50～80倍", 0)
-        p_80_120   = payout_probs.get("80～120倍", 0)
-        p_over_120 = payout_probs.get("120倍以上", 0)
-
-        if p_under_20 >= 35 or (p_under_20 + p_20_50) >= 65:
-            race_pattern = "堅い"
-            pattern_desc = "20倍以下の低配当確率が高く、本命・人気決着が濃厚なレースです。"
-        elif p_20_50 >= 35 or (p_under_20 + p_20_50) >= 50:
-            race_pattern = "並"
-            pattern_desc = "20～50倍の中配当が中心となる標準的なレースです。"
-        elif p_50_80 >= 35 or (p_20_50 + p_50_80) >= 50:
-            race_pattern = "小荒"
-            pattern_desc = "50～80倍の中高配当が想定されるやや波乱含みのレースです。"
-        elif p_80_120 >= 35 or (p_50_80 + p_80_120) >= 50:
-            race_pattern = "中荒"
-            pattern_desc = "80～120倍の高配当を中心に想定される波乱含みのレースです。"
-        elif p_over_120 >= 35 or (p_80_120 + p_over_120) >= 65:
-            race_pattern = "大荒"
-            pattern_desc = "120倍以上の超高配当確率が高く、大波乱が警戒されるレースです。"
-        else:
-            race_pattern = "不明"
-            pattern_desc = "この配当データでは推定できません。"
-    else:
-        race_pattern = "データ不足"
-        pattern_desc = "配当データ不足のため不明を適用します。"
-
     top3_odds_indices = df_sorted.sort_values(by="単勝オッズ").index[:3]
     top3_in_place_counts = np.sum(ranks[:, top3_odds_indices] <= 3, axis=1)
 
@@ -873,6 +841,56 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     prob_top3_0 = (np.sum(top3_in_place_counts == 0) / NUM_SIMS) * 100
 
     prob_top3_2_or_more = prob_top3_2 + prob_top3_3
+
+    # ==========================================================================
+    # 3連複荒れ度判定ロジック（改修版：フォールバック処理＆本命複勝率補正を適用）
+    # ==========================================================================
+    if payout_probs:
+        p_under_20 = payout_probs.get("20倍以下", 0)
+        p_20_50    = payout_probs.get("20～50倍", 0)
+        p_50_80    = payout_probs.get("50～80倍", 0)
+        p_80_120   = payout_probs.get("80～120倍", 0)
+        p_over_120 = payout_probs.get("120倍以上", 0)
+
+        # 1. 累積確率による基本判定
+        if p_under_20 >= 35 or (p_under_20 + p_20_50) >= 60:
+            race_pattern = "堅い"
+            pattern_desc = "20倍以下の低配当確率が高く、本命・人気決着が濃厚なレースです。"
+        elif p_20_50 >= 30 or (p_under_20 + p_20_50) >= 45:
+            race_pattern = "並"
+            pattern_desc = "20～50倍の中配当が中心となる標準的なレースです。"
+        elif p_50_80 >= 30 or (p_20_50 + p_50_80) >= 45:
+            race_pattern = "小荒"
+            pattern_desc = "50～80倍の中高配当が想定されるやや波乱含みのレースです。"
+        elif p_80_120 >= 25 or (p_50_80 + p_80_120) >= 40:
+            race_pattern = "中荒"
+            pattern_desc = "80～120倍の高配当を中心に想定される波乱含みのレースです。"
+        elif p_over_120 >= 30 or (p_80_120 + p_over_120) >= 55:
+            race_pattern = "大荒"
+            pattern_desc = "120倍以上の超高配当確率が高く、大波乱が警戒されるレースです。"
+        else:
+            # 確率が分散してどの条件にも届かない場合のフォールバック（最も高い確率の帯域を採用）
+            max_key = max(payout_probs, key=payout_probs.get)
+            pattern_map = {
+                "20倍以下": "堅い",
+                "20～50倍": "並",
+                "50～80倍": "小荒",
+                "80～120倍": "中荒",
+                "120倍以上": "大荒"
+            }
+            race_pattern = pattern_map.get(max_key, "並")
+            pattern_desc = f"確率が分散していますが、最も比率が高い【{max_key}】を中心に想定されるレースです。"
+
+        # 2. 単勝上位3頭の2頭以上入着確率(MC)による安全弁補正
+        if prob_top3_2_or_more >= 80.0 and race_pattern in ["中荒", "大荒"]:
+            race_pattern = "小荒"
+            pattern_desc += "（※ただし単勝上位の複勝率が極めて高く、軸崩れリスクは低めです）"
+        elif prob_top3_2_or_more <= 30.0 and race_pattern in ["堅い", "並"]:
+            race_pattern = "小荒"
+            pattern_desc += "（※ただし上位人気馬の信頼度が低いため、波乱に注意が必要です）"
+    else:
+        race_pattern = "データ不足"
+        pattern_desc = "配当データ不足のため不明を適用します。"
 
     # ==========================================================================
     # 買い目選定ロジック
