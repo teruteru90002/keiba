@@ -839,7 +839,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     prob_top3_2_or_more = prob_top3_2 + prob_top3_3
 
     # ==========================================================================
-    # 3連複荒れ度判定ロジック
+    # 3連複荒れ度判定ロジック（累積確率CDF・推奨版）
     # ==========================================================================
     PATTERNS_ORDER = ["堅い", "並", "小荒", "中荒", "大荒"]
     PATTERN_DESCS = {
@@ -855,33 +855,28 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         p_30_60    = payout_probs.get("30～60倍", 0)
         p_60_90    = payout_probs.get("60～90倍", 0)
         p_90_120   = payout_probs.get("90～120倍", 0)
-        p_over_120 = payout_probs.get("120倍～", 0)
 
-        # 1. 累積確率による基本判定
-        if p_under_30 >= 30 or (p_under_30 + p_30_60) >= 50:
+        # 本命側（低配当側）からの純粋な累積確率（CDF）を算出
+        cum_30 = p_under_30
+        cum_60 = p_under_30 + p_30_60
+        cum_90 = cum_60 + p_60_90
+        cum_120 = cum_90 + p_90_120
+
+        # 1. 低配当側の累積分布から順に判定（矛盾のない一方向の条件分岐）
+        if cum_30 >= 35 or cum_60 >= 60:
             race_pattern = "堅い"
-        elif p_30_60 >= 30 or (p_30_60 + p_60_90) >= 40:
+        elif cum_60 >= 45:
             race_pattern = "並"
-        elif p_60_90 >= 30 or (p_60_90 + p_90_120) >= 40:
+        elif cum_90 >= 50:
             race_pattern = "小荒"
-        elif p_90_120 >= 30 or (p_90_120 + p_over_120) >= 40:
+        elif cum_120 >= 55:
             race_pattern = "中荒"
-        elif p_over_120 >= 30:
-            race_pattern = "大荒"
         else:
-            max_key = max(payout_probs, key=payout_probs.get)
-            pattern_map = {
-                "～30倍": "堅い",
-                "30～60倍": "並",
-                "60～90倍": "小荒",
-                "90～120倍": "中荒",
-                "120倍～": "大荒"
-            }
-            race_pattern = pattern_map.get(max_key, "並")
+            race_pattern = "大荒"
 
         pattern_desc = PATTERN_DESCS.get(race_pattern, "")
 
-        # 2. 単勝上位3頭の2頭以上入着確率(MC)による安全弁補正（60%以上で1ランク、80%以上で2ランク堅めへ調整）
+        # 2. 単勝上位3頭の2頭以上入着確率(MC)による安全弁補正（80%以上で2ランク、60%以上で1ランク堅めへ調整）
         if race_pattern in PATTERNS_ORDER:
             current_idx = PATTERNS_ORDER.index(race_pattern)
             shift = 0
