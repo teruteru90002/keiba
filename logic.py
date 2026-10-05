@@ -205,91 +205,51 @@ def estimate_position_type_final_corner(past_runs):
         return "追"
 
 # ==============================================================================
-# 配当帯確率計算ロジック（6区分化：～30倍、30～60倍、60～90倍、90～120倍、120倍～150倍、150倍～）
+# 配当帯確率計算ロジック（5区分化：20倍以下、20～50倍、50～80倍、80～120倍、120倍以上）
 # ==============================================================================
 def calculate_payout_probabilities(o1, o10, o20, o30, o50):
     """
-    3連複各順位のオッズ値から、配当帯（～30倍、30～60倍、60～90倍、90～120倍、120倍～150倍、150倍～）の推定確率を算出する
+    3連複各順位のオッズ値から、配当帯（20倍以下、20～50倍、50～80倍、80～120倍、120倍以上）の推定確率を算出する
     """
     if o1 is None:
         return None
 
     if o1 <= 8.0 and (o20 is None or o20 <= 50.0):
-        p_under_30 = max(10, min(85, int(92 - (o1 * 3.5) - (o10 * 0.4 if o10 else 10))))
-        rem = 100 - p_under_30
-        p_30_60 = round(rem * 0.40)
-        p_60_90 = round(rem * 0.28)
-        p_90_120 = round(rem * 0.15)
-        p_120_150 = round(rem * 0.10)
-        p_over_150 = rem - p_30_60 - p_60_90 - p_90_120 - p_120_150
+        p_under_20 = max(10, min(85, int(90 - (o1 * 4) - (o10 * 0.5 if o10 else 10))))
+        rem = 100 - p_under_20
+        p_20_50 = round(rem * 0.45)
+        p_50_80 = round(rem * 0.30)
+        p_80_120 = round(rem * 0.15)
+        p_over_120 = rem - p_20_50 - p_50_80 - p_80_120
     elif o1 >= 15.0 or (o10 is None or o10 >= 50.0):
-        p_under_30 = max(5, min(25, int(35 - o1)))
-        p_30_60 = max(5, min(25, int(40 - (o1 * 0.5))))
-        p_60_90 = max(10, min(25, int(35 - (o10 * 0.2 if o10 else 10))))
-        p_90_120 = max(10, min(25, int(30 - (o20 * 0.1 if o20 else 10))))
-        p_120_150 = max(10, min(20, int(25 - (o30 * 0.05 if o30 else 5))))
-        p_over_150 = max(10, 100 - p_under_30 - p_30_60 - p_60_90 - p_90_120 - p_120_150)
+        p_under_20 = max(2, min(15, int(25 - o1)))
+        p_20_50 = max(5, min(20, int(30 - (o1 * 0.6))))
+        p_50_80 = max(10, min(30, int(35 - (o10 * 0.2 if o10 else 10))))
+        p_80_120 = max(15, min(35, int(40 - (o20 * 0.1 if o20 else 10))))
+        p_over_120 = max(20, 100 - p_under_20 - p_20_50 - p_50_80 - p_80_120)
     else:
-        p_under_30 = max(10, min(70, int(75 - (o1 * 2.2) - (o10 * 0.25 if o10 else 5))))
-        rem = 100 - p_under_30
-        p_30_60 = round(rem * 0.35)
-        p_60_90 = round(rem * 0.28)
-        p_90_120 = round(rem * 0.18)
-        p_120_150 = round(rem * 0.11)
-        p_over_150 = rem - p_30_60 - p_60_90 - p_90_120 - p_120_150
+        p_under_20 = max(5, min(60, int(65 - (o1 * 2.5) - (o10 * 0.3 if o10 else 5))))
+        rem = 100 - p_under_20
+        p_20_50 = round(rem * 0.35)
+        p_50_80 = round(rem * 0.30)
+        p_80_120 = round(rem * 0.20)
+        p_over_120 = rem - p_20_50 - p_50_80 - p_80_120
 
-    total = p_under_30 + p_30_60 + p_60_90 + p_90_120 + p_120_150 + p_over_150
+    total = p_under_20 + p_20_50 + p_50_80 + p_80_120 + p_over_120
     if total > 0:
-        p_under_30 = round(p_under_30 / total * 100)
-        p_30_60 = round(p_30_60 / total * 100)
-        p_60_90 = round(p_60_90 / total * 100)
-        p_90_120 = round(p_90_120 / total * 100)
-        p_120_150 = round(p_120_150 / total * 100)
-        p_over_150 = 100 - (p_under_30 + p_30_60 + p_60_90 + p_90_120 + p_120_150)
+        p_under_20 = round(p_under_20 / total * 100)
+        p_20_50 = round(p_20_50 / total * 100)
+        p_50_80 = round(p_50_80 / total * 100)
+        p_80_120 = round(p_80_120 / total * 100)
+        p_over_120 = 100 - (p_under_20 + p_20_50 + p_50_80 + p_80_120)
 
     return {
-        "～30倍": p_under_30,
-        "30～60倍": p_30_60,
-        "60～90倍": p_60_90,
-        "90～120倍": p_90_120,
-        "120倍～150倍": p_120_150,
-        "150倍～": p_over_150
+        "20倍以下": p_under_20,
+        "20～50倍": p_20_50,
+        "50～80倍": p_50_80,
+        "80～120倍": p_80_120,
+        "120倍以上": p_over_120
     }
-
-# ==============================================================================
-# BEST推奨購入範囲（30倍幅：best_start - 10倍 〜 best_start + 20倍）自動算出ロジック
-# ==============================================================================
-def get_best_30x_odds_range(payout_probs):
-    """
-    6区分の推定配当確率から確率の加重平均（全体の重心）を用いて中心位置(best_start)を正確に算出し、
-    下限を best_start - 10.0倍、上限を best_start + 20.0倍（計30倍幅）として推奨範囲を確定する
-    """
-    if not payout_probs:
-        return 0.0, 10.0, 40.0
-
-    # 各配当帯域の代表値（中央値）
-    centers = {
-        "～30倍": 15.0,
-        "30～60倍": 45.0,
-        "60～90倍": 75.0,
-        "90～120倍": 105.0,
-        "120倍～150倍": 135.0,
-        "150倍～": 180.0
-    }
-
-    # 配当確率に基づく加重平均（確率分布の重心）を計算
-    total_prob = sum(payout_probs.values())
-    if total_prob > 0:
-        weighted_sum = sum(centers[k] * payout_probs.get(k, 0) for k in centers if k in payout_probs)
-        best_start = round(weighted_sum / total_prob, 1)
-    else:
-        best_start = 45.0  # 配当データが不十分な場合の中位デフォルト値
-
-    # best_start を基準に下限 (-10倍) と上限 (+20倍) を算出
-    best_min = round(best_start - 10.0, 1)
-    best_max = round(best_start + 20.0, 1)
-
-    return best_start, best_min, best_max
 
 # ==============================================================================
 # 3連複オッズ取得ロジック
@@ -406,6 +366,7 @@ async def fetch_race_odds(place_name, race_no, date_str=None, is_simple=False):
                     
                     soup = BeautifulSoup(html_content, "html.parser")
                     
+                    # 親要素と子要素の重複取得を防ぐため、一番確実な要素に絞って取得する
                     elements = soup.select("span[id^='odds-']")
                     if not elements:
                         elements = soup.select("td.Odds_Value")
@@ -414,6 +375,7 @@ async def fetch_race_odds(place_name, race_no, date_str=None, is_simple=False):
                         
                     log_debug(f"[DEBUG] 取得できたオッズ要素数(DOM): {len(elements)}", is_simple)
                     
+                    # 全オッズを取得（途中breakしないことで全組み合わせを網羅し、ソート後の順位を正確にする）
                     for el in elements:
                         try:
                             val = float(el.get_text(strip=True))
@@ -429,11 +391,13 @@ async def fetch_race_odds(place_name, race_no, date_str=None, is_simple=False):
                     log_debug(f"[DEBUG] URLアクセスエラー: {e}", is_simple)
                     await asyncio.sleep(1.0)
             
+            # このURLで1件でも取得できたら、次のフォールバックURLには行かない
             if len(odds_list) > 0:
                 break
 
         await browser.close()
 
+        # 重複削除(set)を行わず、純粋に昇順ソートして本来の人気順位を確保する
         odds = sorted(odds_list) if odds_list else []
         log_debug(f"[DEBUG] 最終的に取得したオッズ数(ソート済み): {len(odds)}", is_simple)
         
@@ -446,10 +410,9 @@ async def fetch_race_odds(place_name, race_no, date_str=None, is_simple=False):
         o20 = odds[19] if len(odds) >= 20 else None
         o30 = odds[29] if len(odds) >= 30 else None
         o50 = odds[49] if len(odds) >= 50 else None
-        o100 = odds[99] if len(odds) >= 100 else None
 
-        odds_info = {"o1": o1, "o10": o10, "o20": o20, "o30": o30, "o50": o50, "o100": o100}
-        log_debug(f"[DEBUG] オッズ判定情報: o1={o1}, o10={o10}, o20={o20}, o30={o30}, o50={o50}, o100={o100}", is_simple)
+        odds_info = {"o1": o1, "o10": o10, "o20": o20, "o30": o30, "o50": o50}
+        log_debug(f"[DEBUG] オッズ判定情報: o1={o1}, o10={o10}, o20={o20}, o30={o30}, o50={o50}", is_simple)
 
         return odds_info
 
@@ -494,38 +457,35 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         o20 = odds_info.get("o20")
         o30 = odds_info.get("o30")
         o50 = odds_info.get("o50")
-        o100 = odds_info.get("o100")
 
         o1_str = f"{o1:.1f}倍"
         o10_str = f"{o10:.1f}倍" if o10 is not None else "-"
         o20_str = f"{o20:.1f}倍" if o20 is not None else "-"
         o30_str = f"{o30:.1f}倍" if o30 is not None else "-"
         o50_str = f"{o50:.1f}倍" if o50 is not None else "-"
-        o100_str = f"{o100:.1f}倍" if o100 is not None else "-"
 
-        # 推定確率の計算（6区分）
+        # 推定確率の計算（5区分）
         payout_probs = calculate_payout_probabilities(o1, o10, o20, o30, o50)
     else:
-        o1 = o10 = o20 = o30 = o50 = o100 = None
+        o1 = o10 = o20 = o30 = o50 = None
         o1_str = "未取得"
         o10_str = "未取得"
         o20_str = "未取得"
         o30_str = "未取得"
         o50_str = "未取得"
-        o100_str = "未取得"
         payout_probs = None
 
     odds_table_md = (
-        "\n| 3連複1位 | 3連複10位 | 3連複20位 | 3連複30位 | 3連複50位 | 3連複100位 |\n"
-        "| --- | --- | --- | --- | --- | --- |\n"
-        f"| {o1_str} | {o10_str} | {o20_str} | {o30_str} | {o50_str} | {o100_str} |"
+        "\n| 3連複1位 | 3連複10位 | 3連複20位 | 3連複30位 | 3連複50位 |\n"
+        "| --- | --- | --- | --- | --- |\n"
+        f"| {o1_str} | {o10_str} | {o20_str} | {o30_str} | {o50_str} |"
     )
 
     if payout_probs:
         prob_table_md = (
-            "\n| ～30倍 | 30～60倍 | 60～90倍 | 90～120倍 | 120倍～150倍 | 150倍～ |\n"
-            "| --- | --- | --- | --- | --- | --- |\n"
-            f"| **{payout_probs['～30倍']}%** | **{payout_probs['30～60倍']}%** | **{payout_probs['60～90倍']}%** | **{payout_probs['90～120倍']}%** | **{payout_probs['120倍～150倍']}%** | **{payout_probs['150倍～']}%** |"
+            "\n| 20倍以下 | 20～50倍 | 50～80倍 | 80～120倍 | 120倍以上 |\n"
+            "| --- | --- | --- | --- | --- |\n"
+            f"| **約{payout_probs['20倍以下']}%** | **約{payout_probs['20～50倍']}%** | **約{payout_probs['50～80倍']}%** | **約{payout_probs['80～120倍']}%** | **約{payout_probs['120倍以上']}%** |"
         )
     else:
         prob_table_md = "\n* **推定配当確率**: データ不足のため算出不可"
@@ -873,29 +833,28 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     df_sorted["期待値"] = (df_sorted["単勝オッズ"] * (df_sorted["勝率(MC)"] / 100.0)).round(2)
 
     # ==========================================================================
-    # 3連複荒れ度判定ロジック
+    # 3連複荒れ度判定ロジック（5段階化：堅い・小荒・中荒・大荒・並）
     # ==========================================================================
     if payout_probs:
-        p_under_30 = payout_probs.get("～30倍", 0)
-        p_30_60    = payout_probs.get("30～60倍", 0)
-        p_60_90    = payout_probs.get("60～90倍", 0)
-        p_90_120   = payout_probs.get("90～120倍", 0)
-        p_120_150  = payout_probs.get("120倍～150倍", 0)
-        p_over_150 = payout_probs.get("150倍～", 0)
+        p_under_20 = payout_probs.get("20倍以下", 0)
+        p_20_50    = payout_probs.get("20～50倍", 0)
+        p_50_80    = payout_probs.get("50～80倍", 0)
+        p_80_120   = payout_probs.get("80～120倍", 0)
+        p_over_120 = payout_probs.get("120倍以上", 0)
 
-        if p_under_30 >= 35 or (p_under_30 + p_30_60) >= 65:
+        if p_under_20 >= 35 or (p_under_20 + p_20_50) >= 65:
             race_pattern = "堅い"
-            pattern_desc = "30倍以下の低配当確率が高く、本命・人気決着が濃厚なレースです。"
-        elif p_30_60 >= 35 or (p_under_30 + p_30_60) >= 50:
+            pattern_desc = "20倍以下の低配当確率が高く、本命・人気決着が濃厚なレースです。"
+        elif p_20_50 >= 35 or (p_under_20 + p_20_50) >= 50:
             race_pattern = "並"
-            pattern_desc = "30～60倍の中配当が中心となる標準的なレースです。"
-        elif p_60_90 >= 35 or (p_30_60 + p_60_90) >= 50:
+            pattern_desc = "20～50倍の中配当が中心となる標準的なレースです。"
+        elif p_50_80 >= 35 or (p_20_50 + p_50_80) >= 50:
             race_pattern = "小荒"
-            pattern_desc = "60～90倍の中高配当が想定されるやや波乱含みのレースです。"
-        elif p_90_120 >= 35 or (p_60_90 + p_90_120) >= 50:
+            pattern_desc = "50～80倍の中高配当が想定されるやや波乱含みのレースです。"
+        elif p_80_120 >= 35 or (p_50_80 + p_80_120) >= 50:
             race_pattern = "中荒"
-            pattern_desc = "90～120倍の高配当を中心に想定される波乱含みのレースです。"
-        elif p_120_150 >= 35 or p_over_150 >= 35 or (p_120_150 + p_over_150) >= 40:
+            pattern_desc = "80～120倍の高配当を中心に想定される波乱含みのレースです。"
+        elif p_over_120 >= 35 or (p_80_120 + p_over_120) >= 65:
             race_pattern = "大荒"
             pattern_desc = "120倍以上の超高配当確率が高く、大波乱が警戒されるレースです。"
         else:
@@ -970,6 +929,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         
     aite2_df = df_aite2_pool.sort_values(by="合成順位").head(aite2_count)
 
+    # 合成順位（df_sortedの順序）で相手1・相手2のリストを作成
     aite1_df_syn_sorted = df_sorted[df_sorted["馬番"].isin(aite1_df["馬番"].tolist())]
     aite2_df_syn_sorted = df_sorted[df_sorted["馬番"].isin(aite2_df["馬番"].tolist())]
 
@@ -983,21 +943,25 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     fmt_points = len(sanrenpuku_combos)
     fmt_formation_points = len(aite1_horses) * len(aite2_horses)
 
-    # BEST推奨購入範囲（best_start - 10倍 〜 best_start + 20倍）の算出
-    best_start, best_min, best_max = get_best_30x_odds_range(payout_probs)
-
     jiku_log_lines = ["\n#### ■ 3-3. 軸馬・相手馬決定判定プロセス"]
     jiku_log_lines.append(f"【軸馬判定】：{jiku_reason} → 馬番{jiku_horse['馬番']}（{jiku_horse['馬名']}）")
     jiku_log_lines.append(f"【相手判定】：{aite_reason_str}")
+
+    ODDS_RANGE_MAP = {
+        "堅い": "配当目安 ～20倍",
+        "並": "配当目安 20～50倍",
+        "小荒": "配当目安 50～80倍",
+        "中荒": "配当目安 80～120倍",
+        "大荒": "配当目安 120倍～"
+    }
+    target_odds_range = ODDS_RANGE_MAP.get(race_pattern, "")
 
     phase6_lines = [
         "#### ■ PHASE 6：最終ランキングと買い目\n",
         f"#### 1. レース情報\n[{race_name} / {track}{race_no}R / {distance}m]",
         f"* **取得3連複オッズ**:\n{odds_table_md}",
         f"\n* **推定配当確率**:\n{prob_table_md}",
-        f"\n**【レース判定結果】：{race_pattern}** （{pattern_desc}）  ",
-        f"★ **【オッズ中心位置 (best_start)】：{best_start:.1f}倍**  ",
-        f"★ **【BEST推奨購入範囲（30倍幅）】：{best_min:.1f}倍 ～ {best_max:.1f}倍**\n",
+        f"\n**【レース判定結果】：{race_pattern}** （{pattern_desc}）\n",
         f"  * 単勝1〜3番人気の複勝(3着以内)入着シミュレーション:",
         f"    0頭入る確率: **{prob_top3_0:.1f}%**  ",
         f"    1頭入る確率: **{prob_top3_1:.1f}%**  ",
@@ -1034,7 +998,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
                 f"| {rank_num} | {r['馬番']} {r['馬名']}({r['単勝オッズ']}倍) | {r['合成値']:.2f} ({r['合成順位']}位) | {r['オッズスコア']:.1f} ({r['オッズ順位']}位) | {r['能力スコア']:.1f} ({r['能力順位']}位) | {win_mc} | {place_mc} | {ev_val} | {pos} | {valid_runs} |"
             )
 
-    phase6_lines.append(f"\n#### 3. 買い目（判定：【{race_pattern}】 BEST目安 {best_min:.1f}倍～{best_max:.1f}倍）\n")
+    phase6_lines.append(f"\n#### 3. 買い目（判定：【{race_pattern}】 {target_odds_range}）\n")
 
     aite1_formatted_parts = []
     for h in aite1_horses:
