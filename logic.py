@@ -863,7 +863,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         cum_120 = cum_90 + p_90_120
 
         # 1. 低配当側の累積分布から順に判定（矛盾のない一方向の条件分岐）
-        if cum_30 >= 35 or cum_60 >= 60:
+        if cum_30 >= 35:
             race_pattern = "堅い"
         elif cum_60 >= 45:
             race_pattern = "並"
