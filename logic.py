@@ -871,8 +871,11 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         elif p_70_90 >= 25 or (p_50_70 + p_70_90) >= 40:
             race_pattern = "中荒"
             pattern_desc = "70～90倍の高配当を中心に想定される波乱含みのレースです。"
-        elif p_over_110 >= 30 or (p_90_110 + p_over_110) >= 50:
+        elif p_90_110 >= 25 or (p_70_90 + p_90_110) >= 40:
             race_pattern = "大荒"
+            pattern_desc = "90～110倍の高配当を中心に想定される波乱含みのレースです。"
+        elif p_over_110 >= 30 or (p_90_110 + p_over_110) >= 50:
+            race_pattern = "爆荒"
             pattern_desc = "110倍以上の超高配当確率が高く、大波乱が警戒されるレースです。"
         else:
             # 確率が分散してどの条件にも届かない場合のフォールバック（最も高い確率の帯域を採用）
@@ -881,15 +884,15 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
                 "～30倍": "堅い",
                 "30～50倍": "並",
                 "50～70倍": "小荒",
-                "70～90倍": "小荒",
-                "90～110倍": "中荒",
-                "110倍～": "大荒"
+                "70～90倍": "中荒",
+                "90～110倍": "大荒",
+                "110倍～": "爆荒"
             }
             race_pattern = pattern_map.get(max_key, "並")
             pattern_desc = f"確率が分散していますが、最も比率が高い【{max_key}】を中心に想定されるレースです。"
 
         # 2. 単勝上位3頭の2頭以上入着確率(MC)による安全弁補正
-        if prob_top3_2_or_more >= 80.0 and race_pattern in ["中荒", "大荒"]:
+        if prob_top3_2_or_more >= 80.0 and race_pattern in ["中荒", "大荒", "爆荒"]:
             race_pattern = "小荒"
             pattern_desc += "（※ただし単勝上位の複勝率が極めて高く、軸崩れリスクは低めです）"
         elif prob_top3_2_or_more <= 30.0 and race_pattern in ["堅い", "並"]:
@@ -940,9 +943,9 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     df_without_jiku = df_valid[df_valid["馬番"] != jiku_horse["馬番"]].copy()
     aite1_df = df_without_jiku.sort_values(by="オッズ順位").head(2)
 
-    if (prob_top3_2_or_more < 30.0) and (race_pattern in ["中荒", "大荒"]):
+    if (prob_top3_2_or_more < 30.0) and (race_pattern in ["中荒", "大荒", "爆荒"]):
         aite2_count = 5
-        aite_reason_str = "上位3頭から2頭入る確率が30%未満かつ荒れ予想（中荒・大荒）のため、相手2は軸馬・相手1を除き合成順位上位5頭選出"
+        aite_reason_str = "上位3頭から2頭入る確率が30%未満かつ荒れ予想（中荒・大荒・爆荒）のため、相手2は軸馬・相手1を除き合成順位上位5頭選出"
     else:
         aite2_count = 4
         aite_reason_str = "通常条件のため、相手2は軸馬・相手1を除き合成順位上位4頭選出"
@@ -977,7 +980,8 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         "並": "配当目安 30～50倍",
         "小荒": "配当目安 50～70倍",
         "中荒": "配当目安 70～90倍",
-        "大荒": "配当目安 110倍～"
+        "大荒": "配当目安 90～110倍",
+        "爆荒": "配当目安 110倍～"
     }
     target_odds_range = ODDS_RANGE_MAP.get(race_pattern, "")
 
@@ -1058,8 +1062,8 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     aite1_str_input = ",".join(map(str, sorted(aite1_horses)))
     aite2_str_input = ",".join(map(str, sorted(aite2_horses)))
 
-    phase6_lines.append(f"* 小荒、中荒、大荒：{jiku_val} - {aite_str}（{fmt_points}点）")
-    phase6_lines.append(f"* 軸2頭60%以上、並、堅い：{jiku_val} - {aite1_str_input} - {aite2_str_input}（{fmt_formation_points}点）")
+    phase6_lines.append(f"* 基本購入：{jiku_val} - {aite_str}（{fmt_points}点）")
+    phase6_lines.append(f"* 軸2頭60%以上で堅い、並時：{jiku_val} - {aite1_str_input} - {aite2_str_input}（{fmt_formation_points}点）")
 
     full_report = []
     if is_simple:
