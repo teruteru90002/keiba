@@ -252,6 +252,88 @@ def calculate_payout_probabilities(o1, o10, o20, o30, o50):
     }
 
 # ==============================================================================
+# 30～60倍適性スコア算出ロジック
+# ==============================================================================
+def calculate_30_60_aptitude(o1, o10, o20, o30, o50):
+    """
+    【STEP 1】 3連複1/10/20/30/50番人気オッズから30倍位置・60倍位置を推定
+    【STEP 2】 30～60倍の人気順位幅を計算
+    【STEP 3】 オッズの上昇カーブを評価
+    【STEP 4】 1～3番人気の集中度を評価
+    【STEP 5】 30～60倍適性スコア 0～100点
+    """
+    if o1 is None:
+        return None
+
+    # 有効なオッズデータのみ抽出
+    points = [(1, o1)]
+    if o10 is not None: points.append((10, o10))
+    if o20 is not None: points.append((20, o20))
+    if o30 is not None: points.append((30, o30))
+    if o50 is not None: points.append((50, o50))
+
+    if len(points) < 2:
+        return None
+
+    # 目標オッズに対する推定順位を線形補間/外挿で算出
+    def estimate_rank(target):
+        for i in range(len(points) - 1):
+            r1, od1 = points[i]
+            r2, od2 = points[i+1]
+            if od1 <= target <= od2:
+                if od2 == od1: return float(r1)
+                return r1 + (r2 - r1) * (target - od1) / (od2 - od1)
+        
+        # 範囲外の場合は外挿
+        r_first, o_first = points[0]
+        r_last, o_last = points[-1]
+        if target < o_first: return 1.0
+        if target > o_last:
+            if o_last == o_first: return float(r_last)
+            return r_last + (r_last - r_first) * (target - o_last) / (o_last - o_first)
+        return 1.0
+
+    # 【STEP 1】 30倍位置・60倍位置を推定
+    rank_30 = estimate_rank(30.0)
+    rank_60 = estimate_rank(60.0)
+
+    # 【STEP 2】 30～60倍の人気順位幅を計算
+    width_30_60 = max(0.0, rank_60 - rank_30)
+
+    # 【STEP 3】 オッズの上昇カーブを評価 (幅が広い＝緩やか＝適性高)
+    if width_30_60 >= 20.0:
+        curve_score = 40
+    elif width_30_60 >= 10.0:
+        curve_score = 30 + (width_30_60 - 10)
+    elif width_30_60 >= 5.0:
+        curve_score = 15 + (width_30_60 - 5) * 3
+    else:
+        curve_score = width_30_60 * 3
+
+    # 【STEP 4】 1～3番人気の集中度を評価 (o1基準で評価)
+    if o1 < 5.0:
+        conc_score = 20 # 堅すぎる傾向
+    elif 5.0 <= o1 <= 15.0:
+        conc_score = 40 # 中配当に最も適した集中度
+    elif 15.0 < o1 <= 30.0:
+        conc_score = 30 # やや割れ気味
+    else:
+        conc_score = 10 # 割れすぎ（大荒れ傾向）
+
+    # 【STEP 5】 30～60倍適性スコア 0～100点
+    base_bonus = 20
+    raw_score = curve_score + conc_score + base_bonus
+    final_score = int(max(0, min(100, raw_score)))
+
+    return {
+        "rank_30": round(rank_30, 1),
+        "rank_60": round(rank_60, 1),
+        "width": round(width_30_60, 1),
+        "score": final_score
+    }
+
+
+# ==============================================================================
 # 3連複オッズ取得ロジック
 # ==============================================================================
 PLACE_CODE_MAP = {
@@ -460,8 +542,9 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         o30_str = f"{o30:.1f}倍" if o30 is not None else "-"
         o50_str = f"{o50:.1f}倍" if o50 is not None else "-"
 
-        # 推定確率の計算（5区分）
+        # 推定確率の計算（5区分）および30〜60倍適性スコアの算出
         payout_probs = calculate_payout_probabilities(o1, o10, o20, o30, o50)
+        aptitude_30_60 = calculate_30_60_aptitude(o1, o10, o20, o30, o50)
     else:
         o1 = o10 = o20 = o30 = o50 = None
         o1_str = "未取得"
@@ -470,6 +553,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         o30_str = "未取得"
         o50_str = "未取得"
         payout_probs = None
+        aptitude_30_60 = None
 
     odds_table_md = (
         "\n| 3連複1位 | 3連複10位 | 3連複20位 | 3連複30位 | 3連複50位 |\n"
@@ -483,6 +567,12 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
             "| --- | --- | --- | --- | --- |\n"
             f"| **約{payout_probs['～30倍']}%** | **約{payout_probs['30～60倍']}%** | **約{payout_probs['60～90倍']}%** | **約{payout_probs['90～120倍']}%** | **約{payout_probs['120倍～']}%** |"
         )
+        if aptitude_30_60:
+            prob_table_md += (
+                f"\n\n* **30～60倍適性スコア**: **{aptitude_30_60['score']}点 / 100点**\n"
+                f"  * [STEP 1] 30倍推定位置: **{aptitude_30_60['rank_30']}位** / 60倍推定位置: **{aptitude_30_60['rank_60']}位**\n"
+                f"  * [STEP 2] 30〜60倍順位幅: **{aptitude_30_60['width']}**\n"
+            )
     else:
         prob_table_md = "\n* **推定配当確率**: データ不足のため算出不可"
 
