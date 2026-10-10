@@ -843,7 +843,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     # ==========================================================================
     PATTERNS_ORDER = ["レンジ1", "レンジ2", "レンジ3", "レンジ4", "レンジ5"]
     PATTERN_DESCS = {
-        "レンジ1": "30倍以下になりそうな非常に堅い決着が予想されるレースです。",
+        "レンジ1": "30倍以下になり非常に堅い決着が予想されるレースです。",
         "レンジ2": "30～60倍程度の配当が見込まれるレースです。",
         "レンジ3": "60～80倍程度の配当が見込まれるレースです。",
         "レンジ4": "80～100倍程度の中高配当が想定される荒れ模様のレースです。",
@@ -861,7 +861,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         cum_80  = cum_60 + p_60_80
         cum_100 = cum_80 + p_80_100
 
-        # 分類判定
         if cum_30 >= 40:
             race_pattern = "レンジ1"
         elif cum_60 >= 55:
@@ -875,7 +874,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
         pattern_desc = PATTERN_DESCS.get(race_pattern, "")
 
-        # 単勝上位3頭の2頭以上入着確率(MC)による安全弁補正
         if race_pattern in PATTERNS_ORDER:
             current_idx = PATTERNS_ORDER.index(race_pattern)
             shift = 0
