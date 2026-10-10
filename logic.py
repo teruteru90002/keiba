@@ -839,16 +839,15 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     prob_top3_2_or_more = prob_top3_2 + prob_top3_3
 
     # ==========================================================================
-    # 3連複荒れ度判定ロジック（レンジ1〜5、または判定不可）
+    # 3連複荒れ度判定ロジック（新規条件対応）
     # ==========================================================================
-    PATTERNS_ORDER = ["レンジ1", "レンジ2", "レンジ3", "レンジ4", "レンジ5"]
+    PATTERNS_ORDER = ["堅い", "並", "荒", "大荒"]
     PATTERN_DESCS = {
-        "レンジ1": "30倍以下になりそうな非常に堅い決着が予想されるレースです。",
-        "レンジ2": "30～60倍程度の配当が見込まれるレースです。",
-        "レンジ3": "60～80倍程度の配当が見込まれるレースです。",
-        "レンジ4": "80～100倍程度の中高配当が想定される荒れ模様のレースです。",
-        "レンジ5": "100倍以上の超高配当が想定される大波乱のレースです。",
-        "判定不可": "条件に合致せず、明確な配当レンジを判定できませんでした。"
+        "堅い": "低配当寄り（30倍以下の確率が40％以上）",
+        "並": "60倍以内に収まる可能性が高め（30～60倍までの累積確率が55％以上）",
+        "荒": "100倍以内に収まる可能性が高め（60～100倍までの累積確率が70％以上）",
+        "大荒": "高配当の可能性が比較的高い（100倍以上の確率が30％以上）",
+        "判定保留": "条件を満たさず、レンジを無理に決めない"
     }
 
     if payout_probs:
@@ -860,22 +859,19 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
         cum_30  = p_under_30
         cum_60  = cum_30 + p_30_60
-        cum_80  = cum_60 + p_60_80
-        cum_100 = cum_80 + p_80_100
+        cum_100 = cum_60 + p_60_80 + p_80_100
 
-        # 分類判定（レンジ1～5までを順に判定し、全て外れた場合は判定不可とする）
+        # 分類判定
         if cum_30 >= 40:
-            race_pattern = "レンジ1"
+            race_pattern = "堅い"
         elif cum_60 >= 55:
-            race_pattern = "レンジ2"
-        elif cum_80 >= 70:
-            race_pattern = "レンジ3"
-        elif cum_100 >= 80:
-            race_pattern = "レンジ4"
-        elif p_over_100 >= 15:
-            race_pattern = "レンジ5"
+            race_pattern = "並"
+        elif cum_100 >= 70:
+            race_pattern = "荒"
+        elif p_over_100 >= 30:
+            race_pattern = "大荒"
         else:
-            race_pattern = "判定不可"
+            race_pattern = "判定保留"
 
         pattern_desc = PATTERN_DESCS.get(race_pattern, "")
 
@@ -893,8 +889,8 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
                 race_pattern = PATTERNS_ORDER[new_idx]
                 pattern_desc = f"{PATTERN_DESCS[race_pattern]}（※単勝上位の複勝率が高め（{prob_top3_2_or_more:.1f}%）のため、{shift}ランク堅めへ調整されました）"
     else:
-        race_pattern = "データ不足"
-        pattern_desc = "配当データ不足のため不明を適用します。"
+        race_pattern = "判定保留"
+        pattern_desc = "配当データ不足のため判定保留を適用します。"
 
     # ==========================================================================
     # 買い目選定ロジック
@@ -937,9 +933,9 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     df_without_jiku = df_valid[df_valid["馬番"] != jiku_horse["馬番"]].copy()
     aite1_df = df_without_jiku.sort_values(by="オッズ順位").head(2)
 
-    if (prob_top3_2_or_more < 30.0) and (race_pattern in ["レンジ4", "レンジ5"]):
+    if (prob_top3_2_or_more < 30.0) and (race_pattern in ["荒", "大荒"]):
         aite2_count = 5
-        aite_reason_str = "上位3頭から2頭入る確率が30%未満かつ荒れ予想（レンジ4・5）のため、相手2は軸馬・相手1を除き合成順位上位5頭選出"
+        aite_reason_str = "上位3頭から2頭入る確率が30%未満かつ荒れ予想（荒・大荒）のため、相手2は軸馬・相手1を除き合成順位上位5頭選出"
     else:
         aite2_count = 4
         aite_reason_str = "通常条件のため、相手2は軸馬・相手1を除き合成順位上位4頭選出"
@@ -969,12 +965,11 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     jiku_log_lines.append(f"【相手判定】：{aite_reason_str}")
 
     ODDS_RANGE_MAP = {
-        "レンジ1": "配当目安 ～30倍",
-        "レンジ2": "配当目安 30～60倍",
-        "レンジ3": "配当目安 60～80倍",
-        "レンジ4": "配当目安 80～100倍",
-        "レンジ5": "配当目安 100倍～",
-        "判定不可": "配当目安 不明"
+        "堅い": "配当目安 ～30倍",
+        "並": "配当目安 30～60倍",
+        "荒": "配当目安 60～100倍",
+        "大荒": "配当目安 100倍以上",
+        "判定保留": "配当目安 不明"
     }
     target_odds_range = ODDS_RANGE_MAP.get(race_pattern, "")
 
