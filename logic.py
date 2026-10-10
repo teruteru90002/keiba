@@ -839,15 +839,16 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     prob_top3_2_or_more = prob_top3_2 + prob_top3_3
 
     # ==========================================================================
-    # 3連複荒れ度判定ロジック（5レンジ：レンジ1〜5）
+    # 3連複荒れ度判定ロジック（レンジ1〜5、または判定不可）
     # ==========================================================================
     PATTERNS_ORDER = ["レンジ1", "レンジ2", "レンジ3", "レンジ4", "レンジ5"]
     PATTERN_DESCS = {
-        "レンジ1": "30倍以下になり非常に堅い決着が予想されるレースです。",
+        "レンジ1": "30倍以下になりそうな非常に堅い決着が予想されるレースです。",
         "レンジ2": "30～60倍程度の配当が見込まれるレースです。",
         "レンジ3": "60～80倍程度の配当が見込まれるレースです。",
         "レンジ4": "80～100倍程度の中高配当が想定される荒れ模様のレースです。",
-        "レンジ5": "100倍以上の超高配当が想定される大波乱のレースです。"
+        "レンジ5": "100倍以上の超高配当が想定される大波乱のレースです。",
+        "判定不可": "条件に合致せず、明確な配当レンジを判定できませんでした。"
     }
 
     if payout_probs:
@@ -855,12 +856,14 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         p_30_60    = payout_probs.get("30～60倍", 0)
         p_60_80    = payout_probs.get("60～80倍", 0)
         p_80_100   = payout_probs.get("80～100倍", 0)
+        p_over_100 = payout_probs.get("100倍～", 0)
 
         cum_30  = p_under_30
         cum_60  = cum_30 + p_30_60
         cum_80  = cum_60 + p_60_80
         cum_100 = cum_80 + p_80_100
 
+        # 分類判定（レンジ1～5までを順に判定し、全て外れた場合は判定不可とする）
         if cum_30 >= 40:
             race_pattern = "レンジ1"
         elif cum_60 >= 55:
@@ -869,11 +872,14 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
             race_pattern = "レンジ3"
         elif cum_100 >= 80:
             race_pattern = "レンジ4"
-        else:
+        elif p_over_100 >= 15:
             race_pattern = "レンジ5"
+        else:
+            race_pattern = "判定不可"
 
         pattern_desc = PATTERN_DESCS.get(race_pattern, "")
 
+        # 単勝上位3頭の2頭以上入着確率(MC)による安全弁補正
         if race_pattern in PATTERNS_ORDER:
             current_idx = PATTERNS_ORDER.index(race_pattern)
             shift = 0
@@ -967,7 +973,8 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         "レンジ2": "配当目安 30～60倍",
         "レンジ3": "配当目安 60～80倍",
         "レンジ4": "配当目安 80～100倍",
-        "レンジ5": "配当目安 100倍～"
+        "レンジ5": "配当目安 100倍～",
+        "判定不可": "配当目安 不明"
     }
     target_odds_range = ODDS_RANGE_MAP.get(race_pattern, "")
 
