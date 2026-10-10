@@ -862,7 +862,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         cum_100 = cum_60 + p_60_80 + p_80_100
 
         # 分類判定
-        if cum_30 > 40:
+        if cum_30 > 45:
             race_pattern = "堅い"
         elif cum_60 > 55:
             race_pattern = "並"
