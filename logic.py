@@ -986,7 +986,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     phase6_lines = [
         "#### ■ PHASE 6：最終ランキングと買い目\n",
-        f"#### 1. レース情報\n[{race_name} / {track}{race_no}R / {distance}m]",
+        f"#### 1. レース情報\n[{race_name} / {track}{race_no}R / {surface} / {distance}m]",
         f"* **取得3連複オッズ**:\n{odds_table_md}",
         f"\n* **推定配当確率**:\n{prob_table_md}",
         f"\n**【レース判定結果】：{race_pattern}** （{pattern_desc}）\n",
