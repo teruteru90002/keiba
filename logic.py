@@ -862,7 +862,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         cum_100 = cum_60 + p_60_80 + p_80_100
 
         # 分類判定
-        if cum_30 > 45:
+        if cum_30 > 40:
             race_pattern = "堅い"
         elif cum_60 > 55:
             race_pattern = "並"
@@ -885,7 +885,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
             if shift > 0 and current_idx > 0:
                 new_idx = max(0, current_idx - shift)
                 race_pattern = PATTERNS_ORDER[new_idx]
-                pattern_desc = f"{PATTERN_DESCS[race_pattern]}（※単勝上位の複勝率が高め（{prob_top3_2_or_more:.1f}%）のため、{shift}ランク堅めへ調整されました）"
+                pattern_desc = f"{PATTERN_DESCS[race_pattern]}（※上位の２頭も入る確率が高め（{prob_top3_2_or_more:.1f}%）のため、{shift}ランク調整されました）"
     else:
         race_pattern = "判定保留"
         pattern_desc = "配当データ不足のため判定保留を適用します。"
