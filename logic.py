@@ -839,7 +839,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     prob_top3_2_or_more = prob_top3_2 + prob_top3_3
 
     # ==========================================================================
-    # 3連複荒れ度判定ロジック（60%以上は1ランク調整に統一）
+    # 3連複荒れ度判定ロジック（調整時に「調整」コメントを付与）
     # ==========================================================================
     PATTERNS_ORDER = ["堅", "並", "荒", "大荒"]
     PATTERN_DESCS = {
@@ -873,7 +873,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
         pattern_desc = PATTERN_DESCS.get(race_pattern, "")
 
-        # 単勝上位3頭の2頭以上入着確率(MC)による安全弁補正（60%以上は一律1ランク調整）
+        # 単勝上位3頭の2頭以上入着確率(MC)による安全弁補正
         if race_pattern in PATTERNS_ORDER:
             current_idx = PATTERNS_ORDER.index(race_pattern)
             shift = 0
@@ -882,8 +882,8 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
             if shift > 0 and current_idx > 0:
                 new_idx = max(0, current_idx - shift)
-                race_pattern = PATTERNS_ORDER[new_idx]
-                pattern_desc = f"{PATTERN_DESCS[race_pattern]}（※上位の２頭も入る確率が高め（{prob_top3_2_or_more:.1f}%）のため、{shift}ランク調整されました）"
+                race_pattern = f"{PATTERNS_ORDER[new_idx]} 調整"
+                pattern_desc = f"{PATTERN_DESCS[PATTERNS_ORDER[new_idx]]}（※上位の２頭も入る確率が高め（{prob_top3_2_or_more:.1f}%）のため、1ランク調整されました））"
     else:
         race_pattern = "判定保留"
         pattern_desc = "配当データ不足のため判定保留を適用します。"
@@ -966,7 +966,9 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         "大荒": "配当目安 100倍以上",
         "判定保留": "配当目安 不明"
     }
-    target_odds_range = ODDS_RANGE_MAP.get(race_pattern, "")
+    # パターン名から「 調整」を除いたベースのキーでオッズ範囲を取得
+    base_race_pattern = race_pattern.split()[0] if race_pattern else race_pattern
+    target_odds_range = ODDS_RANGE_MAP.get(base_race_pattern, "")
 
     phase6_lines = [
         "#### ■ PHASE 6：最終ランキングと買い目\n",
