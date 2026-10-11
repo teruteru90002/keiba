@@ -882,7 +882,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
             if shift > 0 and current_idx > 0:
                 new_idx = max(0, current_idx - shift)
-                race_pattern = f"{PATTERNS_ORDER[new_idx]} 調整"
+                race_pattern = f"{PATTERNS_ORDER[new_idx]} ※"
                 pattern_desc = f"{PATTERN_DESCS[PATTERNS_ORDER[new_idx]]}（※上位の２頭も入る確率が高め（{prob_top3_2_or_more:.1f}%）のため、1ランク調整されました））"
     else:
         race_pattern = "判定保留"
