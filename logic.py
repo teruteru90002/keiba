@@ -205,12 +205,9 @@ def estimate_position_type_final_corner(past_runs):
         return "追"
 
 # ==============================================================================
-# 配当帯確率計算ロジック（5区分化：～30、30～60、60～80、80～100、100倍～）
+# 配当帯確率計算ロジック（5区分化）
 # ==============================================================================
 def calculate_payout_probabilities(o1, o10, o20, o30, o50):
-    """
-    3連複各順位のオッズ値から、5つの配当レンジの推定確率を算出する
-    """
     if o1 is None:
         return None
 
@@ -839,7 +836,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     prob_top3_2_or_more = prob_top3_2 + prob_top3_3
 
     # ==========================================================================
-    # 3連複荒れ度判定ロジック（調整時に「調整」コメントを付与）
+    # 3連複荒れ度判定ロジック
     # ==========================================================================
     PATTERNS_ORDER = ["堅", "並", "荒", "大荒"]
     PATTERN_DESCS = {
@@ -861,7 +858,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         cum_60  = cum_30 + p_30_60
         cum_100 = cum_60 + p_60_80 + p_80_100
 
-        # 分類判定
         if cum_30 > 40:
             race_pattern = "堅"
         elif cum_60 > 55:
@@ -873,7 +869,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
         pattern_desc = PATTERN_DESCS.get(race_pattern, "")
 
-        # 単勝上位3頭の2頭以上入着確率(MC)による安全弁補正
         if race_pattern in PATTERNS_ORDER:
             current_idx = PATTERNS_ORDER.index(race_pattern)
             shift = 0
@@ -960,13 +955,13 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     jiku_log_lines.append(f"【相手判定】：{aite_reason_str}")
 
     ODDS_RANGE_MAP = {
-        "堅": "配当目安 ～30倍",
-        "並": "配当目安 30～60倍",
-        "荒": "配当目安 60～100倍",
-        "大荒": "配当目安 100倍以上",
+        "堅": "配当目安 ～20倍",
+        "並": "配当目安 20～40倍",
+        "荒": "配当目安 30～50倍",
+        "大荒": "配当目安 50倍以上",
         "判定保留": "配当目安 不明"
     }
-    # パターン名から「 調整」を除いたベースのキーでオッズ範囲を取得
+    
     base_race_pattern = race_pattern.split()[0] if race_pattern else race_pattern
     target_odds_range = ODDS_RANGE_MAP.get(base_race_pattern, "")
 
