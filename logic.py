@@ -843,18 +843,18 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     # ==========================================================================
     PATTERNS_ORDER = ["堅", "並", "荒", "大荒"]
     PATTERN_DESCS = {
-        "堅": "20倍以下の確率が高い",
-        "並": "20～40倍までの確率が高い",
-        "荒": "30～50倍までの確率が高い",
-        "大荒": "50倍以上の確率が高い",
+        "堅": "30倍以下の確率が高い",
+        "並": "30～50倍までの確率が高い",
+        "荒": "50～100倍までの確率が高い",
+        "大荒": "100倍以上の確率が高い",
         "判定保留": "条件を満たさず、レンジを無理に決めない"
     }
 
     if payout_probs:
-        p_under_30 = payout_probs.get("～20倍", 0)
-        p_30_60    = payout_probs.get("20～40倍", 0)
-        p_60_80    = payout_probs.get("30～50倍", 0)
-        p_80_100   = payout_probs.get("50倍~", 0)
+        p_under_30 = payout_probs.get("～30倍", 0)
+        p_30_60    = payout_probs.get("30～60倍", 0)
+        p_60_80    = payout_probs.get("60～80倍", 0)
+        p_80_100   = payout_probs.get("80～100倍", 0)
         p_over_100 = payout_probs.get("100倍～", 0)
 
         cum_30  = p_under_30
@@ -960,10 +960,10 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     jiku_log_lines.append(f"【相手判定】：{aite_reason_str}")
 
     ODDS_RANGE_MAP = {
-        "堅": "配当目安 ～20倍",
-        "並": "配当目安 20～40倍",
-        "荒": "配当目安 30～50倍",
-        "大荒": "配当目安 50倍以上",
+        "堅": "配当目安 ～30倍",
+        "並": "配当目安 30～60倍",
+        "荒": "配当目安 60～100倍",
+        "大荒": "配当目安 100倍以上",
         "判定保留": "配当目安 不明"
     }
     # パターン名から「 調整」を除いたベースのキーでオッズ範囲を取得
