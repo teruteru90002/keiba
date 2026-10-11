@@ -207,63 +207,59 @@ def estimate_position_type_final_corner(past_runs):
 # ==============================================================================
 # 配当帯確率計算ロジック（新配当目安・5区分化対応）
 # ==============================================================================
-import numpy as np
-import math
-
 def calculate_payout_probabilities(o1, o10, o20, o30, o50):
-    if o1 is None or o1 <= 0:
+    if o1 is None:
         return None
 
-    # 1. 10位オッズが無い場合の補完（実態の傾向に合わせた倍率）
-    val_o10 = o10 if (o10 is not None and o10 > o1) else o1 * 3.8
-    
-    # 2. 実態に合わせるためのパラメータ調整
-    # 1番人気のオッズ（o1）をベースにしつつ、オッズ差（o10 - o1）が大きいほど分散を大きくして高配当に厚みを持たせる
-    log_o1 = np.log(o1)
-    log_o10 = np.log(val_o10)
-    
-    # 平均（mu）を少し高配当側に寄せる補正係数を適用
-    mu = log_o1 * 0.65 + log_o10 * 0.35 + 0.15
-    sigma = max(0.35, (log_o10 - log_o1) * 0.55)
+    # 各オッズが取得できていない場合の安全な補完（上位オッズを基準に推定）
+    v_o10 = o10 if o10 is not None else o1 * 3.5
+    v_o20 = o20 if o20 is not None else v_o10 * 1.8
+    v_o30 = o30 if o30 is not None else v_o20 * 1.5
+    v_o50 = o50 if o50 is not None else v_o30 * 1.4
 
-    # 3. 各配当帯の閾値
-    thresholds = [20, 40, 50, 80]
-    
-    def lognorm_cdf(x, m, s):
-        if x <= 0: return 0.0
-        return 0.5 * (1.0 + math.erf((np.log(x) - m) / (s * np.sqrt(2.0))))
+    # 1. 複数ポイントのオッズ傾き（勾配）を総合的に評価
+    # 上位層の伸び（o1～o10）と中位層の伸び（o10～o30）を比較してレースの歪みを捉える
+    upper_slope = v_o10 / max(o1, 1.0)
+    mid_slope = v_o30 / max(v_o10, 1.0)
 
-    probs = []
-    prev_p = 0.0
-    
-    for th in thresholds:
-        p = lognorm_cdf(th, mu, sigma)
-        probs.append(p - prev_p)
-        prev_p = p
-    
-    probs.append(max(0.0, 1.0 - prev_p))
+    # 2. 5つの配当帯それぞれに対応する「基準スコア」を算出
+    # 各配当帯のレンジに、対応するオッズ（o1, o10, o20, o30, o50）がどう位置しているかを評価
+    # 例：～20倍に対してo1が近いか、50～80倍に対してo50が近いか等
+    score_under_20 = max(1.0, 40.0 - o1 * 2.0)
+    score_20_40    = max(1.0, 50.0 - abs(20.0 - (v_o10 + v_o20) / 2.0))
+    score_40_50    = max(1.0, 50.0 - abs(45.0 - v_o20))
+    score_50_80    = max(1.0, 50.0 - abs(65.0 - (v_o30 + v_o50) / 2.0 if v_o50 else 65.0 - v_o30))
+    score_over_80  = max(1.0, (v_o30 - 50.0) * 0.8 if v_o30 > 50 else 10.0)
 
-    # 4. パーセンテージ化
-    p_under_20 = round(probs[0] * 100)
-    p_20_40    = round(probs[1] * 100)
-    p_40_50    = round(probs[2] * 100)
-    p_50_80    = round(probs[3] * 100)
-    p_over_80  = round(probs[4] * 100)
+    # レース全体の荒れ度（スロープが緩やか＝混戦・荒れやすい）に応じて高配当側のスコアをブースト
+    if upper_slope < 2.5 and mid_slope < 1.4:
+        # 上位から中位にかけてオッズがあまり開いていない（大混戦・荒れ模様）
+        score_under_20 *= 0.4
+        score_over_80  *= 1.6
+    elif o1 <= 4.0 and upper_slope > 3.5:
+        # 1番人気が抜けていて、2位以降が離れている（堅い決着傾向）
+        score_under_20 *= 1.8
+        score_over_80  *= 0.4
 
-    res = {
+    # 3. スコアを合算して割合（％）に変換
+    total_score = score_under_20 + score_20_40 + score_40_50 + score_50_80 + score_over_80
+
+    if total_score > 0:
+        p_under_20 = round(score_under_20 / total_score * 100)
+        p_20_40    = round(score_20_40 / total_score * 100)
+        p_40_50    = round(score_40_50 / total_score * 100)
+        p_50_80    = round(score_50_80 / total_score * 100)
+        p_over_80  = 100 - (p_under_20 + p_20_40 + p_40_50 + p_50_80)
+    else:
+        p_under_20, p_20_40, p_40_50, p_50_80, p_over_80 = 20, 20, 20, 20, 20
+
+    return {
         "～20倍": p_under_20,
         "20～40倍": p_20_40,
         "40～50倍": p_40_50,
         "50～80倍": p_50_80,
         "80倍以上": p_over_80
     }
-    
-    total = sum(res.values())
-    if total != 100 and total > 0:
-        max_key = max(res, key=res.get)
-        res[max_key] += (100 - total)
-
-    return res
 # ==============================================================================
 # 3連複オッズ取得ロジック
 # ==============================================================================
