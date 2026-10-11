@@ -839,9 +839,8 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     prob_top3_2_or_more = prob_top3_2 + prob_top3_3
 
     # ==========================================================================
-    # 3連複荒れ度判定ロジック（新規条件対応）
+    # 3連複荒れ度判定ロジック
     # ==========================================================================
-    PATTERNS_ORDER = ["堅い", "並", "荒", "大荒"]
     PATTERN_DESCS = {
         "堅い": "30倍以下の確率が高い",
         "並": "30～50倍までの確率が高い",
@@ -872,20 +871,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
             race_pattern = "大荒"
 
         pattern_desc = PATTERN_DESCS.get(race_pattern, "")
-
-        # 単勝上位3頭の2頭以上入着確率(MC)による安全弁補正
-        if race_pattern in PATTERNS_ORDER:
-            current_idx = PATTERNS_ORDER.index(race_pattern)
-            shift = 0
-            if prob_top3_2_or_more >= 80.0:
-                shift = 2
-            elif prob_top3_2_or_more >= 60.0:
-                shift = 1
-
-            if shift > 0 and current_idx > 0:
-                new_idx = max(0, current_idx - shift)
-                race_pattern = PATTERNS_ORDER[new_idx]
-                pattern_desc = f"{PATTERN_DESCS[race_pattern]}（※上位の２頭も入る確率が高め（{prob_top3_2_or_more:.1f}%）のため、{shift}ランク調整されました）"
     else:
         race_pattern = "判定保留"
         pattern_desc = "配当データ不足のため判定保留を適用します。"
@@ -956,7 +941,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     all_aite_nums = sorted(selected_aite_df["馬番"].tolist())
     sanrenpuku_combos = list(itertools.combinations(all_aite_nums, 2))
     fmt_points = len(sanrenpuku_combos)
-    fmt_formation_points = len(aite1_horses) * len(aite2_horses)
 
     jiku_log_lines = ["\n#### ■ 3-3. 軸馬・相手馬決定判定プロセス"]
     jiku_log_lines.append(f"【軸馬判定】：{jiku_reason} → 馬番{jiku_horse['馬番']}（{jiku_horse['馬名']}）")
@@ -985,8 +969,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         f"    ★2頭以上入る合計確率: **{prob_top3_2_or_more:.1f}%**  "
     ]
 
-    if prob_top3_2_or_more >= 60.0:
-        phase6_lines.append("    **  60%以上はフォーメーション検討**  ")
     if prob_top3_2_or_more <= 30.0:
         phase6_lines.append("    **  30%以下は軸注意**  ")
 
@@ -1045,11 +1027,8 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     
     jiku_val = jiku_horse["馬番"]
     aite_str = ",".join(map(str, all_aite_nums))
-    aite1_str_input = ",".join(map(str, sorted(aite1_horses)))
-    aite2_str_input = ",".join(map(str, sorted(aite2_horses)))
 
     phase6_lines.append(f"* 基本購入：{jiku_val} - {aite_str}（{fmt_points}点）")
-    phase6_lines.append(f"* 軸2頭60%以上で堅い時：{jiku_val} - {aite1_str_input} - {aite2_str_input}（{fmt_formation_points}点）")
 
     full_report = []
     if is_simple:
