@@ -860,13 +860,13 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         cum_50 = cum_40 + p_40_50
         cum_80 = cum_50 + p_50_80
 
-        if cum_20 >= 30:
+        if cum_20 > 30:
             race_pattern = "堅"
-        elif cum_40 >= 40:
+        elif cum_40 > 40:
             race_pattern = "並①"
-        elif cum_50 >= 55:
+        elif cum_50 > 55:
             race_pattern = "並②"
-        elif cum_80 >= 75:
+        elif cum_80 > 70:
             race_pattern = "荒"
         else:
             race_pattern = "大荒"
@@ -965,9 +965,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         f"    3頭入る確率: **{prob_top3_3:.1f}%**  ",
         f"    ★2頭以上入る合計確率: **{prob_top3_2_or_more:.1f}%**  "
     ]
-
- #   if prob_top3_2_or_more <= 30.0:
- #       phase6_lines.append("    **  30%以下は軸注意**  ")
 
     phase6_lines.append("\n#### 2. 最終ランキング\n")
     phase6_lines.append("| 順位 | 馬(オッズ) | 合成値(順位) | オッズ(順位) | 能力(順位) | 勝率 | 複勝率 | 期待値 | 位置 | 走数 |")
