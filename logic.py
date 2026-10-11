@@ -875,7 +875,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         if race_pattern in PATTERNS_ORDER:
             current_idx = PATTERNS_ORDER.index(race_pattern)
             shift = 0
-            if prob_top3_2_or_more >= 60.0:
+            if prob_top3_2_or_more >= 80.0:
                 shift = 1
 
             if shift > 0 and current_idx > 0:
