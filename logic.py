@@ -208,47 +208,65 @@ def estimate_position_type_final_corner(past_runs):
 # 配当帯確率計算ロジック（新配当目安・5区分化対応）
 # ==============================================================================
 def calculate_payout_probabilities(o1, o10, o20, o30, o50):
-    if o1 is None:
+    if o1 is None or o1 <= 0:
         return None
 
-    if o1 <= 6.0 and (o20 is None or o20 <= 30.0):
-        p_under_20 = max(15, min(85, int(90 - (o1 * 4.0) - (o10 * 0.4 if o10 else 5))))
-        rem = 100 - p_under_20
-        p_20_40 = round(rem * 0.45)
-        p_40_50 = round(rem * 0.25)
-        p_50_80 = round(rem * 0.15)
-        p_over_80 = rem - p_20_40 - p_40_50 - p_50_80
-    elif o1 >= 15.0 or (o10 is None or o10 >= 45.0):
-        p_under_20 = max(2, min(15, int(20 - o1)))
-        rem = 100 - p_under_20
-        p_20_40 = round(rem * 0.20)
-        p_40_50 = round(rem * 0.20)
-        p_50_80 = round(rem * 0.30)
-        p_over_80 = rem - p_20_40 - p_40_50 - p_50_80
-    else:
-        p_under_20 = max(5, min(50, int(55 - (o1 * 2.0) - (o10 * 0.2 if o10 else 5))))
-        rem = 100 - p_under_20
-        p_20_40 = round(rem * 0.35)
-        p_40_50 = round(rem * 0.25)
-        p_50_80 = round(rem * 0.25)
-        p_over_80 = rem - p_20_40 - p_40_50 - p_50_80
+    # 1. オッズの傾き（10位と1位の比率など）からレースのボラティリティ（散らばり具合）を推定
+    # o10が無い場合はデフォルト値で補完
+    val_o10 = o10 if (o10 is not None and o10 > o1) else o1 * 3.5
+    
+    # 2. 3連複の配当データは対数正規分布に近い特性を持つため、パラメータ（平均・分散）を推定
+    # 1番人気が低いほど中心（期待値）が低く、オッズ差が大きいほど分散（荒れ度）が大きくなるモデル
+    log_o1 = np.log(o1)
+    log_o10 = np.log(val_o10)
+    
+    # 分布の対数平均（mu）と対数標準偏差（sigma）の近似算出
+    mu = log_o1 * 0.75 + log_o10 * 0.25
+    sigma = max(0.25, (log_o10 - log_o1) * 0.5)
 
-    total = p_under_20 + p_20_40 + p_40_50 + p_50_80 + p_over_80
-    if total > 0:
-        p_under_20 = round(p_under_20 / total * 100)
-        p_20_40 = round(p_20_40 / total * 100)
-        p_40_50 = round(p_40_50 / total * 100)
-        p_50_80 = round(p_50_80 / total * 100)
-        p_over_80 = 100 - (p_under_20 + p_20_40 + p_40_50 + p_50_80)
+    # 3. 各配当帯の境界値（閾値）
+    thresholds = [20, 40, 50, 80]
+    
+    # 4. 対数正規分布の累積分布関数（CDF）を用いて、各ゾーンに入る確率を正確に算出
+    # ※ 標準正規分布のCDF（エラーファンクション erf を利用）を近似計算
+    def lognorm_cdf(x, m, s):
+        if x <= 0: return 0.0
+        return 0.5 * (1.0 + math.erf((np.log(x) - m) / (s * np.sqrt(2.0))))
 
-    return {
+    import math
+    probs = []
+    prev_p = 0.0
+    
+    for th in thresholds:
+        p = lognorm_cdf(th, mu, sigma)
+        probs.append(p - prev_p)
+        prev_p = p
+    
+    # 80倍以上の確率（残りの確率）
+    probs.append(max(0.0, 1.0 - prev_p))
+
+    # パーセンテージ（0〜100）に変換し、四捨五入
+    p_under_20 = round(probs[0] * 100)
+    p_20_40    = round(probs[1] * 100)
+    p_40_50    = round(probs[2] * 100)
+    p_50_80    = round(probs[3] * 100)
+    p_over_80  = round(probs[4] * 100)
+
+    # 合成確率が100%になるように最大の確率枠で微調整
+    res = {
         "～20倍": p_under_20,
         "20～40倍": p_20_40,
         "40～50倍": p_40_50,
         "50～80倍": p_50_80,
         "80倍以上": p_over_80
     }
+    
+    total = sum(res.values())
+    if total != 100 and total > 0:
+        max_key = max(res, key=res.get)
+        res[max_key] += (100 - total)
 
+    return res
 # ==============================================================================
 # 3連複オッズ取得ロジック
 # ==============================================================================
