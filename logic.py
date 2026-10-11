@@ -839,8 +839,9 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     prob_top3_2_or_more = prob_top3_2 + prob_top3_3
 
     # ==========================================================================
-    # 3連複荒れ度判定ロジック
+    # 3連複荒れ度判定ロジック（60%以上は1ランク調整に統一）
     # ==========================================================================
+    PATTERNS_ORDER = ["堅い", "並", "荒", "大荒"]
     PATTERN_DESCS = {
         "堅い": "30倍以下の確率が高い",
         "並": "30～50倍までの確率が高い",
@@ -871,6 +872,18 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
             race_pattern = "大荒"
 
         pattern_desc = PATTERN_DESCS.get(race_pattern, "")
+
+        # 単勝上位3頭の2頭以上入着確率(MC)による安全弁補正（60%以上は一律1ランク調整）
+        if race_pattern in PATTERNS_ORDER:
+            current_idx = PATTERNS_ORDER.index(race_pattern)
+            shift = 0
+            if prob_top3_2_or_more >= 60.0:
+                shift = 1
+
+            if shift > 0 and current_idx > 0:
+                new_idx = max(0, current_idx - shift)
+                race_pattern = PATTERNS_ORDER[new_idx]
+                pattern_desc = f"{PATTERN_DESCS[race_pattern]}（※上位の２頭も入る確率が高め（{prob_top3_2_or_more:.1f}%）のため、{shift}ランク調整されました）"
     else:
         race_pattern = "判定保留"
         pattern_desc = "配当データ不足のため判定保留を適用します。"
