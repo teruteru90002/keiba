@@ -836,14 +836,15 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     prob_top3_2_or_more = prob_top3_2 + prob_top3_3
 
     # ==========================================================================
-    # 3連複荒れ度判定ロジック
+    # 3連複荒れ度判定ロジック（更新対応）
     # ==========================================================================
-    PATTERNS_ORDER = ["堅", "並", "荒", "大荒"]
+    PATTERNS_ORDER = ["堅", "並①", "並②", "荒", "大荒"]
     PATTERN_DESCS = {
         "堅": "20倍以下の確率が高い",
-        "並": "20～40倍までの確率が高い",
-        "荒": "30～50倍までの確率が高い",
-        "大荒": "50倍以上の確率が高い",
+        "並①": "20～40倍の確率が高い",
+        "並②": "40～50倍の確率が高い",
+        "荒": "50～80倍の確率が高い",
+        "大荒": "80倍以上の確率が高い",
         "判定保留": "条件を満たさず、レンジを無理に決めない"
     }
 
@@ -861,8 +862,10 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         if cum_30 > 40:
             race_pattern = "堅"
         elif cum_60 > 55:
-            race_pattern = "並"
+            race_pattern = "並①"
         elif cum_100 > 70:
+            race_pattern = "並②"
+        elif cum_100 > 40:
             race_pattern = "荒"
         else:
             race_pattern = "大荒"
@@ -878,7 +881,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
             if shift > 0 and current_idx > 0:
                 new_idx = max(0, current_idx - shift)
                 race_pattern = f"{PATTERNS_ORDER[new_idx]} ※"
-                pattern_desc = f"{PATTERN_DESCS[PATTERNS_ORDER[new_idx]]}（※上位の２頭も入る確率が高め（{prob_top3_2_or_more:.1f}%）のため、1ランク調整されました））"
+                pattern_desc = f"{PATTERN_DESCS[PATTERNS_ORDER[new_idx]]}（※上位の２頭も入る確率が高め（{prob_top3_2_or_more:.1f}%）のため、1ランク調整されました）"
     else:
         race_pattern = "判定保留"
         pattern_desc = "配当データ不足のため判定保留を適用します。"
@@ -956,9 +959,10 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     ODDS_RANGE_MAP = {
         "堅": "配当目安 ～20倍",
-        "並": "配当目安 20～40倍",
-        "荒": "配当目安 30～50倍",
-        "大荒": "配当目安 50倍以上",
+        "並①": "配当目安 20～40倍",
+        "並②": "配当目安 40～50倍",
+        "荒": "配当目安 50～80倍",
+        "大荒": "配当目安 80倍以上",
         "判定保留": "配当目安 不明"
     }
     
