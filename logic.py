@@ -211,37 +211,37 @@ def calculate_payout_probabilities(o1, o10, o20, o30, o50):
     if o1 is None:
         return None
 
-    # 各オッズが取得できていない場合の安全な補完（上位オッズを基準に推定）
-    v_o10 = o10 if o10 is not None else o1 * 3.5
-    v_o20 = o20 if o20 is not None else v_o10 * 1.8
-    v_o30 = o30 if o30 is not None else v_o20 * 1.5
-    v_o50 = o50 if o50 is not None else v_o30 * 1.4
+    # 各オッズが欠損している場合の安全な補完（上位〜下位のトレンドを維持）
+    v_o1 = float(o1)
+    v_o10 = float(o10) if o10 is not None else v_o1 * 3.5
+    v_o20 = float(o20) if o20 is not None else v_o10 * 1.8
+    v_o30 = float(o30) if o30 is not None else v_o20 * 1.5
+    v_o50 = float(o50) if o50 is not None else v_o30 * 1.4
 
-    # 1. 複数ポイントのオッズ傾き（勾配）を総合的に評価
-    # 上位層の伸び（o1～o10）と中位層の伸び（o10～o30）を比較してレースの歪みを捉える
-    upper_slope = v_o10 / max(o1, 1.0)
-    mid_slope = v_o30 / max(v_o10, 1.0)
+    # 1. 1位から50位までの「オッズの傾き（勾配構造）」を層ごとに評価
+    slope_upper = v_o10 / max(v_o1, 1.0)       # 1位～10位の開き
+    slope_mid   = v_o30 / max(v_o10, 1.0)      # 10位～30位の開き
+    slope_deep  = v_o50 / max(v_o30, 1.0)      # 30位～50位の開き（大穴ゾーンへの広がり）
 
-    # 2. 5つの配当帯それぞれに対応する「基準スコア」を算出
-    # 各配当帯のレンジに、対応するオッズ（o1, o10, o20, o30, o50）がどう位置しているかを評価
-    # 例：～20倍に対してo1が近いか、50～80倍に対してo50が近いか等
-    score_under_20 = max(1.0, 40.0 - o1 * 2.0)
-    score_20_40    = max(1.0, 50.0 - abs(20.0 - (v_o10 + v_o20) / 2.0))
+    # 2. 5つの配当帯それぞれに対する適合スコアを算出
+    # 各レンジ（～20倍、20～40倍、40～50倍、50～80倍、80倍以上）と各順位オッズの距離感を評価
+    score_under_20 = max(1.0, 50.0 - v_o1 * 2.5)
+    score_20_40    = max(1.0, 50.0 - abs(25.0 - (v_o10 + v_o20) / 2.0))
     score_40_50    = max(1.0, 50.0 - abs(45.0 - v_o20))
-    score_50_80    = max(1.0, 50.0 - abs(65.0 - (v_o30 + v_o50) / 2.0 if v_o50 else 65.0 - v_o30))
-    score_over_80  = max(1.0, (v_o30 - 50.0) * 0.8 if v_o30 > 50 else 10.0)
+    score_50_80    = max(1.0, 50.0 - abs(65.0 - v_o30))
+    score_over_80  = max(1.0, (v_o50 - 60.0) * 0.5 if v_o50 > 60 else 10.0)
 
-    # レース全体の荒れ度（スロープが緩やか＝混戦・荒れやすい）に応じて高配当側のスコアをブースト
-    if upper_slope < 2.5 and mid_slope < 1.4:
-        # 上位から中位にかけてオッズがあまり開いていない（大混戦・荒れ模様）
-        score_under_20 *= 0.4
-        score_over_80  *= 1.6
-    elif o1 <= 4.0 and upper_slope > 3.5:
-        # 1番人気が抜けていて、2位以降が離れている（堅い決着傾向）
+    # 3. 50位までのオッズの広がり具合に応じた総合的な補正（ブースト）
+    # 30位〜50位にかけてオッズが急拡大している（＝人気が散らばっている）場合は高配当側に重みをつける
+    if slope_deep > 1.35 and slope_mid > 1.3:
+        score_under_20 *= 0.5
+        score_over_80  *= 1.5
+    elif v_o1 <= 3.5 and slope_upper > 4.0:
+        # 1強で上位が固い場合
         score_under_20 *= 1.8
-        score_over_80  *= 0.4
+        score_over_80  *= 0.3
 
-    # 3. スコアを合算して割合（％）に変換
+    # 4. スコアを合算して割合（％）に変換
     total_score = score_under_20 + score_20_40 + score_40_50 + score_50_80 + score_over_80
 
     if total_score > 0:
