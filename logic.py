@@ -841,9 +841,9 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     # ==========================================================================
     # 3連複荒れ度判定ロジック（60%以上は1ランク調整に統一）
     # ==========================================================================
-    PATTERNS_ORDER = ["堅い", "並", "荒", "大荒"]
+    PATTERNS_ORDER = ["堅", "並", "荒", "大荒"]
     PATTERN_DESCS = {
-        "堅い": "30倍以下の確率が高い",
+        "堅": "30倍以下の確率が高い",
         "並": "30～50倍までの確率が高い",
         "荒": "50～100倍までの確率が高い",
         "大荒": "100倍以上の確率が高い",
@@ -863,7 +863,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
         # 分類判定
         if cum_30 > 40:
-            race_pattern = "堅い"
+            race_pattern = "堅"
         elif cum_60 > 55:
             race_pattern = "並"
         elif cum_100 > 70:
@@ -960,7 +960,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     jiku_log_lines.append(f"【相手判定】：{aite_reason_str}")
 
     ODDS_RANGE_MAP = {
-        "堅い": "配当目安 ～30倍",
+        "堅": "配当目安 ～30倍",
         "並": "配当目安 30～60倍",
         "荒": "配当目安 60～100倍",
         "大荒": "配当目安 100倍以上",
