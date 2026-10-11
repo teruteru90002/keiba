@@ -213,37 +213,29 @@ def calculate_payout_probabilities(o1, o10, o20, o30, o50):
 
     # 各オッズの安全な補完
     v_o1 = float(o1)
-    v_o10 = float(o10) if o10 is not None else v_o1 * 3.5
+    v_o10 = float(o10) if o10 is not None else v_o1 * 3.2
     v_o20 = float(o20) if o20 is not None else v_o10 * 1.8
     v_o30 = float(o30) if o30 is not None else v_o20 * 1.5
     v_o50 = float(o50) if o50 is not None else v_o30 * 1.4
 
-    # 1. 1位から50位までのオッズの伸び方（スケール）を対数や比率で安全に評価
-    # 50位のオッズの高さ・低さを、配当の「中心地（期待値の目安）」として利用する
-    median_payout = (v_o10 + v_o30) / 2.0
+    # 全体の中心的な配当水準として「10位と20位のあたり」を基準に据える
+    mid_level = (v_o10 + v_o20) / 2.0
 
-    # 2. 5つの配当帯ごとの基本スコア（ガウス関数風に、各レンジの中心からの距離で算出）
-    # スコアが爆発しないよう、上限と下限を適切にコントロールする
-    score_under_20 = max(0.5, 30.0 - abs(10.0 - v_o1) * 2.0)
-    score_20_40    = max(0.5, 30.0 - abs(30.0 - median_payout) * 0.8)
-    score_40_50    = max(0.5, 30.0 - abs(45.0 - median_payout) * 0.8)
-    score_50_80    = max(0.5, 30.0 - abs(65.0 - median_payout) * 0.6)
-    
-    # 80倍以上は、50位や30位のオッズが高いほどスコアを伸ばすが、対数を使って急激なインフレを防ぐ
-    score_over_80  = max(0.5, np.log(max(v_o50, 80.0)) * 10.0 - 30.0)
+    # 各配当帯の中心値からの距離（ズレ）を評価し、ガウス関数風にスコア化する
+    # ※各ゾーンの許容幅（シグマ的な広がり）を持たせることで「並」のゾーンに確率を集約させる
+    score_under_20 = max(0.1, 10.0 - abs(v_o1 - 10.0) * 0.5)
+    score_20_40    = max(0.1, 30.0 - abs(30.0 - mid_level) * 0.8)
+    score_40_50    = max(0.1, 25.0 - abs(45.0 - mid_level) * 0.7)
+    score_50_80    = max(0.1, 20.0 - abs(65.0 - v_o30) * 0.4)
+    score_over_80  = max(0.1, max(0.0, v_o50 - 100.0) * 0.15)
 
-    # 3. 全体の傾向（1番人気の強さ、上位と下位の開き）による全体調整
-    spread_ratio = v_o50 / max(v_o1, 1.0)
-    if v_o1 <= 4.0 and spread_ratio < 15.0:
-        # 堅いレースの補正
-        score_under_20 *= 2.5
-        score_over_80  *= 0.2
-    elif spread_ratio > 40.0:
-        # 非常に荒れているレースの補正
-        score_under_20 *= 0.2
-        score_over_80  *= 2.0
+    # 今回のように「1位が10倍台、30位が97倍」といった標準的なバランスのときは、
+    # 中央の「20～40倍」「40～50倍」のゾーンに自然と山（ピーク）が来るようにブースト
+    if 8.0 <= v_o1 <= 15.0 and 50.0 <= v_o30 <= 120.0:
+        score_20_40 *= 1.8
+        score_40_50 *= 1.8
 
-    # 4. 合算して割合（％）に変換
+    # 合算して割合（％）に変換
     scores = [score_under_20, score_20_40, score_40_50, score_50_80, score_over_80]
     total_score = sum(scores)
 
