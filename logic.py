@@ -205,48 +205,48 @@ def estimate_position_type_final_corner(past_runs):
         return "追"
 
 # ==============================================================================
-# 配当帯確率計算ロジック（5区分化）
+# 配当帯確率計算ロジック（新配当目安・5区分化対応）
 # ==============================================================================
 def calculate_payout_probabilities(o1, o10, o20, o30, o50):
     if o1 is None:
         return None
 
-    if o1 <= 8.0 and (o20 is None or o20 <= 50.0):
-        p_under_30 = max(10, min(80, int(85 - (o1 * 3.2) - (o10 * 0.35 if o10 else 7))))
-        rem = 100 - p_under_30
-        p_30_60 = round(rem * 0.45)
-        p_60_80 = round(rem * 0.25)
-        p_80_100 = round(rem * 0.15)
-        p_over_100 = rem - p_30_60 - p_60_80 - p_80_100
-    elif o1 >= 15.0 or (o10 is None or o10 >= 50.0):
-        p_under_30 = max(2, min(15, int(22 - o1)))
-        rem = 100 - p_under_30
-        p_30_60 = round(rem * 0.20)
-        p_60_80 = round(rem * 0.25)
-        p_80_100 = round(rem * 0.25)
-        p_over_100 = rem - p_30_60 - p_60_80 - p_80_100
+    if o1 <= 6.0 and (o20 is None or o20 <= 30.0):
+        p_under_20 = max(15, min(85, int(90 - (o1 * 4.0) - (o10 * 0.4 if o10 else 5))))
+        rem = 100 - p_under_20
+        p_20_40 = round(rem * 0.45)
+        p_40_50 = round(rem * 0.25)
+        p_50_80 = round(rem * 0.15)
+        p_over_80 = rem - p_20_40 - p_40_50 - p_50_80
+    elif o1 >= 15.0 or (o10 is None or o10 >= 45.0):
+        p_under_20 = max(2, min(15, int(20 - o1)))
+        rem = 100 - p_under_20
+        p_20_40 = round(rem * 0.20)
+        p_40_50 = round(rem * 0.20)
+        p_50_80 = round(rem * 0.30)
+        p_over_80 = rem - p_20_40 - p_40_50 - p_50_80
     else:
-        p_under_30 = max(5, min(55, int(60 - (o1 * 2.2) - (o10 * 0.2 if o10 else 5))))
-        rem = 100 - p_under_30
-        p_30_60 = round(rem * 0.40)
-        p_60_80 = round(rem * 0.25)
-        p_80_100 = round(rem * 0.20)
-        p_over_100 = rem - p_30_60 - p_60_80 - p_80_100
+        p_under_20 = max(5, min(50, int(55 - (o1 * 2.0) - (o10 * 0.2 if o10 else 5))))
+        rem = 100 - p_under_20
+        p_20_40 = round(rem * 0.35)
+        p_40_50 = round(rem * 0.25)
+        p_50_80 = round(rem * 0.25)
+        p_over_80 = rem - p_20_40 - p_40_50 - p_50_80
 
-    total = p_under_30 + p_30_60 + p_60_80 + p_80_100 + p_over_100
+    total = p_under_20 + p_20_40 + p_40_50 + p_50_80 + p_over_80
     if total > 0:
-        p_under_30 = round(p_under_30 / total * 100)
-        p_30_60 = round(p_30_60 / total * 100)
-        p_60_80 = round(p_60_80 / total * 100)
-        p_80_100 = round(p_80_100 / total * 100)
-        p_over_100 = 100 - (p_under_30 + p_30_60 + p_60_80 + p_80_100)
+        p_under_20 = round(p_under_20 / total * 100)
+        p_20_40 = round(p_20_40 / total * 100)
+        p_40_50 = round(p_40_50 / total * 100)
+        p_50_80 = round(p_50_80 / total * 100)
+        p_over_80 = 100 - (p_under_20 + p_20_40 + p_40_50 + p_50_80)
 
     return {
-        "～30倍": p_under_30,
-        "30～60倍": p_30_60,
-        "60～80倍": p_60_80,
-        "80～100倍": p_80_100,
-        "100倍～": p_over_100
+        "～20倍": p_under_20,
+        "20～40倍": p_20_40,
+        "40～50倍": p_40_50,
+        "50～80倍": p_50_80,
+        "80倍以上": p_over_80
     }
 
 # ==============================================================================
@@ -458,7 +458,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         o30_str = f"{o30:.1f}倍" if o30 is not None else "-"
         o50_str = f"{o50:.1f}倍" if o50 is not None else "-"
 
-        # 推定確率の計算（5区分）
+        # 推定確率の計算（新配当目安の5区分に対応）
         payout_probs = calculate_payout_probabilities(o1, o10, o20, o30, o50)
     else:
         o1 = o10 = o20 = o30 = o50 = None
@@ -477,9 +477,9 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     if payout_probs:
         prob_table_md = (
-            "\n| ～30倍 | 30～60倍 | 60～80倍 | 80～100倍 | 100倍～ |\n"
+            "\n| ～20倍 | 20～40倍 | 40～50倍 | 50～80倍 | 80倍以上 |\n"
             "| --- | --- | --- | --- | --- |\n"
-            f"| **約{payout_probs['～30倍']}%** | **約{payout_probs['30～60倍']}%** | **約{payout_probs['60～80倍']}%** | **約{payout_probs['80～100倍']}%** | **約{payout_probs['100倍～']}%** |"
+            f"| **約{payout_probs['～20倍']}%** | **約{payout_probs['20～40倍']}%** | **約{payout_probs['40～50倍']}%** | **約{payout_probs['50～80倍']}%** | **約{payout_probs['80倍以上']}%** |"
         )
     else:
         prob_table_md = "\n* **推定配当確率**: データ不足のため算出不可"
@@ -836,36 +836,37 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     prob_top3_2_or_more = prob_top3_2 + prob_top3_3
 
     # ==========================================================================
-    # 3連複荒れ度判定ロジック（更新対応）
+    # 3連複荒れ度判定ロジック（新配当目安連動）
     # ==========================================================================
     PATTERNS_ORDER = ["堅", "並①", "並②", "荒", "大荒"]
     PATTERN_DESCS = {
-        "堅": "20倍以下の確率が高い",
-        "並①": "20～40倍の確率が高い",
-        "並②": "40～50倍の確率が高い",
-        "荒": "50～80倍の確率が高い",
-        "大荒": "80倍以上の確率が高い",
+        "堅": "配当目安 ～20倍の確率が高い",
+        "並①": "配当目安 20～40倍の確率が高い",
+        "並②": "配当目安 40～50倍の確率が高い",
+        "荒": "配当目安 50～80倍の確率が高い",
+        "大荒": "配当目安 80倍以上の確率が高い",
         "判定保留": "条件を満たさず、レンジを無理に決めない"
     }
 
     if payout_probs:
-        p_under_30 = payout_probs.get("～30倍", 0)
-        p_30_60    = payout_probs.get("30～60倍", 0)
-        p_60_80    = payout_probs.get("60～80倍", 0)
-        p_80_100   = payout_probs.get("80～100倍", 0)
-        p_over_100 = payout_probs.get("100倍～", 0)
+        p_under_20 = payout_probs.get("～20倍", 0)
+        p_20_40    = payout_probs.get("20～40倍", 0)
+        p_40_50    = payout_probs.get("40～50倍", 0)
+        p_50_80    = payout_probs.get("50～80倍", 0)
+        p_over_80  = payout_probs.get("80倍以上", 0)
 
-        cum_30  = p_under_30
-        cum_60  = cum_30 + p_30_60
-        cum_100 = cum_60 + p_60_80 + p_80_100
+        cum_20 = p_under_20
+        cum_40 = cum_20 + p_20_40
+        cum_50 = cum_40 + p_40_50
+        cum_80 = cum_50 + p_50_80
 
-        if cum_30 > 40:
+        if cum_20 > 40:
             race_pattern = "堅"
-        elif cum_60 > 55:
+        elif cum_40 > 55:
             race_pattern = "並①"
-        elif cum_100 > 70:
+        elif cum_50 > 65:
             race_pattern = "並②"
-        elif cum_100 > 40:
+        elif cum_80 > 70:
             race_pattern = "荒"
         else:
             race_pattern = "大荒"
@@ -875,7 +876,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         if race_pattern in PATTERNS_ORDER:
             current_idx = PATTERNS_ORDER.index(race_pattern)
             shift = 0
-            if prob_top3_2_or_more >= 80.0:
+            if prob_top3_2_or_more >= 60.0:
                 shift = 1
 
             if shift > 0 and current_idx > 0:
