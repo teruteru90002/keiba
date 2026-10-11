@@ -205,61 +205,49 @@ def estimate_position_type_final_corner(past_runs):
         return "追"
 
 # ==============================================================================
-# モンテカルロ連動型 配当帯確率計算ロジック
+# 配当帯確率計算ロジック（新配当目安・5区分化対応）
 # ==============================================================================
-def calculate_payout_probabilities_by_monte_carlo(ranks, df_sorted, num_sims=10000):
-    """
-    モンテカルロシミュレーションの全試行結果から、各試行の上位3頭のオッズを基に
-    3連複配当を算出し、各配当帯の出現確率を高精度に算出する
-    """
-    payouts = []
-    
-    for i in range(num_sims):
-        # i回目のシミュレーションで1, 2, 3着になった馬の行を抽出
-        top3_mask = (ranks[i] <= 3)
-        top3_horses = df_sorted[top3_mask]
-        
-        if len(top3_horses) >= 3:
-            # 上位3頭の単勝オッズを取得
-            top3_odds = top3_horses["単勝オッズ"].values[:3]
-            
-            # 3連複配当の市場実勢近似モデル
-            approx_payout = float(np.prod(top3_odds) ** 0.38 * 4.2)
-            payouts.append(approx_payout)
-            
-    if not payouts:
-        return {
-            "～20倍": 20,
-            "20～40倍": 20,
-            "40～50倍": 20,
-            "50～80倍": 20,
-            "80倍以上": 20
-        }
-        
-    payouts = np.array(payouts)
-    total = len(payouts)
-    
-    p_under_20 = np.sum(payouts <= 20) / total * 100
-    p_20_40    = np.sum((payouts > 20) & (payouts <= 40)) / total * 100
-    p_40_50    = np.sum((payouts > 40) & (payouts <= 50)) / total * 100
-    p_50_80    = np.sum((payouts > 50) & (payouts <= 80)) / total * 100
-    p_over_80  = np.sum(payouts > 80) / total * 100
-    
-    res = {
-        "～20倍": round(p_under_20),
-        "20～40倍": round(p_20_40),
-        "40～50倍": round(p_40_50),
-        "50～80倍": round(p_50_80),
-        "80倍以上": round(p_over_80)
+def calculate_payout_probabilities(o1, o10, o20, o30, o50):
+    if o1 is None:
+        return None
+
+    if o1 <= 6.0 and (o20 is None or o20 <= 30.0):
+        p_under_20 = max(15, min(85, int(90 - (o1 * 4.0) - (o10 * 0.4 if o10 else 5))))
+        rem = 100 - p_under_20
+        p_20_40 = round(rem * 0.45)
+        p_40_50 = round(rem * 0.25)
+        p_50_80 = round(rem * 0.15)
+        p_over_80 = rem - p_20_40 - p_40_50 - p_50_80
+    elif o1 >= 15.0 or (o10 is None or o10 >= 45.0):
+        p_under_20 = max(2, min(15, int(20 - o1)))
+        rem = 100 - p_under_20
+        p_20_40 = round(rem * 0.20)
+        p_40_50 = round(rem * 0.20)
+        p_50_80 = round(rem * 0.30)
+        p_over_80 = rem - p_20_40 - p_40_50 - p_50_80
+    else:
+        p_under_20 = max(5, min(50, int(55 - (o1 * 2.0) - (o10 * 0.2 if o10 else 5))))
+        rem = 100 - p_under_20
+        p_20_40 = round(rem * 0.35)
+        p_40_50 = round(rem * 0.25)
+        p_50_80 = round(rem * 0.25)
+        p_over_80 = rem - p_20_40 - p_40_50 - p_50_80
+
+    total = p_under_20 + p_20_40 + p_40_50 + p_50_80 + p_over_80
+    if total > 0:
+        p_under_20 = round(p_under_20 / total * 100)
+        p_20_40 = round(p_20_40 / total * 100)
+        p_40_50 = round(p_40_50 / total * 100)
+        p_50_80 = round(p_50_80 / total * 100)
+        p_over_80 = 100 - (p_under_20 + p_20_40 + p_40_50 + p_50_80)
+
+    return {
+        "～20倍": p_under_20,
+        "20～40倍": p_20_40,
+        "40～50倍": p_40_50,
+        "50～80倍": p_50_80,
+        "80倍以上": p_over_80
     }
-    
-    # 端数調整で合計100%にする
-    diff = 100 - sum(res.values())
-    if diff != 0:
-        max_key = max(res, key=res.get)
-        res[max_key] += diff
-        
-    return res
 
 # ==============================================================================
 # 3連複オッズ取得ロジック
@@ -469,6 +457,9 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         o20_str = f"{o20:.1f}倍" if o20 is not None else "-"
         o30_str = f"{o30:.1f}倍" if o30 is not None else "-"
         o50_str = f"{o50:.1f}倍" if o50 is not None else "-"
+
+        # 推定確率の計算（新配当目安の5区分に対応）
+        payout_probs = calculate_payout_probabilities(o1, o10, o20, o30, o50)
     else:
         o1 = o10 = o20 = o30 = o50 = None
         o1_str = "未取得"
@@ -476,12 +467,22 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         o20_str = "未取得"
         o30_str = "未取得"
         o50_str = "未取得"
+        payout_probs = None
 
     odds_table_md = (
         "\n| 3連複1位 | 3連複10位 | 3連複20位 | 3連複30位 | 3連複50位 |\n"
         "| --- | --- | --- | --- | --- |\n"
         f"| {o1_str} | {o10_str} | {o20_str} | {o30_str} | {o50_str} |"
     )
+
+    if payout_probs:
+        prob_table_md = (
+            "\n| ～20倍 | 20～40倍 | 40～50倍 | 50～80倍 | 80倍以上 |\n"
+            "| --- | --- | --- | --- | --- |\n"
+            f"| **約{payout_probs['～20倍']}%** | **約{payout_probs['20～40倍']}%** | **約{payout_probs['40～50倍']}%** | **約{payout_probs['50～80倍']}%** | **約{payout_probs['80倍以上']}%** |"
+        )
+    else:
+        prob_table_md = "\n* **推定配当確率**: データ不足のため算出不可"
 
     if "ダート" in raw_text:
         surface = "ダート"
@@ -835,21 +836,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     prob_top3_2_or_more = prob_top3_2 + prob_top3_3
 
     # ==========================================================================
-    # モンテカルロ連動型 配当帯確率の計算実行
-    # ==========================================================================
-    payout_probs = calculate_payout_probabilities_by_monte_carlo(ranks, df_sorted, num_sims=NUM_SIMS)
-
-    if payout_probs:
-        prob_table_md = (
-            "\n| ～20倍 | 20～40倍 | 40～50倍 | 50～80倍 | 80倍以上 |\n"
-            "| --- | --- | --- | --- | --- |\n"
-            f"| **約{payout_probs['～20倍']}%** | **約{payout_probs['20～40倍']}%** | **約{payout_probs['40～50倍']}%** | **約{payout_probs['50～80倍']}%** | **約{payout_probs['80倍以上']}%** |"
-        )
-    else:
-        prob_table_md = "\n* **推定配当確率**: データ不足のため算出不可"
-
-    # ==========================================================================
-    # 3連複荒れ度判定ロジック（新配当目安・モンテカルロ確率連動）
+    # 3連複荒れ度判定ロジック（新配当目安連動）
     # ==========================================================================
     PATTERNS_ORDER = ["堅", "並①", "並②", "荒", "大荒"]
     PATTERN_DESCS = {
@@ -883,6 +870,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
             race_pattern = "荒"
         elif p_over_80 >= 30:
             race_pattern = "大荒"
+
         elif cum_40 >= 40:
             race_pattern = "並①"
         elif cum_50 >= 55:
@@ -909,7 +897,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         pattern_desc = "配当データ不足のため判定保留を適用します。"
 
     # ==========================================================================
-    # 買い目選定ロジック（オッズ1位固定）
+    # 買い目選定ロジック（オッズ1位固定に変更）
     # ==========================================================================
     df_valid = df_sorted[
         (df_sorted["オッズ順位"] < 10) & 
@@ -977,7 +965,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         "#### ■ PHASE 6：最終ランキングと買い目\n",
         f"#### 1. レース情報\n[{race_name} / {track}{race_no}R / {surface} / {distance}m]",
         f"* **取得3連複オッズ**:\n{odds_table_md}",
-        f"\n* **推定配当確率 (モンテカルロ連動)**:\n{prob_table_md}",
+        f"\n* **推定配当確率**:\n{prob_table_md}",
         f"\n**【レース判定結果】：{race_pattern}** （{pattern_desc}）\n",
         f"  * 単勝1〜3番人気の複勝(3着以内)入着シミュレーション:  ",
         f"    0頭入る確率: **{prob_top3_0:.1f}%**  ",
