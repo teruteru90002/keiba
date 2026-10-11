@@ -207,33 +207,32 @@ def estimate_position_type_final_corner(past_runs):
 # ==============================================================================
 # 配当帯確率計算ロジック（新配当目安・5区分化対応）
 # ==============================================================================
+import numpy as np
+import math
+
 def calculate_payout_probabilities(o1, o10, o20, o30, o50):
     if o1 is None or o1 <= 0:
         return None
 
-    # 1. オッズの傾き（10位と1位の比率など）からレースのボラティリティ（散らばり具合）を推定
-    # o10が無い場合はデフォルト値で補完
-    val_o10 = o10 if (o10 is not None and o10 > o1) else o1 * 3.5
+    # 1. 10位オッズが無い場合の補完（実態の傾向に合わせた倍率）
+    val_o10 = o10 if (o10 is not None and o10 > o1) else o1 * 3.8
     
-    # 2. 3連複の配当データは対数正規分布に近い特性を持つため、パラメータ（平均・分散）を推定
-    # 1番人気が低いほど中心（期待値）が低く、オッズ差が大きいほど分散（荒れ度）が大きくなるモデル
+    # 2. 実態に合わせるためのパラメータ調整
+    # 1番人気のオッズ（o1）をベースにしつつ、オッズ差（o10 - o1）が大きいほど分散を大きくして高配当に厚みを持たせる
     log_o1 = np.log(o1)
     log_o10 = np.log(val_o10)
     
-    # 分布の対数平均（mu）と対数標準偏差（sigma）の近似算出
-    mu = log_o1 * 0.75 + log_o10 * 0.25
-    sigma = max(0.25, (log_o10 - log_o1) * 0.5)
+    # 平均（mu）を少し高配当側に寄せる補正係数を適用
+    mu = log_o1 * 0.65 + log_o10 * 0.35 + 0.15
+    sigma = max(0.35, (log_o10 - log_o1) * 0.55)
 
-    # 3. 各配当帯の境界値（閾値）
+    # 3. 各配当帯の閾値
     thresholds = [20, 40, 50, 80]
     
-    # 4. 対数正規分布の累積分布関数（CDF）を用いて、各ゾーンに入る確率を正確に算出
-    # ※ 標準正規分布のCDF（エラーファンクション erf を利用）を近似計算
     def lognorm_cdf(x, m, s):
         if x <= 0: return 0.0
         return 0.5 * (1.0 + math.erf((np.log(x) - m) / (s * np.sqrt(2.0))))
 
-    import math
     probs = []
     prev_p = 0.0
     
@@ -242,17 +241,15 @@ def calculate_payout_probabilities(o1, o10, o20, o30, o50):
         probs.append(p - prev_p)
         prev_p = p
     
-    # 80倍以上の確率（残りの確率）
     probs.append(max(0.0, 1.0 - prev_p))
 
-    # パーセンテージ（0〜100）に変換し、四捨五入
+    # 4. パーセンテージ化
     p_under_20 = round(probs[0] * 100)
     p_20_40    = round(probs[1] * 100)
     p_40_50    = round(probs[2] * 100)
     p_50_80    = round(probs[3] * 100)
     p_over_80  = round(probs[4] * 100)
 
-    # 合成確率が100%になるように最大の確率枠で微調整
     res = {
         "～20倍": p_under_20,
         "20～40倍": p_20_40,
