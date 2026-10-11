@@ -870,11 +870,12 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
             race_pattern = "荒"
         elif p_over_80 >= 30:
             race_pattern = "大荒"
+
         elif cum_40 >= 40:
             race_pattern = "並①"
         elif cum_50 >= 55:
             race_pattern = "並②"
-        elif cum_80 > 71:
+        elif cum_80 >= 71:
             race_pattern = "荒"
         else:
             race_pattern = "大荒"
