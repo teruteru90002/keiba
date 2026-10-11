@@ -866,7 +866,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
             race_pattern = "並①"
         elif cum_50 >= 60:
             race_pattern = "並②"
-        elif cum_80 >= 70:
+        elif cum_80 > 70:
             race_pattern = "荒"
         else:
             race_pattern = "大荒"
@@ -888,7 +888,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         pattern_desc = "配当データ不足のため判定保留を適用します。"
 
     # ==========================================================================
-    # 買い目選定ロジック
+    # 買い目選定ロジック（オッズ1位固定に変更）
     # ==========================================================================
     df_valid = df_sorted[
         (df_sorted["オッズ順位"] < 10) & 
@@ -901,26 +901,8 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     df_odds_sorted = df_valid.sort_values(by="オッズ順位")
     
     if not df_odds_sorted.empty:
-        o1_val = df_odds_sorted.iloc[0]["単勝オッズ"]
-        
-        if o1_val < 3.0:
-            jiku_horse = df_odds_sorted.iloc[0]
-            jiku_reason = f"単勝オッズ1位が3倍未満（{o1_val}倍）のため単勝オッズ1位を選出"
-        else:
-            if len(df_odds_sorted) >= 2:
-                o2_val = df_odds_sorted.iloc[1]["単勝オッズ"]
-                odds_diff = abs(o2_val - o1_val)
-                top2_df = df_odds_sorted.head(2)
-                
-                if odds_diff < 0.3:
-                    jiku_horse = top2_df.sort_values(by="合成順位").iloc[1]
-                    jiku_reason = f"単勝オッズ1位が3倍以上で上位2頭のオッズ差が0.3未満（{odds_diff:.2f}）のため合成順位上位2位を選出"
-                else:
-                    jiku_horse = top2_df.sort_values(by="合成順位").iloc[0]
-                    jiku_reason = f"単勝オッズ1位が3倍以上で上位2頭のオッズ差が0.3以上（{odds_diff:.2f}）のため合成順位上位1位を選出"
-            else:
-                jiku_horse = df_odds_sorted.iloc[0]
-                jiku_reason = f"単勝オッズ1位が3倍以上（{o1_val}倍）だが対象馬が1頭のみのため選出"
+        jiku_horse = df_odds_sorted.iloc[0]
+        jiku_reason = f"オッズ1位固定ルールにより単勝オッズ1位（馬番: {jiku_horse['馬番']} / {jiku_horse['単勝オッズ']}倍）を選出"
     else:
         jiku_horse = df_sorted.iloc[0]
         jiku_reason = "条件該当馬不在のため全体上位馬を選出"
