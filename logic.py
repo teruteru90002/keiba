@@ -205,51 +205,54 @@ def estimate_position_type_final_corner(past_runs):
         return "追"
 
 # ==============================================================================
-# 配当帯確率計算ロジック（5区分化：～30、30～60、60～80、80～100、100倍～）
+# 3連複の主要5点オッズ (1, 10, 20, 30, 50位) からレース性質と狙い目帯を算出するロジック
 # ==============================================================================
-def calculate_payout_probabilities(o1, o10, o20, o30, o50):
+def calculate_target_odds_zone(o1, o10, o20, o30, o50):
     """
-    3連複各順位のオッズ値から、5つの配当レンジの推定確率を算出する
+    3連複の主要5点オッズからレースの性質を判定し、狙い目のオッズ帯を算出するロジック
     """
-    if o1 is None:
-        return None
+    if o1 is None or o1 <= 0:
+        return {
+            "race_type": "判定保留",
+            "target_min": 20.0,
+            "target_max": 100.0,
+            "metrics": {"gradient_top": 0.0, "spread_mid": 0.0},
+            "advice": "オッズデータ不足のため判定保留。"
+        }
 
-    if o1 <= 8.0 and (o20 is None or o20 <= 50.0):
-        p_under_30 = max(10, min(80, int(85 - (o1 * 3.2) - (o10 * 0.35 if o10 else 7))))
-        rem = 100 - p_under_30
-        p_30_60 = round(rem * 0.45)
-        p_60_80 = round(rem * 0.25)
-        p_80_100 = round(rem * 0.15)
-        p_over_100 = rem - p_30_60 - p_60_80 - p_80_100
-    elif o1 >= 15.0 or (o10 is None or o10 >= 50.0):
-        p_under_30 = max(2, min(15, int(22 - o1)))
-        rem = 100 - p_under_30
-        p_30_60 = round(rem * 0.20)
-        p_60_80 = round(rem * 0.25)
-        p_80_100 = round(rem * 0.25)
-        p_over_100 = rem - p_30_60 - p_60_80 - p_80_100
+    gradient_top = o10 / o1 if o10 is not None else 1.0
+    spread_mid = (o30 / o10) if (o30 is not None and o10 is not None and o10 > 0) else 1.0
+
+    if o1 < 10.0:
+        race_type = "堅実・本命決着型"
+        target_min = round(o1 * 1.5, 1)
+        target_max = round(min(o10 if o10 else 40.0, 40.0), 1)
+        advice = "1番人気が強固。点数を極限まで絞るか、ローリスクな本線のみ狙う。"
+    elif o1 >= 15.0 and spread_mid < 2.2:
+        race_type = "上位混戦・フラット型 (中波乱)"
+        target_min = round(o1 * 1.8, 1)
+        target_max = round(o30 if o30 else 96.6, 1)
+        advice = "1番人気を軸にしつつ、中穴ゾーン（30倍〜90倍付近）を厚めに狙うのが最も効率的。"
+    elif (o50 is not None and o50 > 300.0) or spread_mid >= 2.5:
+        race_type = "大波乱・大混戦型"
+        target_min = round(o10 if o10 else 30.0, 1)
+        target_max = round((o50 * 0.7) if o50 else 150.0, 1)
+        advice = "人気薄の台頭可能性が高い。資金配分を広げ、高配当の跳ねを拾う構成。"
     else:
-        p_under_30 = max(5, min(55, int(60 - (o1 * 2.2) - (o10 * 0.2 if o10 else 5))))
-        rem = 100 - p_under_30
-        p_30_60 = round(rem * 0.40)
-        p_60_80 = round(rem * 0.25)
-        p_80_100 = round(rem * 0.20)
-        p_over_100 = rem - p_30_60 - p_60_80 - p_80_100
-
-    total = p_under_30 + p_30_60 + p_60_80 + p_80_100 + p_over_100
-    if total > 0:
-        p_under_30 = round(p_under_30 / total * 100)
-        p_30_60 = round(p_30_60 / total * 100)
-        p_60_80 = round(p_60_80 / total * 100)
-        p_80_100 = round(p_80_100 / total * 100)
-        p_over_100 = 100 - (p_under_30 + p_30_60 + p_60_80 + p_80_100)
+        race_type = "標準バランス型"
+        target_min = round(max(o1 * 1.8, 20.0), 1)
+        target_max = round(min(o30 if o30 else 100.0, 100.0), 1)
+        advice = "バランス良く中位オッズ帯を中心に組み立てる。"
 
     return {
-        "～30倍": p_under_30,
-        "30～60倍": p_30_60,
-        "60～80倍": p_60_80,
-        "80～100倍": p_80_100,
-        "100倍～": p_over_100
+        "race_type": race_type,
+        "target_min": target_min,
+        "target_max": target_max,
+        "metrics": {
+            "gradient_top": round(gradient_top, 2),
+            "spread_mid": round(spread_mid, 2)
+        },
+        "advice": advice
     }
 
 # ==============================================================================
@@ -461,8 +464,8 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         o30_str = f"{o30:.1f}倍" if o30 is not None else "-"
         o50_str = f"{o50:.1f}倍" if o50 is not None else "-"
 
-        # 推定確率の計算（5区分）
-        payout_probs = calculate_payout_probabilities(o1, o10, o20, o30, o50)
+        # 5点オッズからレース性質と狙い目帯を算出
+        odds_zone_result = calculate_target_odds_zone(o1, o10, o20, o30, o50)
     else:
         o1 = o10 = o20 = o30 = o50 = None
         o1_str = "未取得"
@@ -470,22 +473,13 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         o20_str = "未取得"
         o30_str = "未取得"
         o50_str = "未取得"
-        payout_probs = None
+        odds_zone_result = None
 
     odds_table_md = (
         "\n| 3連複1位 | 3連複10位 | 3連複20位 | 3連複30位 | 3連複50位 |\n"
         "| --- | --- | --- | --- | --- |\n"
         f"| {o1_str} | {o10_str} | {o20_str} | {o30_str} | {o50_str} |"
     )
-
-    if payout_probs:
-        prob_table_md = (
-            "\n| ～30倍 | 30～60倍 | 60～80倍 | 80～100倍 | 100倍～ |\n"
-            "| --- | --- | --- | --- | --- |\n"
-            f"| **約{payout_probs['～30倍']}%** | **約{payout_probs['30～60倍']}%** | **約{payout_probs['60～80倍']}%** | **約{payout_probs['80～100倍']}%** | **約{payout_probs['100倍～']}%** |"
-        )
-    else:
-        prob_table_md = "\n* **推定配当確率**: データ不足のため算出不可"
 
     if "ダート" in raw_text:
         surface = "ダート"
@@ -839,56 +833,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     prob_top3_2_or_more = prob_top3_2 + prob_top3_3
 
     # ==========================================================================
-    # 3連複荒れ度判定ロジック（調整時に「調整」コメントを付与）
-    # ==========================================================================
-    PATTERNS_ORDER = ["堅", "並", "荒", "大荒"]
-    PATTERN_DESCS = {
-        "堅": "30倍以下の確率が高い",
-        "並": "30～50倍までの確率が高い",
-        "荒": "50～100倍までの確率が高い",
-        "大荒": "100倍以上の確率が高い",
-        "判定保留": "条件を満たさず、レンジを無理に決めない"
-    }
-
-    if payout_probs:
-        p_under_30 = payout_probs.get("～30倍", 0)
-        p_30_60    = payout_probs.get("30～60倍", 0)
-        p_60_80    = payout_probs.get("60～80倍", 0)
-        p_80_100   = payout_probs.get("80～100倍", 0)
-        p_over_100 = payout_probs.get("100倍～", 0)
-
-        cum_30  = p_under_30
-        cum_60  = cum_30 + p_30_60
-        cum_100 = cum_60 + p_60_80 + p_80_100
-
-        # 分類判定
-        if cum_30 > 40:
-            race_pattern = "堅"
-        elif cum_60 > 55:
-            race_pattern = "並"
-        elif cum_100 > 70:
-            race_pattern = "荒"
-        else:
-            race_pattern = "大荒"
-
-        pattern_desc = PATTERN_DESCS.get(race_pattern, "")
-
-        # 単勝上位3頭の2頭以上入着確率(MC)による安全弁補正
-        if race_pattern in PATTERNS_ORDER:
-            current_idx = PATTERNS_ORDER.index(race_pattern)
-            shift = 0
-            if prob_top3_2_or_more >= 60.0:
-                shift = 1
-
-            if shift > 0 and current_idx > 0:
-                new_idx = max(0, current_idx - shift)
-                race_pattern = f"{PATTERNS_ORDER[new_idx]} ※"
-                pattern_desc = f"{PATTERN_DESCS[PATTERNS_ORDER[new_idx]]}（※上位の２頭も入る確率が高め（{prob_top3_2_or_more:.1f}%）のため、1ランク調整されました））"
-    else:
-        race_pattern = "判定保留"
-        pattern_desc = "配当データ不足のため判定保留を適用します。"
-
-    # ==========================================================================
     # 買い目選定ロジック
     # ==========================================================================
     df_valid = df_sorted[
@@ -929,9 +873,9 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     df_without_jiku = df_valid[df_valid["馬番"] != jiku_horse["馬番"]].copy()
     aite1_df = df_without_jiku.sort_values(by="オッズ順位").head(2)
 
-    if (prob_top3_2_or_more < 30.0) and (race_pattern in ["荒", "大荒"]):
+    if odds_zone_result and odds_zone_result.get("race_type") == "大波乱・大混戦型":
         aite2_count = 5
-        aite_reason_str = "上位3頭から2頭入る確率が30%未満かつ荒れ予想（荒・大荒）のため、相手2は軸馬・相手1を除き合成順位上位5頭選出"
+        aite_reason_str = "大波乱・大混戦型のため、相手2は軸馬・相手1を除き合成順位上位5頭選出"
     else:
         aite2_count = 4
         aite_reason_str = "通常条件のため、相手2は軸馬・相手1を除き合成順位上位4頭選出"
@@ -959,23 +903,18 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     jiku_log_lines.append(f"【軸馬判定】：{jiku_reason} → 馬番{jiku_horse['馬番']}（{jiku_horse['馬名']}）")
     jiku_log_lines.append(f"【相手判定】：{aite_reason_str}")
 
-    ODDS_RANGE_MAP = {
-        "堅": "配当目安 ～30倍",
-        "並": "配当目安 30～60倍",
-        "荒": "配当目安 60～100倍",
-        "大荒": "配当目安 100倍以上",
-        "判定保留": "配当目安 不明"
-    }
-    # パターン名から「 調整」を除いたベースのキーでオッズ範囲を取得
-    base_race_pattern = race_pattern.split()[0] if race_pattern else race_pattern
-    target_odds_range = ODDS_RANGE_MAP.get(base_race_pattern, "")
+    race_type_str = odds_zone_result["race_type"] if odds_zone_result else "判定保留"
+    target_min_str = odds_zone_result["target_min"] if odds_zone_result else 20.0
+    target_max_str = odds_zone_result["target_max"] if odds_zone_result else 100.0
+    advice_str = odds_zone_result["advice"] if odds_zone_result else ""
 
     phase6_lines = [
         "#### ■ PHASE 6：最終ランキングと買い目\n",
         f"#### 1. レース情報\n[{race_name} / {track}{race_no}R / {surface} / {distance}m]",
         f"* **取得3連複オッズ**:\n{odds_table_md}",
-        f"\n* **推定配当確率**:\n{prob_table_md}",
-        f"\n**【レース判定結果】：{race_pattern}** （{pattern_desc}）\n",
+        f"\n**【レース性質判定】：{race_type_str}**",
+        f"* **狙い目オッズ帯**: **{target_min_str}倍 〜 {target_max_str}倍**",
+        f"* **アドバイス**: {advice_str}\n",
         f"  * 単勝1〜3番人気の複勝(3着以内)入着シミュレーション:  ",
         f"    0頭入る確率: **{prob_top3_0:.1f}%**  ",
         f"    1頭入る確率: **{prob_top3_1:.1f}%**  ",
@@ -1010,7 +949,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
                 f"| {rank_num} | {r['馬番']} {r['馬名']}({r['単勝オッズ']}倍) | {r['合成値']:.2f} ({r['合成順位']}位) | {r['オッズスコア']:.1f} ({r['オッズ順位']}位) | {r['能力スコア']:.1f} ({r['能力順位']}位) | {win_mc} | {place_mc} | {ev_val} | {pos} | {valid_runs} |"
             )
 
-    phase6_lines.append(f"\n#### 3. 買い目（判定：【{race_pattern}】 {target_odds_range}）\n")
+    phase6_lines.append(f"\n#### 3. 買い目（ターゲット帯：{target_min_str}倍〜{target_max_str}倍）\n")
 
     aite1_formatted_parts = []
     for h in aite1_horses:
