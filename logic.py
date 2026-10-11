@@ -211,54 +211,57 @@ def calculate_payout_probabilities(o1, o10, o20, o30, o50):
     if o1 is None:
         return None
 
-    # 各オッズが欠損している場合の安全な補完（上位〜下位のトレンドを維持）
+    # 各オッズの安全な補完
     v_o1 = float(o1)
     v_o10 = float(o10) if o10 is not None else v_o1 * 3.5
     v_o20 = float(o20) if o20 is not None else v_o10 * 1.8
     v_o30 = float(o30) if o30 is not None else v_o20 * 1.5
     v_o50 = float(o50) if o50 is not None else v_o30 * 1.4
 
-    # 1. 1位から50位までの「オッズの傾き（勾配構造）」を層ごとに評価
-    slope_upper = v_o10 / max(v_o1, 1.0)       # 1位～10位の開き
-    slope_mid   = v_o30 / max(v_o10, 1.0)      # 10位～30位の開き
-    slope_deep  = v_o50 / max(v_o30, 1.0)      # 30位～50位の開き（大穴ゾーンへの広がり）
+    # 1. 1位から50位までのオッズの伸び方（スケール）を対数や比率で安全に評価
+    # 50位のオッズの高さ・低さを、配当の「中心地（期待値の目安）」として利用する
+    median_payout = (v_o10 + v_o30) / 2.0
 
-    # 2. 5つの配当帯それぞれに対する適合スコアを算出
-    # 各レンジ（～20倍、20～40倍、40～50倍、50～80倍、80倍以上）と各順位オッズの距離感を評価
-    score_under_20 = max(1.0, 50.0 - v_o1 * 2.5)
-    score_20_40    = max(1.0, 50.0 - abs(25.0 - (v_o10 + v_o20) / 2.0))
-    score_40_50    = max(1.0, 50.0 - abs(45.0 - v_o20))
-    score_50_80    = max(1.0, 50.0 - abs(65.0 - v_o30))
-    score_over_80  = max(1.0, (v_o50 - 60.0) * 0.5 if v_o50 > 60 else 10.0)
+    # 2. 5つの配当帯ごとの基本スコア（ガウス関数風に、各レンジの中心からの距離で算出）
+    # スコアが爆発しないよう、上限と下限を適切にコントロールする
+    score_under_20 = max(0.5, 30.0 - abs(10.0 - v_o1) * 2.0)
+    score_20_40    = max(0.5, 30.0 - abs(30.0 - median_payout) * 0.8)
+    score_40_50    = max(0.5, 30.0 - abs(45.0 - median_payout) * 0.8)
+    score_50_80    = max(0.5, 30.0 - abs(65.0 - median_payout) * 0.6)
+    
+    # 80倍以上は、50位や30位のオッズが高いほどスコアを伸ばすが、対数を使って急激なインフレを防ぐ
+    score_over_80  = max(0.5, np.log(max(v_o50, 80.0)) * 10.0 - 30.0)
 
-    # 3. 50位までのオッズの広がり具合に応じた総合的な補正（ブースト）
-    # 30位〜50位にかけてオッズが急拡大している（＝人気が散らばっている）場合は高配当側に重みをつける
-    if slope_deep > 1.35 and slope_mid > 1.3:
-        score_under_20 *= 0.5
-        score_over_80  *= 1.5
-    elif v_o1 <= 3.5 and slope_upper > 4.0:
-        # 1強で上位が固い場合
-        score_under_20 *= 1.8
-        score_over_80  *= 0.3
+    # 3. 全体の傾向（1番人気の強さ、上位と下位の開き）による全体調整
+    spread_ratio = v_o50 / max(v_o1, 1.0)
+    if v_o1 <= 4.0 and spread_ratio < 15.0:
+        # 堅いレースの補正
+        score_under_20 *= 2.5
+        score_over_80  *= 0.2
+    elif spread_ratio > 40.0:
+        # 非常に荒れているレースの補正
+        score_under_20 *= 0.2
+        score_over_80  *= 2.0
 
-    # 4. スコアを合算して割合（％）に変換
-    total_score = score_under_20 + score_20_40 + score_40_50 + score_50_80 + score_over_80
+    # 4. 合算して割合（％）に変換
+    scores = [score_under_20, score_20_40, score_40_50, score_50_80, score_over_80]
+    total_score = sum(scores)
 
     if total_score > 0:
-        p_under_20 = round(score_under_20 / total_score * 100)
-        p_20_40    = round(score_20_40 / total_score * 100)
-        p_40_50    = round(score_40_50 / total_score * 100)
-        p_50_80    = round(score_50_80 / total_score * 100)
+        p_under_20 = round(scores[0] / total_score * 100)
+        p_20_40    = round(scores[1] / total_score * 100)
+        p_40_50    = round(scores[2] / total_score * 100)
+        p_50_80    = round(scores[3] / total_score * 100)
         p_over_80  = 100 - (p_under_20 + p_20_40 + p_40_50 + p_50_80)
     else:
         p_under_20, p_20_40, p_40_50, p_50_80, p_over_80 = 20, 20, 20, 20, 20
 
     return {
-        "～20倍": p_under_20,
-        "20～40倍": p_20_40,
-        "40～50倍": p_40_50,
-        "50～80倍": p_50_80,
-        "80倍以上": p_over_80
+        "～20倍": max(0, p_under_20),
+        "20～40倍": max(0, p_20_40),
+        "40～50倍": max(0, p_40_50),
+        "50～80倍": max(0, p_50_80),
+        "80倍以上": max(0, p_over_80)
     }
 # ==============================================================================
 # 3連複オッズ取得ロジック
