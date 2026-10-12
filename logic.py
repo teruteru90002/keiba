@@ -865,7 +865,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
         if p_under_20 >= 30:
             race_pattern = "堅"
-        elif p_20_30 >= 25:
+        elif p_20_30 >= 20:
             race_pattern = "並①"
         elif p_30_40 >= 25:
             race_pattern = "並②"
@@ -962,12 +962,12 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     ODDS_RANGE_MAP = {
         "堅": "配当目安 ～20倍",
-        "並①": "配当目安 20～30倍",
-        "並②": "配当目安 30～40倍",
-        "並③": "配当目安 40～50倍",
-        "並④": "配当目安 50～60倍",
-        "荒": "配当目安 60～80倍",
-        "大荒": "配当目安 80倍以上",
+        "並①": "配当目安 20倍～",
+        "並②": "配当目安 30倍～",
+        "並③": "配当目安 40倍～",
+        "並④": "配当目安 50倍～",
+        "荒": "配当目安 60倍～",
+        "大荒": "配当目安 80倍～",
         "判定保留": "配当目安 不明"
     }
     
