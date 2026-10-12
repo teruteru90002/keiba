@@ -834,16 +834,16 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     prob_top3_2_or_more = prob_top3_2 + prob_top3_3
 
     # ==========================================================================
-    # 3連複荒れ度判定ロジック（7区分配当目安連動）
+    # 3連複荒れ度判定ロジック（7区分配当目安連動・変更後）
     # ==========================================================================
-    PATTERNS_ORDER = ["堅い", "並１", "並２", "並３", "荒１", "荒２", "大荒"]
+    PATTERNS_ORDER = ["堅1", "堅2", "並1", "並2", "荒1", "荒2", "大荒"]
     PATTERN_DESCS = {
-        "堅い": "配当目安 ～20倍の確率が高い",
-        "並１": "配当目安 20～30倍の確率が高い",
-        "並２": "配当目安 30～40倍の確率が高い",
-        "並３": "配当目安 40～50倍の確率が高い",
-        "荒１": "配当目安 50～60倍の確率が高い",
-        "荒２": "配当目安 60～80倍の確率が高い",
+        "堅1": "配当目安 ～20倍の確率が高い",
+        "堅2": "配当目安 20～30倍の確率が高い",
+        "並1": "配当目安 30～40倍の確率が高い",
+        "並2": "配当目安 40～50倍の確率が高い",
+        "荒1": "配当目安 50～60倍の確率が高い",
+        "荒2": "配当目安 60～80倍の確率が高い",
         "大荒": "配当目安 80倍以上の確率が高い",
         "判定保留": "条件を満たさず、レンジを無理に決めない"
     }
@@ -864,30 +864,30 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         cum_80 = cum_60 + p_60_80
 
         if p_under_20 >= 30:
-            race_pattern = "堅い"
+            race_pattern = "堅1"
         elif p_20_30 >= 20:
-            race_pattern = "並１"
+            race_pattern = "堅2"
         elif p_30_40 >= 25:
-            race_pattern = "並２"
+            race_pattern = "並1"
         elif p_40_50 >= 25:
-            race_pattern = "並３"
+            race_pattern = "並2"
         elif p_50_60 >= 25:
-            race_pattern = "荒１"
+            race_pattern = "荒1"
         elif p_60_80 >= 30:
-            race_pattern = "荒２"
+            race_pattern = "荒2"
         elif p_over_80 >= 30:
             race_pattern = "大荒"
 
         elif cum_30 >= 40:
-            race_pattern = "並１"
+            race_pattern = "堅2"
         elif cum_40 >= 50:
-            race_pattern = "並２"
+            race_pattern = "並1"
         elif cum_50 >= 60:
-            race_pattern = "並３"
+            race_pattern = "並2"
         elif cum_60 >= 70:
-            race_pattern = "荒１"
+            race_pattern = "荒1"
         elif cum_80 >= 85:
-            race_pattern = "荒２"
+            race_pattern = "荒2"
         else:
             race_pattern = "大荒"
 
@@ -930,9 +930,9 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     df_without_jiku = df_valid[df_valid["馬番"] != jiku_horse["馬番"]].copy()
     aite1_df = df_without_jiku.sort_values(by="オッズ順位").head(2)
 
-    if (prob_top3_2_or_more < 30.0) and (race_pattern in ["荒２", "大荒"]):
+    if (prob_top3_2_or_more < 30.0) and (race_pattern in ["荒2", "大荒"]):
         aite2_count = 5
-        aite_reason_str = "上位3頭から2頭入る確率が30%未満かつ荒れ予想（荒２・大荒）のため、相手2は軸馬・相手1を除き合成順位上位5頭選出"
+        aite_reason_str = "上位3頭から2頭入る確率が30%未満かつ荒れ予想（荒2・大荒）のため、相手2は軸馬・相手1を除き合成順位上位5頭選出"
     else:
         aite2_count = 4
         aite_reason_str = "通常条件のため、相手2は軸馬・相手1を除き合成順位上位4頭選出"
@@ -961,13 +961,13 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     jiku_log_lines.append(f"【相手判定】：{aite_reason_str}")
 
     ODDS_RANGE_MAP = {
-        "堅い": "購入目安 ～20倍",
-        "並１": "購入目安 15～35倍",
-        "並２": "購入目安 25～45倍",
-        "並３": "購入目安 35～55倍",
-        "荒１": "購入目安 45～65倍",
-        "荒２": "購入目安 60～80倍",
-        "大荒": "購入目安 80倍～",
+        "堅1": "購入目安 ～20倍",
+        "堅2": "購入目安 20～30倍",
+        "並1": "購入目安 30～40倍",
+        "並2": "購入目安 40～50倍",
+        "荒1": "購入目安 50～60倍",
+        "荒2": "購入目安 60～80倍",
+        "大荒": "購入目安 80倍以上",
         "判定保留": "購入目安 不明"
     }
     
