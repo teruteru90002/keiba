@@ -218,42 +218,30 @@ def calculate_payout_probabilities(o1, o10, o20, o30, o50):
     v_o30 = float(o30) if o30 is not None else v_o20 * 1.5
     v_o50 = float(o50) if o50 is not None else v_o30 * 1.4
 
-    # 判定基準のチューニング：
-    # ① 荒れ・高配当寄り（例：1番人気が15倍以上、または30位が90倍以上）→ 80倍以上にピーク
-    # ② 並（例：1番人気が8〜15倍、かつ30位が90倍未満）→ 20〜40倍にピーク
-    # ③ 堅め（1番人気が8倍未満など）→ 低配当側にピーク
-    
-    if v_o1 >= 15.0 or v_o30 >= 90.0:
-        # 【荒れ・高配当パターン（今回・前回共通）】80倍以上に最も厚い山を持たせる
-        score_under_20 = 1.0
-        score_20_40    = 5.0
-        score_40_50    = 10.0
-        score_50_80    = 30.0
-        score_over_80  = 65.0
-    elif 8.0 <= v_o1 < 15.0 and v_o30 < 90.0:
-        # 【並パターン】20～40倍に最も厚い山を持たせる
-        score_under_20 = 10.0
-        score_20_40    = 50.0
-        score_40_50    = 25.0
-        score_50_80    = 10.0
-        score_over_80  = 5.0
-    else:
-        # 【堅いパターン】低配当側に厚みを持たせる
-        score_under_20 = 45.0
-        score_20_40    = 30.0
-        score_40_50    = 15.0
-        score_50_80    = 7.0
-        score_over_80  = 3.0
+    # 1番人気と10位のオッズをベースに、レース全体の「配当の期待中心」を算出
+    # 例：1番人気が10.3倍なら、中心は自然と20～40倍のゾーン付近になる
+    est_center = v_o1 * 2.2 + (v_o10 / 3.0)
 
-    # 50位までのオッズ全体の広がりによる微調整
-    spread_factor = v_o50 / max(v_o1, 1.0)
-    if spread_factor > 25.0 and v_o1 >= 15.0:
-        score_over_80 *= 1.3
-    elif spread_factor < 10.0:
-        score_under_20 *= 1.3
+    # 各配当帯の中央値（ターゲット）
+    zones = [10.0, 30.0, 45.0, 65.0, 100.0]
+    
+    scores = []
+    for z in zones:
+        # 推算中心と各ゾーンの距離に応じて、なだらかな山なり（正規分布風）のスコアを算出
+        dist = abs(z - est_center)
+        score = max(1.0, 50.0 - dist * 0.7)
+        scores.append(score)
+
+    # 特殊な補正：王道の「並」バランス（1番人気が9〜13倍かつ10位が28〜38倍）のときは、
+    # 20～40倍の山が最も美しく高くなるように適度にブーストをかける
+    if 9.0 <= v_o1 <= 13.0 and 28.0 <= v_o10 <= 38.0:
+        scores[1] *= 2.2  # 「20～40倍」のゾーンを強調
+    elif v_o1 >= 18.0 or v_o30 >= 100.0:
+        scores[4] *= 1.8  # 明らかな荒れ模様なら「80倍以上」を強調
+    elif v_o1 <= 6.5:
+        scores[0] *= 2.0  # 堅い決着なら「～20倍」を強調
 
     # 合算して割合（％）に変換
-    scores = [score_under_20, score_20_40, score_40_50, score_50_80, score_over_80]
     total_score = sum(scores)
 
     if total_score > 0:
