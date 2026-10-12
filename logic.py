@@ -863,7 +863,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         cum_60 = cum_50 + p_50_60
         cum_80 = cum_60 + p_60_80
 
-        if p_under_20 >= 30:
+        if p_under_20 >= 20:
             race_pattern = "堅1"
         elif p_20_30 >= 25:
             race_pattern = "堅2"
