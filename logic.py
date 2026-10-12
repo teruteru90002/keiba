@@ -218,38 +218,39 @@ def calculate_payout_probabilities(o1, o10, o20, o30, o50):
     v_o30 = float(o30) if o30 is not None else v_o20 * 1.5
     v_o50 = float(o50) if o50 is not None else v_o30 * 1.4
 
-    # 1番人気の高さと、30位のオッズを基準にレースの荒れ度を判定
-    # パターンA：「並」のレース（1番人気が10倍前後、30位が100倍未満など）
-    # パターンB：「荒れ・大荒れ」のレース（1番人気が20倍以上、または30位が100倍以上）
+    # 判定基準のチューニング：
+    # ① 荒れ・高配当寄り（例：1番人気が15倍以上、または30位が90倍以上）→ 80倍以上にピーク
+    # ② 並（例：1番人気が8〜15倍、かつ30位が90倍未満）→ 20〜40倍にピーク
+    # ③ 堅め（1番人気が8倍未満など）→ 低配当側にピーク
     
-    if v_o1 >= 20.0 or v_o30 >= 100.0:
-        # 【荒れ・大荒れパターン】80倍以上に最も厚い山を持たせる
+    if v_o1 >= 15.0 or v_o30 >= 90.0:
+        # 【荒れ・高配当パターン（今回・前回共通）】80倍以上に最も厚い山を持たせる
         score_under_20 = 1.0
         score_20_40    = 5.0
         score_40_50    = 10.0
         score_50_80    = 30.0
-        score_over_80  = 65.0  # ここを一番高くする
-    elif 8.0 <= v_o1 <= 15.0 and v_o30 <= 130.0:
+        score_over_80  = 65.0
+    elif 8.0 <= v_o1 < 15.0 and v_o30 < 90.0:
         # 【並パターン】20～40倍に最も厚い山を持たせる
         score_under_20 = 10.0
-        score_20_40    = 50.0  # ここを一番高くする
+        score_20_40    = 50.0
         score_40_50    = 25.0
         score_50_80    = 10.0
         score_over_80  = 5.0
     else:
-        # 【堅いパターン / その他】低配当側に厚みを持たせる
+        # 【堅いパターン】低配当側に厚みを持たせる
         score_under_20 = 45.0
         score_20_40    = 30.0
         score_40_50    = 15.0
         score_50_80    = 7.0
         score_over_80  = 3.0
 
-    # 50位までのオッズ全体の広がり（スケール）を微調整に反映
+    # 50位までのオッズ全体の広がりによる微調整
     spread_factor = v_o50 / max(v_o1, 1.0)
-    if spread_factor > 30.0 and v_o1 > 20.0:
-        score_over_80 *= 1.5
+    if spread_factor > 25.0 and v_o1 >= 15.0:
+        score_over_80 *= 1.3
     elif spread_factor < 10.0:
-        score_under_20 *= 1.5
+        score_under_20 *= 1.3
 
     # 合算して割合（％）に変換
     scores = [score_under_20, score_20_40, score_40_50, score_50_80, score_over_80]
