@@ -961,14 +961,14 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     jiku_log_lines.append(f"【相手判定】：{aite_reason_str}")
 
     ODDS_RANGE_MAP = {
-        "堅い": "配当目安 ～20倍",
-        "並１": "配当目安 15～35倍",
-        "並２": "配当目安 25～45倍",
-        "並３": "配当目安 35～55倍",
-        "荒１": "配当目安 45～65倍",
-        "荒２": "配当目安 60～80倍",
-        "大荒": "配当目安 80倍～",
-        "判定保留": "配当目安 不明"
+        "堅い": "購入目安 ～20倍",
+        "並１": "購入目安 15～35倍",
+        "並２": "購入目安 25～45倍",
+        "並３": "購入目安 35～55倍",
+        "荒１": "購入目安 45～65倍",
+        "荒２": "購入目安 60～80倍",
+        "大荒": "購入目安 80倍～",
+        "判定保留": "購入目安 不明"
     }
     
     base_race_pattern = race_pattern.split()[0] if race_pattern else race_pattern
