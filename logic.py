@@ -218,20 +218,38 @@ def calculate_payout_probabilities(o1, o10, o20, o30, o50):
     v_o30 = float(o30) if o30 is not None else v_o20 * 1.5
     v_o50 = float(o50) if o50 is not None else v_o30 * 1.4
 
-    # 10位・20位のオッズ水準をベースに全体の中心を算出
-    mid_level = (v_o10 + v_o20) / 2.0
+    # 1番人気の高さと、30位のオッズを基準にレースの荒れ度を判定
+    # パターンA：「並」のレース（1番人気が10倍前後、30位が100倍未満など）
+    # パターンB：「荒れ・大荒れ」のレース（1番人気が20倍以上、または30位が100倍以上）
+    
+    if v_o1 >= 20.0 or v_o30 >= 100.0:
+        # 【荒れ・大荒れパターン】80倍以上に最も厚い山を持たせる
+        score_under_20 = 1.0
+        score_20_40    = 5.0
+        score_40_50    = 10.0
+        score_50_80    = 30.0
+        score_over_80  = 65.0  # ここを一番高くする
+    elif 8.0 <= v_o1 <= 15.0 and v_o30 <= 130.0:
+        # 【並パターン】20～40倍に最も厚い山を持たせる
+        score_under_20 = 10.0
+        score_20_40    = 50.0  # ここを一番高くする
+        score_40_50    = 25.0
+        score_50_80    = 10.0
+        score_over_80  = 5.0
+    else:
+        # 【堅いパターン / その他】低配当側に厚みを持たせる
+        score_under_20 = 45.0
+        score_20_40    = 30.0
+        score_40_50    = 15.0
+        score_50_80    = 7.0
+        score_over_80  = 3.0
 
-    # 各配当帯の基本スコア（20～40倍のゾーンに最も高い山が来るように設計）
-    score_under_20 = max(0.1, 15.0 - abs(v_o1 - 10.0) * 0.5)
-    score_20_40    = max(0.1, 45.0 - abs(30.0 - mid_level) * 0.6)  # ここを一番高く設定
-    score_40_50    = max(0.1, 25.0 - abs(45.0 - mid_level) * 0.5)
-    score_50_80    = max(0.1, 15.0 - abs(65.0 - v_o30) * 0.3)
-    score_over_80  = max(0.1, max(0.0, v_o50 - 120.0) * 0.1)
-
-    # 1番人気が10倍台、かつ中位・下位にかけてなだらかに広がる「ザ・並」の条件のとき、
-    # 20～40倍の確率が最も厚くなるよう強力にブースト
-    if 8.0 <= v_o1 <= 15.0 and 25.0 <= v_o10 <= 40.0 and 50.0 <= v_o30 <= 130.0:
-        score_20_40 *= 2.5
+    # 50位までのオッズ全体の広がり（スケール）を微調整に反映
+    spread_factor = v_o50 / max(v_o1, 1.0)
+    if spread_factor > 30.0 and v_o1 > 20.0:
+        score_over_80 *= 1.5
+    elif spread_factor < 10.0:
+        score_under_20 *= 1.5
 
     # 合算して割合（％）に変換
     scores = [score_under_20, score_20_40, score_40_50, score_50_80, score_over_80]
@@ -244,7 +262,7 @@ def calculate_payout_probabilities(o1, o10, o20, o30, o50):
         p_50_80    = round(scores[3] / total_score * 100)
         p_over_80  = 100 - (p_under_20 + p_20_40 + p_40_50 + p_50_80)
     else:
-        p_under_20, p_20_40, p_40_50, p_50_80, p_over_80 = 10, 50, 20, 10, 10
+        p_under_20, p_20_40, p_40_50, p_50_80, p_over_80 = 20, 20, 20, 20, 20
 
     return {
         "～20倍": max(0, p_under_20),
