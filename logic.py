@@ -231,14 +231,10 @@ def calculate_payout_probabilities(o1, o10, o20, o30, o50):
         scores.append(score)
 
     # パターン別の強力なブースト調整
-    if 9.0 <= v_o1 <= 13.0 and 28.0 <= v_o10 <= 38.0:
-        scores[1] *= 2.2  # 【並①】20～40倍を強調
-    elif 22.0 <= v_o1 <= 28.0 and 42.0 <= v_o10 <= 55.0:
-        scores[2] *= 2.5  # 【並②】40～50倍を一番高く強調（今回追加）
-    elif v_o1 >= 18.0 or v_o30 >= 120.0:
-        scores[4] *= 1.8  # 【荒れ】80倍以上を強調
-    elif v_o1 <= 6.5:
-        scores[0] *= 2.0  # 【堅い】～20倍を強調
+
+
+
+
 
     # 合算して割合（％）に変換
     total_score = sum(scores)
