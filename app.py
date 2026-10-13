@@ -145,7 +145,7 @@ def preprocess_raw_text(text):
 def parse_race_info(text):
     first_few_lines = "\n".join([line.strip() for line in text.split("\n")[:10] if line.strip()])
     
-    # 日付の抽出 (空白対応)
+    # 日付の抽出 (空白対応: 例「2026年 4月19日」「2026/04/19」「2026.4.19」)
     date_match = re.search(r'(\d{4})\s*[年\.\/-]\s*(\d{1,2})\s*[月\.\/-]\s*(\d{1,2})\s*日?', first_few_lines)
     if date_match:
         race_date = f"{date_match.group(1)}{int(date_match.group(2)):02d}{int(date_match.group(3)):02d}"
@@ -198,8 +198,11 @@ def parse_race_info(text):
 
 def parse_past_runs(block_text):
     past_runs = []
+    
+    # 日付(YYYY.MM.DD または YYYY/MM/DD)の位置を特定して過去走ブロックに分割
     date_matches = list(re.finditer(r'\b\d{4}[\.\/]\d{1,2}[\.\/]\d{1,2}\b', block_text))
     
+    # ヘッダー行以降にある日付を対象とする
     lines = block_text.split('\n')
     header_len = len(lines[0]) if lines else 0
     valid_matches = [m for m in date_matches if m.start() >= header_len]
@@ -218,7 +221,10 @@ def parse_past_runs(block_text):
     
     for run_str in matches:
         date_m = re.search(r'(\d{4})[\.\/](\d{1,2})[\.\/](\d{1,2})', run_str)
-        run_date = f"{date_m.group(1)}.{int(date_m.group(2)):02d}.{int(date_m.group(3)):02d}" if date_m else ""
+        if date_m:
+            run_date = f"{date_m.group(1)}.{int(date_m.group(2)):02d}.{int(date_m.group(3)):02d}"
+        else:
+            run_date = ""
 
         dist_m = re.search(r'(\d{3,4})\s*m?\s*([芝ダ])', run_str)
         dist = int(dist_m.group(1)) if dist_m else 1800
@@ -242,6 +248,7 @@ def parse_past_runs(block_text):
         diff_m = re.search(r'[\(（]([\d\.]+)[\)）]', run_str)
         diff = float(diff_m.group(1)) if diff_m else 0.0
         
+        # 通過順の取得と最終コーナー順位の算出
         pass_m = re.search(r'(\d{1,2}(?:-\d{1,2})+)', run_str)
         pass_order = pass_m.group(1) if pass_m else ""
         final_corner_rank = None
@@ -298,6 +305,7 @@ def parse_text_to_df(text):
         odds = float(m.group("odds"))
         pop = int(m.group("pop"))
         
+        # 枠番判定
         f_num = int(m.group("frame")) if m.group("frame") else None
         if f_num is None:
             if h_num <= 1: f_num = 1
@@ -309,16 +317,19 @@ def parse_text_to_df(text):
             elif h_num <= 13: f_num = 7
             else: f_num = 8
 
+        # 当該馬のブロック範囲を抽出
         start_idx = m.start()
         end_idx = matches[k + 1].start() if k + 1 < len(matches) else len(text)
         horse_block_text = text[start_idx:end_idx]
 
+        # 斤量・騎手
         weight, jockey = 55.0, "未定"
         wj_match = re.search(r'(\d{2}\.\d)kg[\s\u3000]+([^\s\u3000\n]+)', horse_block_text)
         if wj_match:
             weight = float(wj_match.group(1))
             jockey = wj_match.group(2).strip()
 
+        # 過去走・脚質
         past_runs = parse_past_runs(horse_block_text)
         
         pos_type = "差" 
