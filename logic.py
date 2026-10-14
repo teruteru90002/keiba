@@ -192,7 +192,7 @@ def estimate_position_type_final_corner(past_runs):
     elif avg_ratio <= 0.75: return "差"
     else: return "追"
 
-def calculate_payout_probabilities(o1, o10, o20, o30, o50):
+def calculate_payout_probabilities(o1, o10, o20, o30, o50, o100):
     if o1 is None:
         return None
 
@@ -201,8 +201,10 @@ def calculate_payout_probabilities(o1, o10, o20, o30, o50):
     v_o20 = float(o20) if o20 is not None else v_o10 * 1.8
     v_o30 = float(o30) if o30 is not None else v_o20 * 1.5
     v_o50 = float(o50) if o50 is not None else v_o30 * 1.4
+    v_o100 = float(o100) if o100 is not None else v_o50 * 1.5
 
-    est_center = v_o1 * 1.6 + (v_o10 / 2.0)
+    # 100位オッズも含めて配当の中心（分布の傾向）を計算し、荒れ度をより正確に反映させる
+    est_center = v_o1 * 1.2 + (v_o10 / 4.0) + (v_o50 / 6.0) + (v_o100 / 10.0)
     zones = [10.0, 25.0, 35.0, 45.0, 55.0, 70.0, 100.0]
     
     scores = [max(1.0, 50.0 - abs(z - est_center) * 0.7) for z in zones]
@@ -327,7 +329,8 @@ async def fetch_race_odds(place_name, race_no, date_str=None, is_simple=False):
             "o10": odds[9] if len(odds) >= 10 else None,
             "o20": odds[19] if len(odds) >= 20 else None,
             "o30": odds[29] if len(odds) >= 30 else None,
-            "o50": odds[49] if len(odds) >= 50 else None
+            "o50": odds[49] if len(odds) >= 50 else None,
+            "o100": odds[99] if len(odds) >= 100 else (odds[-1] if len(odds) > 0 else None)
         }
 
 def get_race_odds(place_name, race_no, date_str=None, is_simple=False):
@@ -352,17 +355,17 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     odds_info = get_race_odds(track, race_no, date_str, is_simple=is_simple)
 
     if odds_info and odds_info.get("o1") is not None:
-        o1, o10, o20, o30, o50 = odds_info["o1"], odds_info["o10"], odds_info["o20"], odds_info["o30"], odds_info["o50"]
-        o1_str, o10_str, o20_str, o30_str, o50_str = f"{o1:.1f}倍", (f"{o10:.1f}倍" if o10 else "-"), (f"{o20:.1f}倍" if o20 else "-"), (f"{o30:.1f}倍" if o30 else "-"), (f"{o50:.1f}倍" if o50 else "-")
-        payout_probs = calculate_payout_probabilities(o1, o10, o20, o30, o50)
+        o1, o10, o20, o30, o50, o100 = odds_info["o1"], odds_info["o10"], odds_info["o20"], odds_info["o30"], odds_info["o50"], odds_info["o100"]
+        o1_str, o10_str, o20_str, o30_str, o50_str, o100_str = f"{o1:.1f}倍", (f"{o10:.1f}倍" if o10 else "-"), (f"{o20:.1f}倍" if o20 else "-"), (f"{o30:.1f}倍" if o30 else "-"), (f"{o50:.1f}倍" if o50 else "-"), (f"{o100:.1f}倍" if o100 else "-")
+        payout_probs = calculate_payout_probabilities(o1, o10, o20, o30, o50, o100)
     else:
-        o1_str = o10_str = o20_str = o30_str = o50_str = "未取得"
+        o1_str = o10_str = o20_str = o30_str = o50_str = o100_str = "未取得"
         payout_probs = None
 
     odds_table_md = (
-        "\n| 3連複1位 | 3連複10位 | 3連複20位 | 3連複30位 | 3連複50位 |\n"
-        "| --- | --- | --- | --- | --- |\n"
-        f"| {o1_str} | {o10_str} | {o20_str} | {o30_str} | {o50_str} |"
+        "\n| 3連複1位 | 3連複10位 | 3連複20位 | 3連複30位 | 3連複50位 | 3連複100位 |\n"
+        "| --- | --- | --- | --- | --- | --- |\n"
+        f"| {o1_str} | {o10_str} | {o20_str} | {o30_str} | {o50_str} | {o100_str} |"
     )
 
     if payout_probs:
@@ -570,7 +573,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     df_without_jiku = df_valid[df_valid["馬番"] != jiku_horse["馬番"]]
     aite1_df = df_without_jiku.sort_values(by="オッズ順位").head(2)
 
-    # レース判定結果が「荒2」または「大荒」の場合は5頭、それ以外は4頭を選定する仕様に変更
     clean_race_pattern = race_pattern.split()[0]
     aite2_count = 5 if clean_race_pattern in ["荒2", "大荒"] else 4
     
