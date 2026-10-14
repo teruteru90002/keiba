@@ -205,8 +205,8 @@ def calculate_payout_probabilities(o1, o10, o20, o30, o50):
     est_center = v_o1 * 1.6 + (v_o10 / 2.0)
     zones = [10.0, 25.0, 35.0, 45.0, 55.0, 70.0, 100.0]
     
-    # さらに5%上目（合計で高配当寄りへ強くシフト）に調整
-    scores = [max(1.0, (50.0 - abs(z - est_center) * 0.7) * (1.0 + i * 0.03)) for i, z in enumerate(zones)]
+    # さらに10%上目（合計で高配当寄りへ強くシフト）に調整
+    scores = [max(1.0, (50.0 - abs(z - est_center) * 0.7) * (1.0 + i * 0.05)) for i, z in enumerate(zones)]
     total_score = sum(scores)
 
     if total_score > 0:
