@@ -369,7 +369,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     if payout_probs:
         prob_table_md = (
-            "\n| ～20倍 | 20～30倍 | 30～40倍 | 40～50倍 | 50～60倍 | 60～80倍 | 80倍以上 |\n"
+            "\n| 堅１ ～20倍 | 堅２ 20～30倍 | 並１ 30～40倍 | 並２ 40～50倍 | 荒１ 50～60倍 | 荒２ 60～80倍 | 大荒 80倍以上 |\n"
             "| --- | --- | --- | --- | --- | --- | --- |\n"
             f"| **約{payout_probs['～20倍']}%** | **約{payout_probs['20～30倍']}%** | **約{payout_probs['30～40倍']}%** | **約{payout_probs['40～50倍']}%** | **約{payout_probs['50～60倍']}%** | **約{payout_probs['60～80倍']}%** | **約{payout_probs['80倍以上']}%** |"
         )
