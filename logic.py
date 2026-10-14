@@ -192,7 +192,7 @@ def estimate_position_type_final_corner(past_runs):
     elif avg_ratio <= 0.75: return "差"
     else: return "追"
 
-def calculate_payout_probabilities(o1, o10, o20, o30, o50, o100):
+def calculate_payout_probabilities(o1, o10, o20, o30, o50):
     if o1 is None:
         return None
 
@@ -201,10 +201,9 @@ def calculate_payout_probabilities(o1, o10, o20, o30, o50, o100):
     v_o20 = float(o20) if o20 is not None else v_o10 * 1.8
     v_o30 = float(o30) if o30 is not None else v_o20 * 1.5
     v_o50 = float(o50) if o50 is not None else v_o30 * 1.4
-    v_o100 = float(o100) if o100 is not None else v_o50 * 1.5
 
-    # 100位オッズも含めて配当の中心（分布の傾向）を計算し、荒れ度をより正確に反映させる
-    est_center = v_o1 * 1.2 + (v_o10 / 4.0) + (v_o50 / 6.0) + (v_o100 / 10.0)
+    # 安定していた元の推定配当確率の計算ロジックに戻す
+    est_center = v_o1 * 1.6 + (v_o10 / 2.0)
     zones = [10.0, 25.0, 35.0, 45.0, 55.0, 70.0, 100.0]
     
     scores = [max(1.0, 50.0 - abs(z - est_center) * 0.7) for z in zones]
@@ -357,7 +356,8 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     if odds_info and odds_info.get("o1") is not None:
         o1, o10, o20, o30, o50, o100 = odds_info["o1"], odds_info["o10"], odds_info["o20"], odds_info["o30"], odds_info["o50"], odds_info["o100"]
         o1_str, o10_str, o20_str, o30_str, o50_str, o100_str = f"{o1:.1f}倍", (f"{o10:.1f}倍" if o10 else "-"), (f"{o20:.1f}倍" if o20 else "-"), (f"{o30:.1f}倍" if o30 else "-"), (f"{o50:.1f}倍" if o50 else "-"), (f"{o100:.1f}倍" if o100 else "-")
-        payout_probs = calculate_payout_probabilities(o1, o10, o20, o30, o50, o100)
+        # 確率計算は安定している o1〜o50 を利用
+        payout_probs = calculate_payout_probabilities(o1, o10, o20, o30, o50)
     else:
         o1_str = o10_str = o20_str = o30_str = o50_str = o100_str = "未取得"
         payout_probs = None
