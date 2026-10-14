@@ -570,7 +570,10 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     df_without_jiku = df_valid[df_valid["馬番"] != jiku_horse["馬番"]]
     aite1_df = df_without_jiku.sort_values(by="オッズ順位").head(2)
 
-    aite2_count = 5 if (prob_top3_2_or_more < 30.0) and (race_pattern in ["荒2", "大荒"]) else 4
+    # レース判定結果が「荒2」または「大荒」の場合は5頭、それ以外は4頭を選定する仕様に変更
+    clean_race_pattern = race_pattern.split()[0]
+    aite2_count = 5 if clean_race_pattern in ["荒2", "大荒"] else 4
+    
     exclude_horses = {jiku_horse["馬番"]} | set(aite1_df["馬番"].tolist())
     aite2_df = (df_valid[~df_valid["馬番"].isin(exclude_horses)] if not df_valid[~df_valid["馬番"].isin(exclude_horses)].empty else df_sorted[~df_sorted["馬番"].isin(exclude_horses)]).sort_values(by="合成順位").head(aite2_count)
 
@@ -578,7 +581,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     fmt_points = len(list(itertools.combinations(all_aite_nums, 2)))
 
     ODDS_RANGE_MAP = {"堅1": "購入目安 ～20倍", "堅2": "購入目安 15～35倍", "並1": "購入目安 25～45倍", "並2": "購入目安 35～55倍", "荒1": "購入目安 45～65倍", "荒2": "購入目安 55～85倍", "大荒": "購入目安 75倍以上"}
-    target_odds_range = ODDS_RANGE_MAP.get(race_pattern.split()[0], "")
+    target_odds_range = ODDS_RANGE_MAP.get(clean_race_pattern, "")
 
     phase6_lines = [
         "#### ■ PHASE 6：最終ランキングと買い目\n",
@@ -596,7 +599,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         prefix = "**" if r["馬番"] in selected_horse_numbers else ""
         phase6_lines.append(f"| {prefix}{idx + 1}{prefix} | {prefix}{r['馬番']} {r['馬名']}({r['単勝オッズ']}倍){prefix} | {prefix}{r['合成値']:.2f} ({r['合成順位']}位){prefix} | {prefix}{r['オッズスコア']:.1f} ({r['オッズ順位']}位){prefix} | {prefix}{r['能力スコア']:.1f} ({r['能力順位']}位){prefix} | {prefix}{r['勝率(MC)']:.1f}%{prefix} | {prefix}{r['複勝率(MC)']:.1f}%{prefix} | {prefix}{r['期待値']:.2f}{prefix} | {prefix}{r.get('位置取り', '差')}{prefix} | {prefix}{r.get('走数', 0)}{prefix} |")
 
-    # 相手1の出力を指定されたフォーマット（馬番と確率を分離）に変更
     aite1_nums = ", ".join([str(h) for h in aite1_df["馬番"]])
     aite1_pcts = ",".join([f"{df_sorted.loc[df_sorted['馬番'] == h, '複勝率(MC)'].values[0]:.1f}%" for h in aite1_df["馬番"]])
     aite1_display_str = f"{aite1_nums}({aite1_pcts})"
