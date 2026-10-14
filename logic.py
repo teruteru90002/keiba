@@ -4,20 +4,16 @@ import os
 import unicodedata
 import itertools
 import asyncio
-import sys
 import pandas as pd
 import numpy as np
 from datetime import datetime
 from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright
-import streamlit as st  # 画面表示用にStreamlitをインポート
+import streamlit as st
 
-# Streamlit Cloud環境などでPlaywrightを動かすためのブラウザインストール処理
+# Playwrightブラウザのセットアップ
 os.system("playwright install chromium")
 
-# ==============================================================================
-# 設定ファイル (config_data.json) の読み込み
-# ==============================================================================
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config_data.json")
 
 def load_config():
@@ -54,7 +50,6 @@ def normalize_text(text):
     return text.upper().strip()
 
 def log_debug(msg, is_simple=False):
-    """簡易表示(is_simple=True)のときはデバッグログを出力しない"""
     if not is_simple:
         st.text(msg)
 
@@ -171,9 +166,6 @@ def calc_raw_r_score(run):
     detail = f"（{race_title} / 判定格付:[{grade}]）: 格点{g_score} ＋ 着順点{r_score} ＋ 着差点{diff_score} ＋ 人気点{pop_score} ＝ 生R_Score[{total}]"
     return total, detail, True
 
-# ==============================================================================
-# 位置取り（脚質）自動判定ロジック（最終コーナーベース）
-# ==============================================================================
 def estimate_position_type_final_corner(past_runs):
     if not past_runs:
         return "差"
@@ -195,18 +187,11 @@ def estimate_position_type_final_corner(past_runs):
 
     avg_ratio = sum(ratios) / len(ratios)
 
-    if avg_ratio <= 0.15:
-        return "逃"
-    elif avg_ratio <= 0.40:
-        return "先"
-    elif avg_ratio <= 0.75:
-        return "差"
-    else:
-        return "追"
+    if avg_ratio <= 0.15: return "逃"
+    elif avg_ratio <= 0.40: return "先"
+    elif avg_ratio <= 0.75: return "差"
+    else: return "追"
 
-# ==============================================================================
-# 配当帯確率計算ロジック（7区分化対応）
-# ==============================================================================
 def calculate_payout_probabilities(o1, o10, o20, o30, o50):
     if o1 is None:
         return None
@@ -218,22 +203,14 @@ def calculate_payout_probabilities(o1, o10, o20, o30, o50):
     v_o50 = float(o50) if o50 is not None else v_o30 * 1.4
 
     est_center = v_o1 * 1.6 + (v_o10 / 2.0)
-
-    # 7つの配当帯の中央値ターゲット
     zones = [10.0, 25.0, 35.0, 45.0, 55.0, 70.0, 100.0]
     
-    scores = []
-    for z in zones:
-        dist = abs(z - est_center)
-        score = max(1.0, 50.0 - dist * 0.7)
-        scores.append(score)
-
+    scores = [max(1.0, 50.0 - abs(z - est_center) * 0.7) for z in zones]
     total_score = sum(scores)
 
     if total_score > 0:
         p = [round(s / total_score * 100) for s in scores]
-        diff = 100 - sum(p)
-        p[0] += diff
+        p[0] += 100 - sum(p)
     else:
         p = [14, 14, 14, 14, 14, 15, 15]
 
@@ -247,9 +224,6 @@ def calculate_payout_probabilities(o1, o10, o20, o30, o50):
         "80倍以上": max(0, p[6])
     }
 
-# ==============================================================================
-# 3連複オッズ取得ロジック
-# ==============================================================================
 PLACE_CODE_MAP = {
     "01": "札幌", "02": "函館", "03": "福島", "04": "新潟", "05": "東京",
     "06": "中山", "07": "中京", "08": "京都", "09": "阪神", "10": "小倉"
@@ -260,13 +234,11 @@ async def get_race_list(page, date_str, is_simple=False):
     races = []
     url_db = f"https://db.netkeiba.com/race/list/{date_str}/"
     try:
-        log_debug(f"[DEBUG] DBアクセスURL: {url_db}", is_simple)
         await page.goto(url_db, wait_until="domcontentloaded", timeout=15000)
         content = await page.content()
         soup = BeautifulSoup(content, "html.parser")
         for a in soup.find_all("a", href=re.compile(r"/race/\d{12}/")):
-            href = a.get("href", "")
-            match = re.search(r"/race/(\d{12})/", href)
+            match = re.search(r"/race/(\d{12})/", a.get("href", ""))
             if match:
                 race_id = match.group(1)
                 p_code = race_id[4:6]
@@ -274,21 +246,18 @@ async def get_race_list(page, date_str, is_simple=False):
                     race_no = int(race_id[10:12])
                     if 1 <= race_no <= 12:
                         races.append({"race_id": race_id, "場所": PLACE_CODE_MAP[p_code], "R": race_no})
-        log_debug(f"[DEBUG] DBページから取得したレース数: {len(races)}", is_simple)
     except Exception as e:
         log_debug(f"[WARN] DB取得エラー: {e}", is_simple)
 
     if not races:
         url_race = f"https://race.netkeiba.com/top/race_list.html?kaisai_date={date_str}"
         try:
-            log_debug(f"[DEBUG] 当日アクセスURL: {url_race}", is_simple)
             await page.goto(url_race, wait_until="domcontentloaded", timeout=15000)
             await page.wait_for_selector("a[href*='race_id=']", timeout=5000)
             content = await page.content()
             soup = BeautifulSoup(content, "html.parser")
             for a in soup.find_all("a", href=re.compile(r"race_id=\d{12}")):
-                href = a.get("href", "")
-                match = re.search(r"race_id=(\d{12})", href)
+                match = re.search(r"race_id=(\d{12})", a.get("href", ""))
                 if match:
                     race_id = match.group(1)
                     p_code = race_id[4:6]
@@ -296,48 +265,27 @@ async def get_race_list(page, date_str, is_simple=False):
                         race_no = int(race_id[10:12])
                         if 1 <= race_no <= 12:
                             races.append({"race_id": race_id, "場所": PLACE_CODE_MAP[p_code], "R": race_no})
-            log_debug(f"[DEBUG] 当日ページから取得したレース数: {len(races)}", is_simple)
         except Exception as e:
             log_debug(f"[WARN] 当日ページ取得エラー: {e}", is_simple)
 
-    unique_races = {}
-    for r in races:
-        key = f"{r['場所']}_{r['R']}"
-        if key not in unique_races:
-            unique_races[key] = r
-            
-    log_debug(f"[DEBUG] get_race_list完了: 重複排除後のレース数={len(unique_races)}", is_simple)
+    unique_races = {f"{r['場所']}_{r['R']}": r for r in races}
     return sorted(list(unique_races.values()), key=lambda x: (x["場所"], x["R"]))
 
 async def fetch_race_odds(place_name, race_no, date_str=None, is_simple=False):
     if not date_str:
         date_str = datetime.now().strftime("%Y%m%d")
-        
-    log_debug(f"[DEBUG] fetch_race_odds開始: 場所={place_name}, レース={race_no}, 日付={date_str}", is_simple)
 
     async with async_playwright() as p:
-        log_debug(f"[DEBUG] Playwrightブラウザ起動中...", is_simple)
-        browser = await p.chromium.launch(
-            headless=True,
-            args=["--no-sandbox", "--disable-setuid-sandbox"]
-        )
+        browser = await p.chromium.launch(headless=True, args=["--no-sandbox", "--disable-setuid-sandbox"])
         context = await browser.new_context(
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         )
         page = await context.new_page()
 
         races = await get_race_list(page, date_str, is_simple=is_simple)
-        
-        target_race_id = None
-        for r in races:
-            if r["場所"] == place_name and r["R"] == int(race_no):
-                target_race_id = r["race_id"]
-                break
-                
-        log_debug(f"[DEBUG] ターゲットレースID: {target_race_id}", is_simple)
+        target_race_id = next((r["race_id"] for r in races if r["場所"] == place_name and r["R"] == int(race_no)), None)
                 
         if not target_race_id:
-            log_debug(f"[DEBUG] レースIDが特定できませんでした（{place_name} {race_no}R が一覧に見つからない）", is_simple)
             await browser.close()
             return None
 
@@ -349,64 +297,38 @@ async def fetch_race_odds(place_name, race_no, date_str=None, is_simple=False):
         ]
 
         for url in urls:
-            if len(odds_list) > 0: 
-                break
+            if odds_list: break
             for retry in range(2):
                 try:
-                    log_debug(f"[DEBUG] オッズURLアクセス: {url} (retry: {retry})", is_simple)
                     await page.goto(url, wait_until="domcontentloaded", timeout=10000)
                     await asyncio.sleep(1.2)
+                    soup = BeautifulSoup(await page.content(), "html.parser")
                     
-                    html_content = await page.content()
-                    log_debug(f"[DEBUG] HTML取得成功 (文字数: {len(html_content)})", is_simple)
-                    
-                    soup = BeautifulSoup(html_content, "html.parser")
-                    
-                    elements = soup.select("span[id^='odds-']")
-                    if not elements:
-                        elements = soup.select("td.Odds_Value")
-                    if not elements:
-                        elements = soup.select("td.Odds")
-                        
-                    log_debug(f"[DEBUG] 取得できたオッズ要素数(DOM): {len(elements)}", is_simple)
-                    
+                    elements = soup.select("span[id^='odds-']") or soup.select("td.Odds_Value") or soup.select("td.Odds")
                     for el in elements:
                         try:
                             val = float(el.get_text(strip=True))
                             if val > 0: odds_list.append(val)
                         except ValueError: 
                             continue
-                            
-                    log_debug(f"[DEBUG] 現在の取得オッズ数(変換成功数): {len(odds_list)}", is_simple)
-                    
-                    if len(odds_list) > 0: 
-                        break
-                except Exception as e:
-                    log_debug(f"[DEBUG] URLアクセスエラー: {e}", is_simple)
+                    if odds_list: break
+                except Exception:
                     await asyncio.sleep(1.0)
-            
-            if len(odds_list) > 0:
-                break
+            if odds_list: break
 
         await browser.close()
 
         odds = sorted(odds_list) if odds_list else []
-        log_debug(f"[DEBUG] 最終的に取得したオッズ数(ソート済み): {len(odds)}", is_simple)
-        
         if len(odds) < 30:
-            log_debug("[DEBUG] オッズデータが30件未満のため、取得失敗と判定", is_simple)
             return None
 
-        o1 = odds[0]
-        o10 = odds[9] if len(odds) >= 10 else None
-        o20 = odds[19] if len(odds) >= 20 else None
-        o30 = odds[29] if len(odds) >= 30 else None
-        o50 = odds[49] if len(odds) >= 50 else None
-
-        odds_info = {"o1": o1, "o10": o10, "o20": o20, "o30": o30, "o50": o50}
-        log_debug(f"[DEBUG] オッズ判定情報: o1={o1}, o10={o10}, o20={o20}, o30={o30}, o50={o50}", is_simple)
-
-        return odds_info
+        return {
+            "o1": odds[0],
+            "o10": odds[9] if len(odds) >= 10 else None,
+            "o20": odds[19] if len(odds) >= 20 else None,
+            "o30": odds[29] if len(odds) >= 30 else None,
+            "o50": odds[49] if len(odds) >= 50 else None
+        }
 
 def get_race_odds(place_name, race_no, date_str=None, is_simple=False):
     try:
@@ -415,56 +337,26 @@ def get_race_odds(place_name, race_no, date_str=None, is_simple=False):
         log_debug(f"[ERROR] get_race_odds内部例外: {e}", is_simple)
         return None
 
-# ==============================================================================
-# メインパイプライン
-# ==============================================================================
 def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=False, trend="フラット"):
-    if good_horses is None:
-        good_horses = []
-    if bad_horses is None:
-        bad_horses = []
+    if good_horses is None: good_horses = []
+    if bad_horses is None: bad_horses = []
 
     raw_text = str(race_info.get("raw_header", "")) + str(race_info.get("race_name", "")) + str(race_info.get("track", ""))
     
-    track = race_info.get("track_name", "東京")
-    for t in JRA_TRACKS:
-        if t in raw_text:
-            track = t
-            break
-
-    race_no = race_info.get("race_no")
-    if not race_no:
-        match_r = re.search(r'(\d{1,2})\s*R', raw_text, re.IGNORECASE)
-        race_no = int(match_r.group(1)) if match_r else 11
+    track = next((t for t in JRA_TRACKS if t in raw_text), race_info.get("track_name", "東京"))
+    race_no = race_info.get("race_no") or (int(re.search(r'(\d{1,2})\s*R', raw_text, re.IGNORECASE).group(1)) if re.search(r'(\d{1,2})\s*R', raw_text, re.IGNORECASE) else 11)
 
     race_date_raw = race_info.get("date", "")
     date_str = re.sub(r'\D', '', str(race_date_raw)) if race_date_raw else None
 
-    log_debug(f"[DEBUG] run_pipeline -> get_race_odds呼び出し: 競馬場={track}, レース={race_no}, 日付={date_str}", is_simple)
     odds_info = get_race_odds(track, race_no, date_str, is_simple=is_simple)
 
     if odds_info and odds_info.get("o1") is not None:
-        o1 = odds_info.get("o1")
-        o10 = odds_info.get("o10")
-        o20 = odds_info.get("o20")
-        o30 = odds_info.get("o30")
-        o50 = odds_info.get("o50")
-
-        o1_str = f"{o1:.1f}倍"
-        o10_str = f"{o10:.1f}倍" if o10 is not None else "-"
-        o20_str = f"{o20:.1f}倍" if o20 is not None else "-"
-        o30_str = f"{o30:.1f}倍" if o30 is not None else "-"
-        o50_str = f"{o50:.1f}倍" if o50 is not None else "-"
-
-        # 推定確率の計算（7区分対応）
+        o1, o10, o20, o30, o50 = odds_info["o1"], odds_info["o10"], odds_info["o20"], odds_info["o30"], odds_info["o50"]
+        o1_str, o10_str, o20_str, o30_str, o50_str = f"{o1:.1f}倍", (f"{o10:.1f}倍" if o10 else "-"), (f"{o20:.1f}倍" if o20 else "-"), (f"{o30:.1f}倍" if o30 else "-"), (f"{o50:.1f}倍" if o50 else "-")
         payout_probs = calculate_payout_probabilities(o1, o10, o20, o30, o50)
     else:
-        o1 = o10 = o20 = o30 = o50 = None
-        o1_str = "未取得"
-        o10_str = "未取得"
-        o20_str = "未取得"
-        o30_str = "未取得"
-        o50_str = "未取得"
+        o1_str = o10_str = o20_str = o30_str = o50_str = "未取得"
         payout_probs = None
 
     odds_table_md = (
@@ -482,25 +374,17 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     else:
         prob_table_md = "\n* **推定配当確率**: データ不足のため算出不可"
 
-    if "ダート" in raw_text:
-        surface = "ダート"
-    elif "芝" in raw_text:
-        surface = "芝"
-    else:
-        surface = str(race_info.get("track", ""))
-        
-    dist_raw = race_info.get("distance", 1800)
+    surface = "ダート" if "ダート" in raw_text else ("芝" if "芝" in raw_text else str(race_info.get("track", "")))
+    
     try:
-        distance = int(re.sub(r'\D', '', str(dist_raw)))
+        distance = int(re.sub(r'\D', '', str(race_info.get("distance", 1800))))
     except ValueError:
         distance = 1800
 
     race_name = race_info.get("race_name", "第XX回 レース")
     
-    default_param = PARAMS.get("東京", {"Odds_W": 0.70, "Ability_W": 0.30})
-    param = PARAMS.get(track, default_param)
-    odds_w = param.get("Odds_W", 0.70)
-    ability_w = param.get("Ability_W", 0.30)
+    param = PARAMS.get(track, PARAMS.get("東京", {"Odds_W": 0.70, "Ability_W": 0.30}))
+    odds_w, ability_w = param.get("Odds_W", 0.70), param.get("Ability_W", 0.30)
 
     df_target = df.copy().reset_index(drop=True)
     df_target["is_good_condition"] = df_target["馬番"].isin(good_horses)
@@ -511,13 +395,11 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     f3_averages = []
     for idx, row in df_target.iterrows():
         f3_list = [r["f3_time"] for r in row.get("past_runs", [])[:4] if not r.get("is_foreign_or_local", False) and "f3_time" in r]
-        avg_f3 = sum(f3_list) / len(f3_list) if len(f3_list) > 0 else 999.0
+        avg_f3 = sum(f3_list) / len(f3_list) if f3_list else 999.0
         f3_averages.append((idx, avg_f3))
 
     f3_averages.sort(key=lambda x: x[1])
-    f3_ranks = {}
-    for rank_idx, (orig_idx, avg_val) in enumerate(f3_averages):
-        f3_ranks[orig_idx] = rank_idx + 1
+    f3_ranks = {orig_idx: rank_idx + 1 for rank_idx, (orig_idx, _) in enumerate(f3_averages)}
 
     phase1_lines = ["#### ■ PHASE 1：全頭「補正前」R_Score計算"]
     phase2_lines = ["#### ■ PHASE 2：全頭「補正後」Adj_R_Score＆最終スコア計算\n"]
@@ -526,21 +408,15 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     calculated_horses = []
 
     for idx, row in df_target.iterrows():
-        h_num = row["馬番"]
-        h_name = row["馬名"]
+        h_num, h_name = row["馬番"], row["馬名"]
         past_runs = row.get("past_runs", [])[:4]
         
         raw_pos = row.get("位置取り")
-        if not raw_pos or pd.isna(raw_pos) or str(raw_pos).strip() in ["", "nan"]:
-            pos_type = estimate_position_type_final_corner(past_runs)
-        else:
-            pos_type = str(raw_pos).strip()
+        pos_type = str(raw_pos).strip() if raw_pos and not pd.isna(raw_pos) and str(raw_pos).strip() not in ["", "nan"] else estimate_position_type_final_corner(past_runs)
 
         phase1_lines.append(f"##### **【馬番{h_num}：{h_name}】")
         
-        adj_scores = []
-        raw_scores_info = []
-        jra_valid_count = 0
+        adj_scores, raw_scores_info, jra_valid_count = [], [], 0
         
         for run_i, run in enumerate(past_runs):
             run_label = ["前走", "2走前", "3走前", "4走前"][run_i]
@@ -550,429 +426,159 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
                 jra_valid_count += 1
                 adj_val = round(raw_score * weights[run_i], 2)
                 adj_scores.append((adj_val, run.get("distance", distance), run_label))
-                phase1_lines.append(f"* {run_label}：{detail}")
                 raw_scores_info.append((run_label, raw_score, weights[run_i], adj_val))
-            else:
-                phase1_lines.append(f"* {run_label}：{detail}")
+            phase1_lines.append(f"* {run_label}：{detail}")
 
         phase1_lines.append("")
 
         N = jra_valid_count if jra_valid_count > 0 else 1
         phase2_lines.append(f"##### **【馬番{h_num}：{h_name}（実出走数 N = {N}）】")
 
-        tot_adj = 0.0
+        tot_adj = round(sum(a_val for _, _, _, a_val in raw_scores_info), 2)
         for r_label, r_raw, w, a_val in raw_scores_info:
             phase2_lines.append(f"* {r_label}：{r_raw} × {w:.2f} ＝ Adj_R_Score [{a_val:.2f}]")
-            tot_adj += a_val
-        tot_adj = round(tot_adj, 2)
-
         phase2_lines.append(f"Adj_R_Score合計 ＝ {tot_adj:.2f}")
 
         var_A = round(tot_adj / N, 2)
 
-        distance_scores = []
-        for run_i, run in enumerate(past_runs):
-            raw_score, _, is_jra = calc_raw_r_score(run)
-            if not is_jra:
-                continue
-
-            past_distance = run.get("distance", distance)
-            try:
-                past_distance = int(past_distance)
-            except (ValueError, TypeError):
-                past_distance = distance
-
-            distance_diff = abs(past_distance - distance)
-            if distance_diff <= 200:
-                distance_factor = 1.00
-            elif distance_diff <= 400:
-                distance_factor = 0.85
-            elif distance_diff <= 600:
-                distance_factor = 0.45
-            else:
-                distance_factor = 0.45
-
-            distance_scores.append(raw_score * distance_factor)
-
-        if distance_scores:
-            distance_aptitude = sum(distance_scores) / len(distance_scores)
-        else:
-            distance_aptitude = var_A
-
-        distance_raw_adj = (distance_aptitude - var_A) * 0.20
-        dist_adj = round(max(-5.0, min(5.0, distance_raw_adj)), 2)
+        distance_scores = [
+            calc_raw_r_score(run)[0] * (1.00 if abs(int(run.get("distance", distance)) - distance) <= 200 else (0.85 if abs(int(run.get("distance", distance)) - distance) <= 400 else 0.45))
+            for run in past_runs if calc_raw_r_score(run)[2]
+        ]
+        distance_aptitude = sum(distance_scores) / len(distance_scores) if distance_scores else var_A
+        dist_adj = round(max(-5.0, min(5.0, (distance_aptitude - var_A) * 0.20)), 2)
 
         phase2_lines.append("\n###### 距離適性補正判定プロセス")
-        phase2_lines.append(f"* 今回距離＝{distance}m")
-        phase2_lines.append(f"* 距離適性R_Score＝{distance_aptitude:.2f}")
-        phase2_lines.append(f"* 通常R_Score平均＝{var_A:.2f}")
-        phase2_lines.append(f"* 距離適性差＝{distance_aptitude - var_A:+.2f}")
-        phase2_lines.append(f"* Dist_補正＝{dist_adj:+.2f}")
+        phase2_lines.append(f"* 今回距離＝{distance}m | 距離適性R_Score＝{distance_aptitude:.2f} | 通常R_Score平均＝{var_A:.2f} | Dist_補正＝{dist_adj:+.2f}")
 
         w_diff = round(row["斤量"] - avg_weight, 2)
-        if w_diff <= -2.0: weight_adj = 5
-        elif w_diff <= -1.0: weight_adj = 3
-        elif w_diff <= -0.5: weight_adj = 1
-        elif -0.5 < w_diff < 0.5: weight_adj = 0
-        elif w_diff < 1.0: weight_adj = -1
-        elif w_diff < 2.0: weight_adj = -3
-        else: weight_adj = -5
+        weight_adj = 5 if w_diff <= -2.0 else (3 if w_diff <= -1.0 else (1 if w_diff <= -0.5 else (0 if -0.5 < w_diff < 0.5 else (-1 if w_diff < 1.0 else (-3 if w_diff < 2.0 else -5)))))
 
         phase2_lines.append("\n###### 斤量補正判定プロセス")
         phase2_lines.append(f"* 平均斤量＝{avg_weight:.2f}kg | 当該馬斤量＝{row['斤量']}kg | 差＝{w_diff:+.2f}kg → Weight_補正＝{weight_adj:+d}")
 
         j_score, j_rank, j_desc = get_jockey_score_and_rank(row["騎手"])
-        oversea_adj = 2 if len(past_runs) > 0 and past_runs[0].get("is_foreign_or_local", False) else 0
+        oversea_adj = 2 if past_runs and past_runs[0].get("is_foreign_or_local", False) else 0
         
         f3_rank = f3_ranks.get(idx, 99)
-        f3_adj = 0
-        if pos_type in ["逃", "先"]:
-            if f3_rank == 1: f3_adj = 4
-            elif f3_rank == 2: f3_adj = 3
-            elif f3_rank == 3: f3_adj = 2
-            elif f3_rank in [4, 5]: f3_adj = 1
-        else:
-            if f3_rank == 1: f3_adj = 2
-            elif f3_rank in [2, 3]: f3_adj = 1
-
+        f3_adj = (4 if f3_rank == 1 else (3 if f3_rank == 2 else (2 if f3_rank == 3 else (1 if f3_rank in [4, 5] else 0)))) if pos_type in ["逃", "先"] else (2 if f3_rank == 1 else (1 if f3_rank in [2, 3] else 0))
         cond_adj = 5 if row.get("is_good_condition", False) else (-5 if row.get("is_bad_condition", False) else 0)
 
         rest_adj = 0
         rest_weeks_str = "対象外/前走データなし"
-        if len(past_runs) > 0 and past_runs[0].get("date"):
+        if past_runs and past_runs[0].get("date"):
             try:
-                prev_date_str = past_runs[0]["date"].replace("/", ".")
-                prev_date = datetime.strptime(prev_date_str, "%Y.%m.%d")
-                
-                race_date_raw = race_info.get("date")
-                if race_date_raw:
-                    current_date = datetime.strptime(race_date_raw.replace("/", "."), "%Y%m%d")
-                else:
-                    current_date = datetime.now()
-
-                delta_days = (current_date - prev_date).days
-                weeks = delta_days // 7
-                
-                if weeks >= 40: rest_adj = -4
-                elif weeks >= 20: rest_adj = -2
-                elif 2 <= weeks <= 12: rest_adj = 0
-                else: rest_adj = 0
-                
+                prev_date = datetime.strptime(past_runs[0]["date"].replace("/", "."), "%Y.%m.%d")
+                current_date = datetime.strptime(race_info.get("date", "").replace("/", "."), "%Y%m%d") if race_info.get("date") else datetime.now()
+                weeks = (current_date - prev_date).days // 7
                 rest_weeks_str = f"前走から{weeks}週（{rest_adj:+d}点）"
             except Exception:
                 rest_weeks_str = "日付解析エラー（0点）"
 
-        OUTER_TRACKS = {
-            "新潟": [1600, 1800, 2000],
-            "京都": [1400, 1600, 1800, 2200, 2400, 3000, 3200],
-            "阪神": [1600, 1800, 2400]
-        }
-
+        OUTER_TRACKS = {"新潟": [1600, 1800, 2000], "京都": [1400, 1600, 1800, 2200, 2400, 3000, 3200], "阪神": [1600, 1800, 2400]}
         is_sashi_favored = (track == "東京") or (track in OUTER_TRACKS and distance in OUTER_TRACKS[track])
-        is_nige_favored = not is_sashi_favored
-
-        pos_adj = 0
-        if is_sashi_favored and pos_type in ["差", "追"]:
-            pos_adj = 3
-        elif is_nige_favored and pos_type in ["逃", "先"]:
-            pos_adj = 3
+        pos_adj = 3 if (is_sashi_favored and pos_type in ["差", "追"]) or (not is_sashi_favored and pos_type in ["逃", "先"]) else 0
 
         try: frame_num = int(row.get("枠番", 0))
         except (ValueError, TypeError): frame_num = 0
 
-        frame_type = "中枠"
-        if frame_num in [1, 2]: frame_type = "内枠"
-        elif frame_num in [7, 8]: frame_type = "外枠"
+        frame_type = "内枠" if frame_num in [1, 2] else ("外枠" if frame_num in [7, 8] else "中枠")
+        is_outer_favored = (track, surface, distance) in [("新潟", "芝", 1000), ("東京", "ダート", 1600), ("中山", "ダート", 1200), ("阪神", "ダート", 1400), ("京都", "ダート", 1400), ("阪神", "芝", 1600), ("中京", "ダート", 1200)]
+        is_inner_favored = (track, surface, distance) in [("東京", "芝", 2000), ("中山", "芝", 2000), ("中山", "芝", 1800), ("中山", "芝", 2200), ("阪神", "芝", 1400), ("京都", "芝", 1400), ("小倉", "芝", 1200), ("函館", "芝", 1200), ("福島", "芝", 1200), ("札幌", "芝", 1500)]
 
-        is_outer_favored = (
-            (track == "新潟" and "芝" in surface and distance == 1000) or
-            (track == "東京" and "ダート" in surface and distance == 1600) or
-            (track == "中山" and "ダート" in surface and distance == 1200) or
-            (track == "阪神" and "ダート" in surface and distance == 1400) or
-            (track == "京都" and "ダート" in surface and distance == 1400) or
-            (track == "阪神" and "芝" in surface and distance == 1600) or
-            (track == "中京" and "ダート" in surface and distance == 1200)
-        )
-
-        is_inner_favored = (
-            (track == "東京" and "芝" in surface and distance == 2000) or
-            (track == "中山" and "芝" in surface and distance == 2000) or
-            (track == "中山" and "芝" in surface and distance == 1800) or
-            (track == "中山" and "芝" in surface and distance == 2200) or
-            (track == "阪神" and "芝" in surface and distance == 1400) or
-            (track == "京都" and "芝" in surface and distance == 1400) or
-            (track == "小倉" and "芝" in surface and distance == 1200) or
-            (track == "函館" and "芝" in surface and distance == 1200) or
-            (track == "福島" and "芝" in surface and distance == 1200) or
-            (track == "札幌" and "芝" in surface and distance == 1500)
-        )
-
-        frame_adj = 0
-        favored_desc = "フラット（バイアスなし）"
-        if is_outer_favored:
-            favored_desc = "外枠有利コース"
-            if frame_type == "外枠": frame_adj = 2
-        elif is_inner_favored:
-            favored_desc = "内枠有利コース"
-            if frame_type == "内枠": frame_adj = 2
-
-        trend_adj = 0
-        trend_desc = "フラット（加点なし）"
-        if trend == "前有利" and pos_type in ["逃", "先"]:
-            trend_adj = 5
-            trend_desc = "前有利（+5点）"
-        elif trend == "後有利" and pos_type in ["差", "追"]:
-            trend_adj = 5
-            trend_desc = "後有利（+5点）"
+        frame_adj = 2 if (is_outer_favored and frame_type == "外枠") or (is_inner_favored and frame_type == "内枠") else 0
+        trend_adj = 5 if (trend == "前有利" and pos_type in ["逃", "先"]) or (trend == "後有利" and pos_type in ["差", "追"]) else 0
+        trend_desc = f"{trend}（+5点）" if trend_adj else "フラット（加点なし）"
 
         etc_total = j_score + oversea_adj + f3_adj + cond_adj + pos_adj + frame_adj + rest_adj + trend_adj
 
         phase2_lines.append("\n####### その他補正判定プロセス")
-        phase2_lines.append(f"* 騎手名：{row['騎手']}（{j_desc} → {j_score:+d}点）")
-        phase2_lines.append(
-            f"* 海外出走：{oversea_adj}点 | 上がり3F：{f3_adj}点 | 当日補填：{cond_adj}点 | "
-            f"脚質補正：{pos_adj}点 | 当日傾向：{trend_adj}点（{trend_desc}） | 休養補正：{rest_weeks_str}"
-        )
-        phase2_lines.append(f"* 枠順補正：{frame_num}枠（{frame_type}）/ {favored_desc} → {frame_adj}点")
-        phase2_lines.append(f"* Etc_補正合計 ＝ {etc_total:+d}")
+        phase2_lines.append(f"* 騎手名：{row['騎手']}（{j_desc} → {j_score:+d}点） | Etc_補正合計 ＝ {etc_total:+d}")
 
         final_ability_score = round(var_A + dist_adj + weight_adj + etc_total, 2)
-        phase2_lines.append("\n###### 最終計算ステップ")
         phase2_lines.append(f"* 変数A[{var_A:.2f}] ＋ Dist_補正[{dist_adj:+2f}] ＋ Weight_補正[{weight_adj:+d}] ＋ Etc_補正[{etc_total:+d}] ＝ 最終能力スコア[{final_ability_score:.2f}]\n")
 
-        calculated_horses.append({
-            "馬番": h_num,
-            "馬名": h_name,
-            "単勝オッズ": row["単勝オッズ"],
-            "最終能力スコア": final_ability_score,
-            "位置取り": pos_type,
-            "走数": jra_valid_count
-        })
+        calculated_horses.append({"馬番": h_num, "馬名": h_name, "単勝オッズ": row["単勝オッズ"], "最終能力スコア": final_ability_score, "位置取り": pos_type, "走数": jra_valid_count})
 
     df_calc = pd.DataFrame(calculated_horses)
-
     max_ability_score = df_calc["最終能力スコア"].max()
-    if max_ability_score > 0:
-        df_calc["能力スコア"] = (df_calc["最終能力スコア"] / max_ability_score * 100).round(1)
-    else:
-        df_calc["能力スコア"] = 0.0
+    df_calc["能力スコア"] = (df_calc["最終能力スコア"] / max_ability_score * 100).round(1) if max_ability_score > 0 else 0.0
 
-    min_odds = df_calc["単勝オッズ"].min()
-    max_odds_val = df_calc["単勝オッズ"].max()
+    min_odds, max_odds_val = df_calc["単勝オッズ"].min(), df_calc["単勝オッズ"].max()
     odds_range = max_odds_val - min_odds
 
-    for idx, r in df_calc.iterrows():
-        if odds_range > 0:
-            norm_odds_score = round(100.0 * (max_odds_val - r["単勝オッズ"]) / odds_range, 1)
-        else:
-            norm_odds_score = 100.0
-        df_calc.loc[idx, "オッズスコア"] = norm_odds_score
-
+    df_calc["オッズスコア"] = [round(100.0 * (max_odds_val - o) / odds_range, 1) if odds_range > 0 else 100.0 for o in df_calc["単勝オッズ"]]
     df_calc["能力順位"] = df_calc["能力スコア"].rank(ascending=False, method="min").astype(int)
     df_calc["オッズ順位"] = df_calc["オッズスコア"].rank(ascending=False, method="min").astype(int)
 
-    phase5_lines = ["#### ■ PHASE 5：全頭合成値（馬番順リスト）\n", "【1段階目：正規化スコアベースの掛け算展開】"]
-    
+    phase5_lines = ["#### ■ PHASE 5：全頭合成値（馬番順リスト）\n"]
     for idx, r in df_calc.iterrows():
-        ab_score = r["能力スコア"]
-        odds_score = r["オッズスコア"]
-
-        ab_term = round(ab_score * ability_w, 2)
-        odds_term = round(odds_score * odds_w, 2)
+        ab_term, odds_term = round(r["能力スコア"] * ability_w, 2), round(r["オッズスコア"] * odds_w, 2)
         syn_val = round(ab_term + odds_term, 2)
+        df_calc.loc[idx, ["能力項", "オッズ項", "合成値"]] = [ab_term, odds_term, syn_val]
+        phase5_lines.append(f"馬番{r['馬番']} [{r['馬名']}]：能力項[{ab_term:.2f}] ＋ オッズ項[{odds_term:.2f}] ＝ 合成値[{syn_val:.2f}]")
 
-        df_calc.loc[idx, "能力項"] = ab_term
-        df_calc.loc[idx, "オッズ項"] = odds_term
-        df_calc.loc[idx, "合成値"] = syn_val
-
-        phase5_lines.append(f"馬番{r['馬番']} [{r['馬名']}]（単勝オッズ: {r['単勝オッズ']}倍）：")
-        phase5_lines.append(f"・能力項 （正規化能力スコア {ab_score:.1f} × {ability_w:.2f}） ＝ [{ab_term:.2f}]")
-        phase5_lines.append(f"・オッズ項（正規化オッズスコア {odds_score:.1f} × {odds_w:.2f}） ＝ [{odds_term:.2f}]")
-
-    phase5_lines.append("\n【2段階目：足し算の実行と合成値の確定】")
-    for idx, r in df_calc.iterrows():
-        phase5_lines.append(f"馬番{r['馬番']} [{r['馬名']}]：{r['能力項']:.2f} ＋ {r['オッズ項']:.2f} ＝ 合成値[{r['合成値']:.2f}]")
-
-    phase5_lines.append("\n全頭の合成値について、(能力項掛け算結果) ＋ (オッズ項掛け算結果) ＝ 合成値 の算術的整合性を確認しました。\n")
-
-    df_sorted = df_calc.sort_values(
-        by=["合成値", "能力スコア", "オッズスコア", "馬番"],
-        ascending=[False, False, False, True]
-    ).reset_index(drop=True)
+    df_sorted = df_calc.sort_values(by=["合成値", "能力スコア", "オッズスコア", "馬番"], ascending=[False, False, False, True]).reset_index(drop=True)
     df_sorted["合成順位"] = range(1, len(df_sorted) + 1)
 
-    TRACK_STD_DEV = {
-        "東京": 15.0, "京都": 15.0, "阪神": 15.0, "中山": 18.0,
-        "中京": 18.0, "新潟": 20.0, "福島": 20.0, "函館": 20.0,
-        "札幌": 20.0, "小倉": 20.0,
-    }
-    std_dev = TRACK_STD_DEV.get(track, 15.0)
+    TRACK_STD_DEV = {"東京": 15.0, "京都": 15.0, "阪神": 15.0, "中山": 18.0, "中京": 18.0, "新潟": 20.0, "福島": 20.0, "函館": 20.0, "札幌": 20.0, "小倉": 20.0}
     NUM_SIMS = 10000
 
-    syn_scores = df_sorted["合成値"].values
-    num_horses = len(syn_scores)
-
     np.random.seed(42)
-    noise = np.random.normal(loc=0.0, scale=std_dev, size=(NUM_SIMS, num_horses))
-    sim_scores = syn_scores + noise
-
+    sim_scores = df_sorted["合成値"].values + np.random.normal(loc=0.0, scale=TRACK_STD_DEV.get(track, 15.0), size=(NUM_SIMS, len(df_sorted)))
     ranks = np.argsort(np.argsort(-sim_scores, axis=1), axis=1) + 1
 
     df_sorted["勝率(MC)"] = (np.sum(ranks == 1, axis=0) / NUM_SIMS * 100).round(1)
     df_sorted["複勝率(MC)"] = (np.sum(ranks <= 3, axis=0) / NUM_SIMS * 100).round(1)
-
     df_sorted["期待値"] = (df_sorted["単勝オッズ"] * (df_sorted["勝率(MC)"] / 100.0)).round(2)
 
-    top3_odds_indices = df_sorted.sort_values(by="単勝オッズ").index[:3]
-    top3_in_place_counts = np.sum(ranks[:, top3_odds_indices] <= 3, axis=1)
-
-    prob_top3_3 = (np.sum(top3_in_place_counts == 3) / NUM_SIMS) * 100
-    prob_top3_2 = (np.sum(top3_in_place_counts == 2) / NUM_SIMS) * 100
-    prob_top3_1 = (np.sum(top3_in_place_counts == 1) / NUM_SIMS) * 100
-    prob_top3_0 = (np.sum(top3_in_place_counts == 0) / NUM_SIMS) * 100
-
+    top3_in_place_counts = np.sum(ranks[:, df_sorted.sort_values(by="単勝オッズ").index[:3]] <= 3, axis=1)
+    prob_top3_3, prob_top3_2, prob_top3_1, prob_top3_0 = [(np.sum(top3_in_place_counts == i) / NUM_SIMS) * 100 for i in [3, 2, 1, 0]]
     prob_top3_2_or_more = prob_top3_2 + prob_top3_3
 
-    # ==========================================================================
-    # 3連複荒れ度判定ロジック（7区分配当目安連動・変更後）
-    # ==========================================================================
     PATTERNS_ORDER = ["堅1", "堅2", "並1", "並2", "荒1", "荒2", "大荒"]
     PATTERN_DESCS = {
-        "堅1": "配当目安 ～20倍の確率が高い",
-        "堅2": "配当目安 20～30倍の確率が高い",
-        "並1": "配当目安 30～40倍の確率が高い",
-        "並2": "配当目安 40～50倍の確率が高い",
-        "荒1": "配当目安 50～60倍の確率が高い",
-        "荒2": "配当目安 60～80倍の確率が高い",
-        "大荒": "配当目安 80倍以上の確率が高い",
-        "判定保留": "条件を満たさず、レンジを無理に決めない"
+        "堅1": "配当目安 ～20倍の確率が高い", "堅2": "配当目安 20～30倍の確率が高い",
+        "並1": "配当目安 30～40倍の確率が高い", "並2": "配当目安 40～50倍の確率が高い",
+        "荒1": "配当目安 50～60倍の確率が高い", "荒2": "配当目安 60～80倍の確率が高い",
+        "大荒": "配当目安 80倍以上の確率が高い", "判定保留": "条件を満たさず、レンジを無理に決めない"
     }
 
     if payout_probs:
-        p_under_20 = payout_probs.get("～20倍", 0)
-        p_20_30    = payout_probs.get("20～30倍", 0)
-        p_30_40    = payout_probs.get("30～40倍", 0)
-        p_40_50    = payout_probs.get("40～50倍", 0)
-        p_50_60    = payout_probs.get("50～60倍", 0)
-        p_60_80    = payout_probs.get("60～80倍", 0)
-        p_over_80  = payout_probs.get("80倍以上", 0)
+        p_u20, p_20, p_30, p_40, p_50, p_60, p_80 = payout_probs.values()
+        cum_30, cum_40, cum_50, cum_60, cum_80 = p_u20 + p_20, p_u20 + p_20 + p_30, p_u20 + p_20 + p_30 + p_40, p_u20 + p_20 + p_30 + p_40 + p_50, sum(list(payout_probs.values())[:6]) + p_80
 
-        cum_30 = p_under_20 + p_20_30
-        cum_40 = cum_30 + p_30_40
-        cum_50 = cum_40 + p_40_50
-        cum_60 = cum_50 + p_50_60
-        cum_80 = cum_60 + p_60_80
+        race_pattern = next((pat for pat, cond in [
+            ("堅1", p_u20 >= 20), ("堅2", p_20 >= 25), ("並1", p_30 >= 25), ("並2", p_40 >= 25),
+            ("荒1", p_50 >= 25), ("荒2", p_60 >= 30), ("大荒", p_80 >= 30),
+            ("堅2", cum_30 >= 35), ("並1", cum_40 >= 50), ("並2", cum_50 >= 60),
+            ("荒1", cum_60 >= 70), ("荒2", cum_80 >= 85)
+        ] if cond), "大荒")
 
-        if p_under_20 >= 20:
-            race_pattern = "堅1"
-        elif p_20_30 >= 25:
-            race_pattern = "堅2"
-        elif p_30_40 >= 25:
-            race_pattern = "並1"
-        elif p_40_50 >= 25:
-            race_pattern = "並2"
-        elif p_50_60 >= 25:
-            race_pattern = "荒1"
-        elif p_60_80 >= 30:
-            race_pattern = "荒2"
-        elif p_over_80 >= 30:
-            race_pattern = "大荒"
-
-        elif cum_30 >= 35:
-            race_pattern = "堅2"
-        elif cum_40 >= 50:
-            race_pattern = "並1"
-        elif cum_50 >= 60:
-            race_pattern = "並2"
-        elif cum_60 >= 70:
-            race_pattern = "荒1"
-        elif cum_80 >= 85:
-            race_pattern = "荒2"
-        else:
-            race_pattern = "大荒"
-
-        pattern_desc = PATTERN_DESCS.get(race_pattern, "")
-
-        if race_pattern in PATTERNS_ORDER:
-            current_idx = PATTERNS_ORDER.index(race_pattern)
-            shift = 0
-            if prob_top3_2_or_more >= 60.0:
-                shift = 1
-
-            if shift > 0 and current_idx > 0:
-                new_idx = max(0, current_idx - shift)
-                race_pattern = f"{PATTERNS_ORDER[new_idx]} ※"
-                pattern_desc = f"{PATTERN_DESCS[PATTERNS_ORDER[new_idx]]}（※上位の２頭も入る確率が高め（{prob_top3_2_or_more:.1f}%）のため、1ランク調整されました）"
+        if prob_top3_2_or_more >= 60.0 and race_pattern in PATTERNS_ORDER and PATTERNS_ORDER.index(race_pattern) > 0:
+            new_idx = max(0, PATTERNS_ORDER.index(race_pattern) - 1)
+            race_pattern = f"{PATTERNS_ORDER[new_idx]} ※"
     else:
         race_pattern = "判定保留"
-        pattern_desc = "配当データ不足のため判定保留を適用します。"
 
-    # ==========================================================================
-    # 買い目選定ロジック
-    # ==========================================================================
-    df_valid = df_sorted[
-        (df_sorted["オッズ順位"] < 10) & 
-        (df_sorted["単勝オッズ"] < 30.0)
-    ].copy()
+    pattern_desc = PATTERN_DESCS.get(race_pattern.split()[0], "")
 
-    if len(df_valid) < 5:
-        df_valid = df_sorted.head(10).copy()
+    df_valid = df_sorted[(df_sorted["オッズ順位"] < 10) & (df_sorted["単勝オッズ"] < 30.0)]
+    if len(df_valid) < 5: df_valid = df_sorted.head(10)
 
-    df_odds_sorted = df_valid.sort_values(by="オッズ順位")
-    
-    if not df_odds_sorted.empty:
-        jiku_horse = df_odds_sorted.iloc[0]
-        jiku_reason = f"オッズ1位固定ルールにより単勝オッズ1位（馬番: {jiku_horse['馬番']} / {jiku_horse['単勝オッズ']}倍）を選出"
-    else:
-        jiku_horse = df_sorted.iloc[0]
-        jiku_reason = "条件該当馬不在のため全体上位馬を選出"
-
-    df_without_jiku = df_valid[df_valid["馬番"] != jiku_horse["馬番"]].copy()
+    jiku_horse = df_valid.sort_values(by="オッズ順位").iloc[0] if not df_valid.empty else df_sorted.iloc[0]
+    df_without_jiku = df_valid[df_valid["馬番"] != jiku_horse["馬番"]]
     aite1_df = df_without_jiku.sort_values(by="オッズ順位").head(2)
 
-    if (prob_top3_2_or_more < 30.0) and (race_pattern in ["荒2", "大荒"]):
-        aite2_count = 5
-        aite_reason_str = "上位3頭から2頭入る確率が30%未満かつ荒れ予想（荒2・大荒）のため、相手2は軸馬・相手1を除き合成順位上位5頭選出"
-    else:
-        aite2_count = 4
-        aite_reason_str = "通常条件のため、相手2は軸馬・相手1を除き合成順位上位4頭選出"
+    aite2_count = 5 if (prob_top3_2_or_more < 30.0) and (race_pattern in ["荒2", "大荒"]) else 4
+    exclude_horses = {jiku_horse["馬番"]} | set(aite1_df["馬番"].tolist())
+    aite2_df = (df_valid[~df_valid["馬番"].isin(exclude_horses)] if not df_valid[~df_valid["馬番"].isin(exclude_horses)].empty else df_sorted[~df_sorted["馬番"].isin(exclude_horses)]).sort_values(by="合成順位").head(aite2_count)
 
-    exclude_horses = set([jiku_horse["馬番"]] + aite1_df["馬番"].tolist())
-    df_aite2_pool = df_valid[~df_valid["馬番"].isin(exclude_horses)].copy()
-    if df_aite2_pool.empty:
-        df_aite2_pool = df_sorted[~df_sorted["馬番"].isin(exclude_horses)].copy()
-        
-    aite2_df = df_aite2_pool.sort_values(by="合成順位").head(aite2_count)
+    all_aite_nums = sorted(pd.concat([aite1_df, aite2_df]).drop_duplicates(subset=["馬番"])["馬番"].tolist())
+    fmt_points = len(list(itertools.combinations(all_aite_nums, 2)))
 
-    aite1_df_syn_sorted = df_sorted[df_sorted["馬番"].isin(aite1_df["馬番"].tolist())]
-    aite2_df_syn_sorted = df_sorted[df_sorted["馬番"].isin(aite2_df["馬番"].tolist())]
-
-    aite1_horses = aite1_df_syn_sorted["馬番"].tolist()
-    aite2_horses = aite2_df_syn_sorted["馬番"].tolist()
-
-    selected_aite_df = pd.concat([aite1_df, aite2_df]).drop_duplicates(subset=["馬番"])
-    
-    all_aite_nums = sorted(selected_aite_df["馬番"].tolist())
-    sanrenpuku_combos = list(itertools.combinations(all_aite_nums, 2))
-    fmt_points = len(sanrenpuku_combos)
-
-    jiku_log_lines = ["\n#### ■ 3-3. 軸馬・相手馬決定判定プロセス"]
-    jiku_log_lines.append(f"【軸馬判定】：{jiku_reason} → 馬番{jiku_horse['馬番']}（{jiku_horse['馬名']}）")
-    jiku_log_lines.append(f"【相手判定】：{aite_reason_str}")
-
-    ODDS_RANGE_MAP = {
-        "堅1": "購入目安 ～20倍",
-        "堅2": "購入目安 15～35倍",
-        "並1": "購入目安 25～45倍",
-        "並2": "購入目安 35～55倍",
-        "荒1": "購入目安 45～65倍",
-        "荒2": "購入目安 55～85倍",
-        "大荒": "購入目安 75倍以上",
-        "判定保留": "購入目安 不明"
-    }
-    
-    base_race_pattern = race_pattern.split()[0] if race_pattern else race_pattern
-    target_odds_range = ODDS_RANGE_MAP.get(base_race_pattern, "")
+    ODDS_RANGE_MAP = {"堅1": "購入目安 ～20倍", "堅2": "購入目安 15～35倍", "並1": "購入目安 25～45倍", "並2": "購入目安 35～55倍", "荒1": "購入目安 45～65倍", "荒2": "購入目安 55～85倍", "大荒": "購入目安 75倍以上"}
+    target_odds_range = ODDS_RANGE_MAP.get(race_pattern.split()[0], "")
 
     phase6_lines = [
         "#### ■ PHASE 6：最終ランキングと買い目\n",
@@ -980,71 +586,27 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         f"* **取得3連複オッズ**:\n{odds_table_md}",
         f"\n* **推定配当確率**:\n{prob_table_md}",
         f"\n**【レース判定結果】：{race_pattern}** （{pattern_desc}）\n",
-        f"  * 単勝1〜3番人気の複勝(3着以内)入着シミュレーション:  ",
-        f"    0頭入る確率: **{prob_top3_0:.1f}%**  ",
-        f"    1頭入る確率: **{prob_top3_1:.1f}%**  ",
-        f"    2頭入る確率: **{prob_top3_2:.1f}%**  ",
-        f"    3頭入る確率: **{prob_top3_3:.1f}%**  ",
-        f"    ★2頭以上入る合計確率: **{prob_top3_2_or_more:.1f}%**  "
+        f"  * 単勝1〜3番人気の複勝入着確率: 2頭以上入る合計確率: **{prob_top3_2_or_more:.1f}%**"
     ]
 
-    phase6_lines.append("\n#### 2. 最終ランキング\n")
-    phase6_lines.append("| 順位 | 馬(オッズ) | 合成値(順位) | オッズ(順位) | 能力(順位) | 勝率 | 複勝率 | 期待値 | 位置 | 走数 |")
-    phase6_lines.append("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
+    phase6_lines.append("\n#### 2. 最終ランキング\n| 順位 | 馬(オッズ) | 合成値(順位) | オッズ(順位) | 能力(順位) | 勝率 | 複勝率 | 期待値 | 位置 | 走数 |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
 
-    selected_horse_numbers = set([jiku_horse["馬番"]] + all_aite_nums)
-
+    selected_horse_numbers = {jiku_horse["馬番"]} | set(all_aite_nums)
     for idx, r in df_sorted.iterrows():
-        rank_num = idx + 1
-        pos = r.get("位置取り", "差") 
-        valid_runs = r.get("走数", 0)
-        win_mc = f"{r['勝率(MC)']:.1f}%"
-        place_mc = f"{r['複勝率(MC)']:.1f}%"
-        ev_val = f"{r['期待値']:.2f}"
-        
-        if r["馬番"] in selected_horse_numbers:
-            phase6_lines.append(
-                f"| **{rank_num}** | **{r['馬番']} {r['馬名']}({r['単勝オッズ']}倍)** | **{r['合成値']:.2f} ({r['合成順位']}位)** | **{r['オッズスコア']:.1f} ({r['オッズ順位']}位)** | **{r['能力スコア']:.1f} ({r['能力順位']}位)** | **{win_mc}** | **{place_mc}** | **{ev_val}** | **{pos}** | **{valid_runs}** |"
-            )
-        else:
-            phase6_lines.append(
-                f"| {rank_num} | {r['馬番']} {r['馬名']}({r['単勝オッズ']}倍) | {r['合成値']:.2f} ({r['合成順位']}位) | {r['オッズスコア']:.1f} ({r['オッズ順位']}位) | {r['能力スコア']:.1f} ({r['能力順位']}位) | {win_mc} | {place_mc} | {ev_val} | {pos} | {valid_runs} |"
-            )
+        prefix = "**" if r["馬番"] in selected_horse_numbers else ""
+        phase6_lines.append(f"| {prefix}{idx + 1}{prefix} | {prefix}{r['馬番']} {r['馬名']}({r['単勝オッズ']}倍){prefix} | {prefix}{r['合成値']:.2f} ({r['合成順位']}位){prefix} | {prefix}{r['オッズスコア']:.1f} ({r['オッズ順位']}位){prefix} | {prefix}{r['能力スコア']:.1f} ({r['能力順位']}位){prefix} | {prefix}{r['勝率(MC)']:.1f}%{prefix} | {prefix}{r['複勝率(MC)']:.1f}%{prefix} | {prefix}{r['期待値']:.2f}{prefix} | {prefix}{r.get('位置取り', '差')}{prefix} | {prefix}{r.get('走数', 0)}{prefix} |")
 
-    phase6_lines.append(f"\n#### 3. 買い目（判定：【{race_pattern}】 {target_odds_range}）\n")
+    aite1_display_str = ", ".join([f"{h}({df_sorted.loc[df_sorted['馬番'] == h, '複勝率(MC)'].values[0]:.1f}%)" for h in aite1_df["馬番"]])
+    aite2_str = ", ".join(f"{h:>2}" for h in aite2_df["馬番"])
 
-    aite1_formatted_parts = []
-    for h in aite1_horses:
-        p_val = df_sorted.loc[df_sorted["馬番"] == h, "複勝率(MC)"]
-        p_str = f"{p_val.values[0]:.1f}%" if not p_val.empty else "0.0%"
-        aite1_formatted_parts.append((str(h), p_str))
+    phase6_lines.extend([
+        f"\n#### 3. 買い目（判定：【{race_pattern}】 {target_odds_range}）\n",
+        "**【３連複１頭軸流し（馬番表記）】**  ",
+        f"軸  ：{jiku_horse['馬番']}（{jiku_horse['単勝オッズ']}倍）  ",
+        f"相手1：{aite1_display_str}  ",
+        f"相手2：{aite2_str}  \n",
+        "#### 4. 入力用買い目\n",
+        f"* 基本購入：{jiku_horse['馬番']} - {','.join(map(str, all_aite_nums))}（{fmt_points}点）"
+    ])
 
-    aite1_nums_str = ", ".join([item[0] for item in aite1_formatted_parts])
-    aite1_rates_str = ",".join([item[1] for item in aite1_formatted_parts])
-    aite1_display_str = f"{aite1_nums_str}（{aite1_rates_str}）"
-
-    aite2_str = ", ".join(f"{h:>2}" for h in aite2_horses)
-
-    phase6_lines.append("**【３連複１頭軸流し（馬番表記）】**  ")
-    phase6_lines.append(f"軸  ：{jiku_horse['馬番']}（{jiku_horse['単勝オッズ']}倍）  ")
-    phase6_lines.append(f"相手1：{aite1_display_str}  ")
-    phase6_lines.append(f"相手2：{aite2_str}  \n")
-
-    phase6_lines.append("#### 4. 入力用買い目\n")
-    
-    jiku_val = jiku_horse["馬番"]
-    aite_str = ",".join(map(str, all_aite_nums))
-
-    phase6_lines.append(f"* 基本購入：{jiku_val} - {aite_str}（{fmt_points}点）")
-
-    full_report = []
-    if is_simple:
-        full_report.extend(phase6_lines)
-    else:
-        full_report.extend(phase1_lines)
-        full_report.extend(phase2_lines)
-        full_report.extend(phase5_lines)
-        full_report.extend(jiku_log_lines)
-        full_report.extend(phase6_lines)
-
-    return "\n".join(full_report)
+    return "\n".join(phase6_lines if is_simple else phase1_lines + phase2_lines + phase5_lines + ["\n#### ■ 3-3. 軸馬・相手馬決定判定プロセス"] + phase6_lines)
