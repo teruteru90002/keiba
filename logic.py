@@ -596,7 +596,11 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         prefix = "**" if r["馬番"] in selected_horse_numbers else ""
         phase6_lines.append(f"| {prefix}{idx + 1}{prefix} | {prefix}{r['馬番']} {r['馬名']}({r['単勝オッズ']}倍){prefix} | {prefix}{r['合成値']:.2f} ({r['合成順位']}位){prefix} | {prefix}{r['オッズスコア']:.1f} ({r['オッズ順位']}位){prefix} | {prefix}{r['能力スコア']:.1f} ({r['能力順位']}位){prefix} | {prefix}{r['勝率(MC)']:.1f}%{prefix} | {prefix}{r['複勝率(MC)']:.1f}%{prefix} | {prefix}{r['期待値']:.2f}{prefix} | {prefix}{r.get('位置取り', '差')}{prefix} | {prefix}{r.get('走数', 0)}{prefix} |")
 
-    aite1_display_str = ", ".join([f"{h}({df_sorted.loc[df_sorted['馬番'] == h, '複勝率(MC)'].values[0]:.1f}%)" for h in aite1_df["馬番"]])
+    # 相手1の出力を指定されたフォーマット（馬番と確率を分離）に変更
+    aite1_nums = ", ".join([str(h) for h in aite1_df["馬番"]])
+    aite1_pcts = ",".join([f"{df_sorted.loc[df_sorted['馬番'] == h, '複勝率(MC)'].values[0]:.1f}%" for h in aite1_df["馬番"]])
+    aite1_display_str = f"{aite1_nums}({aite1_pcts})"
+    
     aite2_str = ", ".join(f"{h:>2}" for h in aite2_df["馬番"])
 
     phase6_lines.extend([
