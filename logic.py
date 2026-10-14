@@ -205,8 +205,8 @@ def calculate_payout_probabilities(o1, o10, o20, o30, o50):
     est_center = v_o1 * 1.6 + (v_o10 / 2.0)
     zones = [10.0, 25.0, 35.0, 45.0, 55.0, 70.0, 100.0]
     
-    # 推定配当確率が全体的に5%ほど上目（高配当寄り）に出るよう、インデックスに応じて高配当側のウェイトを底上げ
-    scores = [max(1.0, (50.0 - abs(z - est_center) * 0.7) * (1.0 + i * 0.015)) for i, z in enumerate(zones)]
+    # さらに5%上目（合計で高配当寄りへ強くシフト）に調整
+    scores = [max(1.0, (50.0 - abs(z - est_center) * 0.7) * (1.0 + i * 0.03)) for i, z in enumerate(zones)]
     total_score = sum(scores)
 
     if total_score > 0:
@@ -520,7 +520,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         df_calc.loc[idx, ["能力項", "オッズ項", "合成値"]] = [ab_term, odds_term, syn_val]
         phase5_lines.append(f"馬番{r['馬番']} [{r['馬名']}]：能力項[{ab_term:.2f}] ＋ オッズ項[{odds_term:.2f}] ＝ 合成値[{syn_val:.2f}]")
 
-    df_sorted = df_calc.sort_values(by=["合成値", "能力スコア", "オッズスコア", "馬番"], ascending=[False, False, False, True]).reset_index(drop=True)
+    df_sorted = df_calc.sort_values(by=["合成値", "能力スコア", "オッズ順位", "馬番"], ascending=[False, False, False, True]).reset_index(drop=True)
     df_sorted["合成順位"] = range(1, len(df_sorted) + 1)
 
     TRACK_STD_DEV = {"東京": 15.0, "京都": 15.0, "阪神": 15.0, "中山": 18.0, "中京": 18.0, "新潟": 20.0, "福島": 20.0, "函館": 20.0, "札幌": 20.0, "小倉": 20.0}
