@@ -540,10 +540,10 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     PATTERNS_ORDER = ["堅1", "堅2", "並1", "並2", "荒1", "荒2", "大荒"]
     PATTERN_DESCS = {
-        "堅1": "配当目安 ～20倍の確率が高い", "堅2": "配当目安 15～35倍の確率が高い",
-        "並1": "配当目安 25～45倍の確率が高い", "並2": "配当目安 35～55倍の確率が高い",
-        "荒1": "配当目安 45～65倍の確率が高い", "荒2": "配当目安 55～85倍の確率が高い",
-        "大荒": "配当目安 75倍以上の確率が高い", "判定保留": "条件を満たさず、レンジを無理に決めない"
+        "堅1": "配当目安 ～20倍の確率が高い", "堅2": "配当目安 10～25倍の確率が高い",
+        "並1": "配当目安 20～35倍の確率が高い", "並2": "配当目安 25～45倍の確率が高い",
+        "荒1": "配当目安 35～55倍の確率が高い", "荒2": "配当目安 50～80倍の確率が高い",
+        "大荒": "配当目安 80倍以上の確率が高い", "判定保留": "条件を満たさず、レンジを無理に決めない"
     }
 
     if payout_probs:
@@ -581,7 +581,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     all_aite_nums = sorted(pd.concat([aite1_df, aite2_df]).drop_duplicates(subset=["馬番"])["馬番"].tolist())
     fmt_points = len(list(itertools.combinations(all_aite_nums, 2)))
 
-    ODDS_RANGE_MAP = {"堅1": "購入目安 ～20倍", "堅2": "購入目安 15～35倍", "並1": "購入目安 25～45倍", "並2": "購入目安 35～55倍", "荒1": "購入目安 45～65倍", "荒2": "購入目安 55～85倍", "大荒": "購入目安 75倍以上"}
+    ODDS_RANGE_MAP = {"堅1": "購入目安 ～20倍", "堅2": "購入目安 10～25倍", "並1": "購入目安 20～35倍", "並2": "購入目安 25～45倍", "荒1": "購入目安 35～55倍", "荒2": "購入目安 50～80倍", "大荒": "購入目安 75倍以上"}
     target_odds_range = ODDS_RANGE_MAP.get(clean_race_pattern, "")
 
     phase6_lines = [
