@@ -192,6 +192,9 @@ def estimate_position_type_final_corner(past_runs):
     elif avg_ratio <= 0.75: return "差"
     else: return "追"
 
+# ============================================================
+# 配当帯確率計算ロジック（オッズスプレッド考慮型：combined_race_analyzer日別.pyと統一）[cite: 3]
+# ============================================================
 def calculate_payout_probabilities(o1, o10, o20, o30, o50):
     if o1 is None:
         return None
@@ -202,16 +205,18 @@ def calculate_payout_probabilities(o1, o10, o20, o30, o50):
     v_o30 = float(o30) if o30 is not None else v_o20 * 1.5
     v_o50 = float(o50) if o50 is not None else v_o30 * 1.4
 
-    est_center = v_o1 * 1.6 + (v_o10 / 2.0)
+    spread_factor = (v_o30 / max(v_o1, 1.0)) / 15.0
+    est_center = v_o1 * 1.4 + (v_o10 / 2.0) * min(max(spread_factor, 0.8), 1.5)
+    
     zones = [10.0, 25.0, 35.0, 45.0, 55.0, 70.0, 100.0]
     
-    # さらに5%上目（合計で高配当寄りへ強くシフト）に調整
-    scores = [max(1.0, (50.0 - abs(z - est_center) * 0.7) * (1.0 + i * 0.03)) for i, z in enumerate(zones)]
+    scores = [max(0.5, (55.0 - abs(z - est_center) * 0.65) * (1.0 + i * 0.04)) for i, z in enumerate(zones)]
     total_score = sum(scores)
 
     if total_score > 0:
         p = [round(s / total_score * 100) for s in scores]
-        p[0] += 100 - sum(p)
+        diff = 100 - sum(p)
+        p[0] += diff
     else:
         p = [14, 14, 14, 14, 14, 15, 15]
 
@@ -224,6 +229,62 @@ def calculate_payout_probabilities(o1, o10, o20, o30, o50):
         "60～80倍": max(0, p[5]),
         "80倍以上": max(0, p[6])
     }
+
+# ============================================================
+# 3連複荒れ度判定ロジック（閾値最適化版：combined_race_analyzer日別.pyと統一）[cite: 3]
+# ============================================================
+def determine_race_pattern(payout_probs, prob_top3_2_or_more=0.0):
+    if not payout_probs:
+        return "データ不足"
+
+    PATTERNS_ORDER = ["堅1", "堅2", "並1", "並2", "荒1", "荒2", "大荒"]
+
+    p_under_20 = payout_probs.get("～20倍", 0)
+    p_20_30    = payout_probs.get("20～30倍", 0)
+    p_30_40    = payout_probs.get("30～40倍", 0)
+    p_40_50    = payout_probs.get("40～50倍", 0)
+    p_50_60    = payout_probs.get("50～60倍", 0)
+    p_60_80    = payout_probs.get("60～80倍", 0)
+    p_over_80  = payout_probs.get("80倍以上", 0)
+
+    cum_30 = p_under_20 + p_20_30
+    cum_40 = cum_30 + p_30_40
+    cum_50 = cum_40 + p_40_50
+    cum_60 = cum_50 + p_50_60
+    cum_80 = cum_60 + p_60_80
+
+    if p_under_20 >= 21:
+        race_pattern = "堅1"
+    elif p_20_30 >= 24:
+        race_pattern = "堅2"
+    elif p_30_40 >= 22:
+        race_pattern = "並1"
+    elif p_40_50 >= 21:
+        race_pattern = "並2"
+    elif p_50_60 >= 21:
+        race_pattern = "荒1"
+    elif p_60_80 >= 24:
+        race_pattern = "荒2"
+    elif p_over_80 >= 22:
+        race_pattern = "大荒"
+    elif cum_30 >= 38:
+        race_pattern = "堅2"
+    elif cum_40 >= 52:
+        race_pattern = "並1"
+    elif cum_50 >= 62:
+        race_pattern = "並2"
+    elif cum_60 >= 72:
+        race_pattern = "荒1"
+    elif cum_80 >= 86:
+        race_pattern = "荒2"
+    else:
+        race_pattern = "大荒"
+
+    if prob_top3_2_or_more >= 60.0 and race_pattern in PATTERNS_ORDER and PATTERNS_ORDER.index(race_pattern) > 0:
+        new_idx = max(0, PATTERNS_ORDER.index(race_pattern) - 1)
+        race_pattern = f"{PATTERNS_ORDER[new_idx]} ※"
+
+    return race_pattern
 
 PLACE_CODE_MAP = {
     "01": "札幌", "02": "函館", "03": "福島", "04": "新潟", "05": "東京",
@@ -538,31 +599,15 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     prob_top3_3, prob_top3_2, prob_top3_1, prob_top3_0 = [(np.sum(top3_in_place_counts == i) / NUM_SIMS) * 100 for i in [3, 2, 1, 0]]
     prob_top3_2_or_more = prob_top3_2 + prob_top3_3
 
-    PATTERNS_ORDER = ["堅1", "堅2", "並1", "並2", "荒1", "荒2", "大荒"]
     PATTERN_DESCS = {
         "堅1": "配当目安 ～20倍の確率が高い", "堅2": "配当目安 10～25倍の確率が高い",
         "並1": "配当目安 20～35倍の確率が高い", "並2": "配当目安 25～45倍の確率が高い",
         "荒1": "配当目安 35～55倍の確率が高い", "荒2": "配当目安 50～80倍の確率が高い",
-        "大荒": "配当目安 80倍以上の確率が高い", "判定保留": "条件を満たさず、レンジを無理に決めない"
+        "大荒": "配当目安 80倍以上の確率が高い", "データ不足": "条件を満たさず、レンジを無理に決めない"
     }
 
-    if payout_probs:
-        p_u20, p_20, p_30, p_40, p_50, p_60, p_80 = payout_probs.values()
-        cum_30, cum_40, cum_50, cum_60, cum_80 = p_u20 + p_20, p_u20 + p_20 + p_30, p_u20 + p_20 + p_30 + p_40, p_u20 + p_20 + p_30 + p_40 + p_50, sum(list(payout_probs.values())[:6]) + p_80
-
-        race_pattern = next((pat for pat, cond in [
-            ("堅1", p_u20 >= 20), ("堅2", p_20 >= 25), ("並1", p_30 >= 25), ("並2", p_40 >= 25),
-            ("荒1", p_50 >= 25), ("荒2", p_60 >= 30), ("大荒", p_80 >= 30),
-            ("堅2", cum_30 >= 35), ("並1", cum_40 >= 50), ("並2", cum_50 >= 60),
-            ("荒1", cum_60 >= 70), ("荒2", cum_80 >= 85)
-        ] if cond), "大荒")
-
-        if prob_top3_2_or_more >= 60.0 and race_pattern in PATTERNS_ORDER and PATTERNS_ORDER.index(race_pattern) > 0:
-            new_idx = max(0, PATTERNS_ORDER.index(race_pattern) - 1)
-            race_pattern = f"{PATTERNS_ORDER[new_idx]} ※"
-    else:
-        race_pattern = "判定保留"
-
+    # 共通関数 determine_race_pattern を呼び出すように変更[cite: 3]
+    race_pattern = determine_race_pattern(payout_probs, prob_top3_2_or_more)
     pattern_desc = PATTERN_DESCS.get(race_pattern.split()[0], "")
 
     df_valid = df_sorted[(df_sorted["オッズ順位"] < 10) & (df_sorted["単勝オッズ"] < 30.0)]
