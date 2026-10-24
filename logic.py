@@ -193,7 +193,7 @@ def estimate_position_type_final_corner(past_runs):
     else: return "追"
 
 # ============================================================
-# 配当帯確率計算ロジック（オッズスプレッド考慮型：combined_race_analyzer日別.pyと統一）[cite: 3]
+# 配当帯確率計算ロジック（オッズスプレッド考慮型：combined_race_analyzer日別.pyと統一）
 # ============================================================
 def calculate_payout_probabilities(o1, o10, o20, o30, o50):
     if o1 is None:
@@ -231,7 +231,7 @@ def calculate_payout_probabilities(o1, o10, o20, o30, o50):
     }
 
 # ============================================================
-# 3連複荒れ度判定ロジック（閾値最適化版：combined_race_analyzer日別.pyと統一）[cite: 3]
+# 3連複荒れ度判定ロジック（閾値最適化版：combined_race_analyzer日別.pyと統一）
 # ============================================================
 def determine_race_pattern(payout_probs, prob_top3_2_or_more=0.0):
     if not payout_probs:
@@ -279,10 +279,6 @@ def determine_race_pattern(payout_probs, prob_top3_2_or_more=0.0):
         race_pattern = "荒2"
     else:
         race_pattern = "大荒"
-
-    if prob_top3_2_or_more >= 60.0 and race_pattern in PATTERNS_ORDER and PATTERNS_ORDER.index(race_pattern) > 0:
-        new_idx = max(0, PATTERNS_ORDER.index(race_pattern) - 1)
-        race_pattern = f"{PATTERNS_ORDER[new_idx]} ※"
 
     return race_pattern
 
@@ -606,7 +602,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         "大荒": "配当目安 80倍以上の確率が高い", "データ不足": "条件を満たさず、レンジを無理に決めない"
     }
 
-    # 共通関数 determine_race_pattern を呼び出すように変更[cite: 3]
+    # パターンの上方修正処理を外した determine_race_pattern を呼び出し
     race_pattern = determine_race_pattern(payout_probs, prob_top3_2_or_more)
     pattern_desc = PATTERN_DESCS.get(race_pattern.split()[0], "")
 
