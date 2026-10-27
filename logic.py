@@ -580,11 +580,11 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     prob_top3_2_or_more = prob_top3_2 + prob_top3_3
 
     PATTERN_DESCS = {
-        "堅": "20倍以下の低配当が発生する確率が高く、大穴の発生率が極めて低いパターンです",
-        "並": "20倍以下よりも20～40倍ゾーンに確率の山が集中するパターンです",
-        "小荒": "40倍（4,000円）の壁を超えて40～50倍あたりに中心的な山がシフトする領域です",
-        "中荒": "低配当（～20倍）の確率が低下し、50～80倍の中穴ゾーンの確率が高まる傾向です",
-        "大荒": "オッズ40倍以下の累積確率が半数を割り込み、80倍以上の万馬券ゾーンの確率が高まっているパターンです",
+        "堅": "20倍以下の低配当が発生する確率が高く、荒れる可能性が極めて低いパターンです",
+        "並": "20～40倍ゾーンに確率の山が集中するパターンです",
+        "小荒": "40倍の壁を超えて40～50倍あたりに中心的な山がシフトする領域です",
+        "中荒": "50～80倍の中穴ゾーンの確率が高まる傾向です",
+        "大荒": "80倍以上の万馬券ゾーンの確率が高まっているパターンです",
         "データ不足": "条件を満たさず、レンジを無理に決めない"
     }
 
@@ -606,7 +606,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     all_aite_nums = sorted(pd.concat([aite1_df, aite2_df]).drop_duplicates(subset=["馬番"])["馬番"].tolist())
     fmt_points = len(list(itertools.combinations(all_aite_nums, 2)))
 
-    ODDS_RANGE_MAP = {"堅": "購入目安 ～2,000円", "並": "購入目安 2,001～4,000円", "小荒": "購入目安 4,001～6,000円", "中荒": "購入目安 6,001～8,000円", "大荒": "購入目安 8,001円～"}
+    ODDS_RANGE_MAP = {"堅": "購入目安 ～20倍", "並": "購入目安 20～40倍", "小荒": "購入目安 40～60倍", "中荒": "購入目安 60～80倍", "大荒": "購入目安 80倍～"}
     target_odds_range = ODDS_RANGE_MAP.get(race_pattern, "")
 
     phase6_lines = [
