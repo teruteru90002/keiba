@@ -193,7 +193,7 @@ def estimate_position_type_final_corner(past_runs):
     else: return "追"
 
 # ============================================================
-# 配当帯確率計算ロジック（オッズスプレッド考慮型）
+# 配当帯確率計算ロジック（オッズスプレッド考慮型：combined_race_analyzer日別.pyと統一）
 # ============================================================
 def calculate_payout_probabilities(o1, o10, o20, o30, o50):
     if o1 is None:
@@ -231,11 +231,13 @@ def calculate_payout_probabilities(o1, o10, o20, o30, o50):
     }
 
 # ============================================================
-# 3連複荒れ度判定ロジック（変更版）
+# 3連複荒れ度判定ロジック（閾値最適化版：combined_race_analyzer日別.pyと統一）
 # ============================================================
 def determine_race_pattern(payout_probs, prob_top3_2_or_more=0.0):
     if not payout_probs:
         return "データ不足"
+
+    PATTERNS_ORDER = ["堅1", "堅2", "並1", "並2", "荒1", "荒2", "大荒"]
 
     p_under_20 = payout_probs.get("～20倍", 0)
     p_20_30    = payout_probs.get("20～30倍", 0)
@@ -245,26 +247,40 @@ def determine_race_pattern(payout_probs, prob_top3_2_or_more=0.0):
     p_60_80    = payout_probs.get("60～80倍", 0)
     p_over_80  = payout_probs.get("80倍以上", 0)
 
-    cum_40 = p_under_20 + p_20_30 + p_30_40
+    cum_30 = p_under_20 + p_20_30
+    cum_40 = cum_30 + p_30_40
+    cum_50 = cum_40 + p_40_50
+    cum_60 = cum_50 + p_50_60
+    cum_80 = cum_60 + p_60_80
 
-    # 【堅】（～2,000円）
-    if cum_40 >= 52 and p_under_20 >= 14.5 and p_over_80 <= 3.5:
-        return "堅"
-    # 【並】（2,001～4,000円）
-    elif 50 <= cum_40 < 52 and (p_20_30 + p_30_40) >= 36:
-        return "並"
-    # 【小荒】（4,001～6,000円）
-    elif 48 <= cum_40 < 50 and p_40_50 >= 17.5:
-        return "小荒"
-    # 【中荒】（6,001～8,000円）
-    elif 46.5 <= cum_40 < 48 and p_50_60 >= 16.0:
-        return "中荒"
-    # 【大荒】（8,001円～）
-    elif cum_40 < 46.5 or p_over_80 >= 5.5:
-        return "大荒"
+    if p_under_20 >= 21:
+        race_pattern = "堅1"
+    elif p_20_30 >= 24:
+        race_pattern = "堅2"
+    elif p_30_40 >= 22:
+        race_pattern = "並1"
+    elif p_40_50 >= 21:
+        race_pattern = "並2"
+    elif p_50_60 >= 21:
+        race_pattern = "荒1"
+    elif p_60_80 >= 24:
+        race_pattern = "荒2"
+    elif p_over_80 >= 22:
+        race_pattern = "大荒"
+    elif cum_30 >= 38:
+        race_pattern = "堅2"
+    elif cum_40 >= 52:
+        race_pattern = "並1"
+    elif cum_50 >= 62:
+        race_pattern = "並2"
+    elif cum_60 >= 72:
+        race_pattern = "荒1"
+    elif cum_80 >= 86:
+        race_pattern = "荒2"
     else:
-        # どの条件にも完全に合致しない場合のデフォルト判定
-        return "並"
+        race_pattern = "大荒"
+
+    return race_pattern
 
 PLACE_CODE_MAP = {
     "01": "札幌", "02": "函館", "03": "福島", "04": "新潟", "05": "東京",
@@ -580,16 +596,15 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     prob_top3_2_or_more = prob_top3_2 + prob_top3_3
 
     PATTERN_DESCS = {
-        "堅": "20倍以下の低配当が発生する確率が高く、荒れる可能性が極めて低いパターンです",
-        "並": "20～40倍ゾーンに確率の山が集中するパターンです",
-        "小荒": "40倍の壁を超えて40～50倍あたりに中心的な山がシフトする領域です",
-        "中荒": "50～80倍の中穴ゾーンの確率が高まる傾向です",
-        "大荒": "80倍以上の万馬券ゾーンの確率が高まっているパターンです",
-        "データ不足": "条件を満たさず、レンジを無理に決めない"
+        "堅1": "配当目安 10倍以下の確率が高い", "堅2": "配当目安 ～10倍以下の確率が高い",
+        "並1": "配当目安 10～30倍の確率が高い", "並2": "配当目安 20～40倍の確率が高い",
+        "荒1": "配当目安 30～50倍の確率が高い", "荒2": "配当目安 50～80倍の確率が高い",
+        "大荒": "配当目安 80倍以上の確率が高い", "データ不足": "条件を満たさず、レンジを無理に決めない"
     }
 
+    # パターンの上方修正処理を外した determine_race_pattern を呼び出し
     race_pattern = determine_race_pattern(payout_probs, prob_top3_2_or_more)
-    pattern_desc = PATTERN_DESCS.get(race_pattern, "")
+    pattern_desc = PATTERN_DESCS.get(race_pattern.split()[0], "")
 
     df_valid = df_sorted[(df_sorted["オッズ順位"] < 10) & (df_sorted["単勝オッズ"] < 30.0)]
     if len(df_valid) < 5: df_valid = df_sorted.head(10)
@@ -598,7 +613,8 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     df_without_jiku = df_valid[df_valid["馬番"] != jiku_horse["馬番"]]
     aite1_df = df_without_jiku.sort_values(by="オッズ順位").head(2)
 
-    aite2_count = 5 if race_pattern in ["中荒", "大荒"] else 4
+    clean_race_pattern = race_pattern.split()[0]
+    aite2_count = 5 if clean_race_pattern in ["荒2", "大荒"] else 4
     
     exclude_horses = {jiku_horse["馬番"]} | set(aite1_df["馬番"].tolist())
     aite2_df = (df_valid[~df_valid["馬番"].isin(exclude_horses)] if not df_valid[~df_valid["馬番"].isin(exclude_horses)].empty else df_sorted[~df_sorted["馬番"].isin(exclude_horses)]).sort_values(by="合成順位").head(aite2_count)
@@ -606,8 +622,8 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     all_aite_nums = sorted(pd.concat([aite1_df, aite2_df]).drop_duplicates(subset=["馬番"])["馬番"].tolist())
     fmt_points = len(list(itertools.combinations(all_aite_nums, 2)))
 
-    ODDS_RANGE_MAP = {"堅": "購入目安 ～20倍", "並": "購入目安 20～40倍", "小荒": "購入目安 40～60倍", "中荒": "購入目安 60～80倍", "大荒": "購入目安 80倍～"}
-    target_odds_range = ODDS_RANGE_MAP.get(race_pattern, "")
+    ODDS_RANGE_MAP = {"堅1": "購入目安 ～10倍", "堅2": "購入目安 ～10倍", "並1": "購入目安 10～30倍", "並2": "購入目安 20～40倍", "荒1": "購入目安 30～50倍", "荒2": "購入目安 50～80倍", "大荒": "購入目安 80倍以上"}
+    target_odds_range = ODDS_RANGE_MAP.get(clean_race_pattern, "")
 
     phase6_lines = [
         "#### ■ PHASE 6：最終ランキングと買い目\n",
