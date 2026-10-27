@@ -193,7 +193,7 @@ def estimate_position_type_final_corner(past_runs):
     else: return "追"
 
 # ============================================================
-# 配当帯確率計算ロジック（5段階対応版）
+# 配当帯確率計算ロジック（5段階・オッズガード条件付き対応版）
 # ============================================================
 def calculate_payout_probabilities(o1, o10, o20, o30, o50):
     if o1 is None:
@@ -212,14 +212,30 @@ def calculate_payout_probabilities(o1, o10, o20, o30, o50):
     zones = [15.0, 30.0, 45.0, 65.0, 95.0]
     
     scores = [max(0.5, (50.0 - abs(z - est_center) * 0.6) * (1.0 + i * 0.05)) for i, z in enumerate(zones)]
+    
+    # 【ガード条件】1番人気オッズ（v_o1）に応じて、理論上あり得ない低配当ゾーンのスコアを強制的に0にする
+    if v_o1 >= 20.0:
+        scores[0] = 0.0  # 堅（～20倍）
+    if v_o1 >= 40.0:
+        scores[1] = 0.0  # 並（20～40倍）
+    if v_o1 >= 50.0:
+        scores[2] = 0.0  # 小荒（40～50倍）
+    if v_o1 >= 80.0:
+        scores[3] = 0.0  # 中荒（50～80倍）
+
     total_score = sum(scores)
 
     if total_score > 0:
         p = [round(s / total_score * 100) for s in scores]
         diff = 100 - sum(p)
-        p[0] += diff
+        # 残った端数を、スコアが0になっていない最初のゾーンに加算して合計100にする
+        non_zero_indices = [i for i, s in enumerate(scores) if s > 0]
+        if non_zero_indices:
+            p[non_zero_indices[0]] += diff
+        else:
+            p[0] += diff
     else:
-        p = [20, 20, 20, 20, 20]
+        p = [0, 0, 0, 0, 100]
 
     return {
         "堅": max(0, p[0]),
