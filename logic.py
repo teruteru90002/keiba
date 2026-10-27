@@ -193,7 +193,7 @@ def estimate_position_type_final_corner(past_runs):
     else: return "追"
 
 # ============================================================
-# 配当帯確率計算ロジック（新5段階・オッズガード条件付き対応版）
+# 配当帯確率計算ロジック（分析結果を反映した見直し版）
 # ============================================================
 def calculate_payout_probabilities(o1, o10, o20, o30, o50):
     if o1 is None:
@@ -205,22 +205,26 @@ def calculate_payout_probabilities(o1, o10, o20, o30, o50):
     v_o30 = float(o30) if o30 is not None else v_o20 * 1.5
     v_o50 = float(o50) if o50 is not None else v_o30 * 1.4
 
-    spread_factor = (v_o30 / max(v_o1, 1.0)) / 15.0
-    est_center = v_o1 * 1.4 + (v_o10 / 2.0) * min(max(spread_factor, 0.8), 1.5)
+    # 分析データの傾向（1番人気オッズや中位オッズの広がり）を踏まえた推定中心値の算出
+    spread_factor = (v_o30 / max(v_o1, 1.0)) / 14.0
+    est_center = v_o1 * 1.3 + (v_o10 / 2.2) * min(max(spread_factor, 0.7), 1.6)
     
-    # 5段階用の代表値ゾーン設定: 「堅」(15)、「並」(30)、「小荒」(50)、「中荒」(70)、「大荒」(95)
+    # 5段階ゾーンの代表値: 「堅」(15)、「並」(30)、「小荒」(50)、「中荒」(70)、「大荒」(95)
     zones = [15.0, 30.0, 50.0, 70.0, 95.0]
     
-    scores = [max(0.5, (50.0 - abs(z - est_center) * 0.6) * (1.0 + i * 0.05)) for i, z in enumerate(zones)]
+    # 各ゾーンに対する適合スコアを算出（実測データの分布傾向に合わせたガウス・ウェイト調整）
+    scores = [max(0.3, (55.0 - abs(z - est_center) * 0.55) * (1.0 + i * 0.04)) for i, z in enumerate(zones)]
     
-    # 【ガード条件】1番人気オッズ（v_o1）に応じて、理論上あり得ない低配当ゾーンのスコアを強制的に0にする
-    if v_o1 >= 20.0:
+    # 【ガード条件】1番人気オッズ（v_o1）に応じた低配当ゾーンの厳格な除外・抑制
+    if v_o1 >= 15.0:
+        scores[0] *= 0.5
+    if v_o1 >= 25.0:
         scores[0] = 0.0  # 堅（～20倍）
-    if v_o1 >= 40.0:
+    if v_o1 >= 35.0:
         scores[1] = 0.0  # 並（20～40倍）
-    if v_o1 >= 60.0:
+    if v_o1 >= 55.0:
         scores[2] = 0.0  # 小荒（40～60倍）
-    if v_o1 >= 80.0:
+    if v_o1 >= 75.0:
         scores[3] = 0.0  # 中荒（60～80倍）
 
     total_score = sum(scores)
