@@ -193,9 +193,9 @@ def estimate_position_type_final_corner(past_runs):
     else: return "追"
 
 # ============================================================
-# 配当帯確率計算ロジック（分析結果を反映した見直し版）
+# 配当帯確率計算ロジック（単勝1番人気オッズ + 3連複オッズ反映版）
 # ============================================================
-def calculate_payout_probabilities(o1, o10, o20, o30, o50):
+def calculate_payout_probabilities(single_o1, o1, o10, o20, o30, o50):
     if o1 is None:
         return None
 
@@ -205,27 +205,40 @@ def calculate_payout_probabilities(o1, o10, o20, o30, o50):
     v_o30 = float(o30) if o30 is not None else v_o20 * 1.5
     v_o50 = float(o50) if o50 is not None else v_o30 * 1.4
 
-    # 分析データの傾向（1番人気オッズや中位オッズの広がり）を踏まえた推定中心値の算出
+    s_o1 = float(single_o1) if (single_o1 is not None and float(single_o1) > 0) else 3.0
+
     spread_factor = (v_o30 / max(v_o1, 1.0)) / 14.0
-    est_center = v_o1 * 1.3 + (v_o10 / 2.2) * min(max(spread_factor, 0.7), 1.6)
-    
-    # 5段階ゾーンの代表値: 「堅」(15)、「並」(30)、「小荒」(50)、「中荒」(70)、「大荒」(95)
+    single_bias = (s_o1 / 3.0) ** 0.6
+    est_center = (v_o1 * 1.2 + (v_o10 / 2.2) * min(max(spread_factor, 0.7), 1.6)) * single_bias
+
     zones = [15.0, 30.0, 50.0, 70.0, 95.0]
-    
-    # 各ゾーンに対する適合スコアを算出（実測データの分布傾向に合わせたガウス・ウェイト調整）
     scores = [max(0.3, (55.0 - abs(z - est_center) * 0.55) * (1.0 + i * 0.04)) for i, z in enumerate(zones)]
-    
-    # 【ガード条件】1番人気オッズ（v_o1）に応じた低配当ゾーンの厳格な除外・抑制
+
+    if s_o1 <= 1.9:
+        scores[0] *= 2.5
+        scores[1] *= 1.2
+        scores[3] *= 0.4
+        scores[4] *= 0.2
+    elif s_o1 <= 2.9:
+        scores[0] *= 1.5
+        scores[1] *= 1.3
+    elif s_o1 >= 5.0:
+        scores[0] *= 0.2
+        scores[1] *= 0.5
+        scores[2] *= 1.3
+        scores[3] *= 1.6
+        scores[4] *= 1.8
+
     if v_o1 >= 15.0:
-        scores[0] *= 0.5
+        scores[0] *= 0.3
     if v_o1 >= 25.0:
-        scores[0] = 0.0  # 堅（～20倍）
+        scores[0] = 0.0
     if v_o1 >= 35.0:
-        scores[1] = 0.0  # 並（20～40倍）
+        scores[1] = 0.0
     if v_o1 >= 55.0:
-        scores[2] = 0.0  # 小荒（40～60倍）
+        scores[2] = 0.0
     if v_o1 >= 75.0:
-        scores[3] = 0.0  # 中荒（60～80倍）
+        scores[3] = 0.0
 
     total_score = sum(scores)
 
@@ -249,7 +262,7 @@ def calculate_payout_probabilities(o1, o10, o20, o30, o50):
     }
 
 # ============================================================
-# 3連複荒れ度判定ロジック（5段階対応版）
+# 3連複荒れ度判定ロジック（単勝1〜3番人気の複勝入着確率を反映版）
 # ============================================================
 def determine_race_pattern(payout_probs, prob_top3_2_or_more=0.0):
     if not payout_probs:
@@ -268,6 +281,23 @@ def determine_race_pattern(payout_probs, prob_top3_2_or_more=0.0):
         "中荒": p_chu,
         "大荒": p_dai
     }
+
+    # 単勝1〜3番人気の複勝入着確率（2頭以上入る確率: prob_top3_2_or_more）を考慮して補正
+    if prob_top3_2_or_more >= 70.0:
+        scores["堅"] *= 1.4
+        scores["並"] *= 1.2
+        scores["中荒"] *= 0.6
+        scores["大荒"] *= 0.4
+    elif prob_top3_2_or_more >= 55.0:
+        scores["堅"] *= 1.2
+        scores["並"] *= 1.1
+        scores["大荒"] *= 0.8
+    elif prob_top3_2_or_more < 40.0:
+        scores["堅"] *= 0.5
+        scores["並"] *= 0.7
+        scores["小荒"] *= 1.2
+        scores["中荒"] *= 1.4
+        scores["大荒"] *= 1.5
 
     return max(scores, key=scores.get)
 
@@ -397,12 +427,21 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     race_date_raw = race_info.get("date", "")
     date_str = re.sub(r'\D', '', str(race_date_raw)) if race_date_raw else None
 
+    df_target = df.copy().reset_index(drop=True)
+    df_target["is_good_condition"] = df_target["馬番"].isin(good_horses)
+    df_target["is_bad_condition"] = df_target["馬番"].isin(bad_horses)
+
+    try:
+        single_o1 = df_target["単勝オッズ"].min()
+    except Exception:
+        single_o1 = None
+
     odds_info = get_race_odds(track, race_no, date_str, is_simple=is_simple)
 
     if odds_info and odds_info.get("o1") is not None:
         o1, o10, o20, o30, o50, o100 = odds_info["o1"], odds_info["o10"], odds_info["o20"], odds_info["o30"], odds_info["o50"], odds_info["o100"]
         o1_str, o10_str, o20_str, o30_str, o50_str, o100_str = f"{o1:.1f}倍", (f"{o10:.1f}倍" if o10 else "-"), (f"{o20:.1f}倍" if o20 else "-"), (f"{o30:.1f}倍" if o30 else "-"), (f"{o50:.1f}倍" if o50 else "-"), (f"{o100:.1f}倍" if o100 else "-")
-        payout_probs = calculate_payout_probabilities(o1, o10, o20, o30, o50)
+        payout_probs = calculate_payout_probabilities(single_o1, o1, o10, o20, o30, o50)
     else:
         o1_str = o10_str = o20_str = o30_str = o50_str = o100_str = "未取得"
         payout_probs = None
@@ -433,10 +472,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     
     param = PARAMS.get(track, PARAMS.get("東京", {"Odds_W": 0.70, "Ability_W": 0.30}))
     odds_w, ability_w = param.get("Odds_W", 0.70), param.get("Ability_W", 0.30)
-
-    df_target = df.copy().reset_index(drop=True)
-    df_target["is_good_condition"] = df_target["馬番"].isin(good_horses)
-    df_target["is_bad_condition"] = df_target["馬番"].isin(bad_horses)
 
     avg_weight = df_target["斤量"].mean()
 
@@ -593,6 +628,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         "データ不足": "条件を満たさず、レンジを無理に決めない"
     }
 
+    # 単勝1〜3番人気の複勝入着確率（prob_top3_2_or_more）を荒れ度判定関数に渡して連動させる
     race_pattern = determine_race_pattern(payout_probs, prob_top3_2_or_more)
     pattern_desc = PATTERN_DESCS.get(race_pattern, "")
 
