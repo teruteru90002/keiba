@@ -571,7 +571,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     pattern_desc = PATTERN_DESCS.get(race_pattern, "")
 
-    df_valid = df_sorted[(df_sorted["オッズ順位"] < 10) & (df_sorted["単勝オッズ"] < 30.0)]
+    df_valid = df_sorted[(df_sorted["オッズ順位"] <= 10) | (df_sorted["単勝オッズ"] < 30.0)]
     if len(df_valid) < 5: df_valid = df_sorted.head(10)
 
     jiku_horse = df_valid.sort_values(by="オッズ順位").iloc[0] if not df_valid.empty else df_sorted.iloc[0]
