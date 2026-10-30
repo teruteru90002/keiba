@@ -381,11 +381,17 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     except Exception:
         tansho_odds = []
 
+    is_buy = False
     if len(tansho_odds) >= 5:
         try:
             analysis_result = analyze_race(tansho_odds)
             race_pattern = analysis_result["荒れ度"]
             rough_score = analysis_result["荒れスコア"]
+            
+            # 荒れスコア判定等に基づき購入判定フラグ(is_buy)をセット
+            if rough_score >= 20.0:
+                is_buy = True
+
             analysis_table_md = (
                 "\n| 荒れ度判定 | 荒れスコア | 1番人気オッズ | 2番人気オッズ | 3番人気オッズ | 1番人気支持率 |\n"
                 "| --- | --- | --- | --- | --- | --- |\n"
@@ -580,9 +586,11 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     all_aite_nums = sorted(pd.concat([aite1_df, aite2_df]).drop_duplicates(subset=["馬番"])["馬番"].tolist())
     fmt_points = len(list(itertools.combinations(all_aite_nums, 2)))
 
-    # 会場・荒れ度ごとの購入目安を辞書から動的に取得（未定義の場合はデフォルト）
+    # 会場・荒れ度ごとの購入目安を取得し、購入○(is_buy=True)の場合は末尾に「★」を付与
     track_ranges = VENUE_ODDS_RANGES.get(track, {"堅": "～20倍", "並": "20～40倍", "小荒": "40～60倍", "中荒": "60～80倍", "大荒": "80倍以上"})
-    target_odds_range = f"購入目安 {track_ranges.get(race_pattern, '20～40倍')}"
+    raw_range_str = track_ranges.get(race_pattern, "20～40倍")
+    star_mark = "★" if is_buy else ""
+    target_odds_range = f"購入目安 {raw_range_str}{star_mark}"
 
     phase6_lines = [
         "#### ■ PHASE 6：最終ランキングと買い目\n",
