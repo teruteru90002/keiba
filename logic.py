@@ -194,14 +194,12 @@ def estimate_position_type_final_corner(past_runs):
     else: return "追"
 
 # ============================================================
-# combined_race_analyzer日別.py 由来のスコアベース荒れ度判定ロジック
+# スコアベースの荒れ度判定ロジック
 # ============================================================
 def clamp(value: float, low: float = 0.0, high: float = 1.0) -> float:
-    """0～1の範囲に収める"""
     return max(low, min(high, value))
 
 def calc_support_rates(odds: List[float]) -> List[float]:
-    """単勝オッズから正規化した支持率を計算する"""
     inverse = [1.0 / x for x in odds if x > 0]
     total = sum(inverse)
     if total == 0:
@@ -209,7 +207,6 @@ def calc_support_rates(odds: List[float]) -> List[float]:
     return [x / total for x in inverse]
 
 def calculate_race_features(odds: List[float]) -> Dict:
-    """全出走馬の単勝オッズから特徴量を作る"""
     odds = sorted(odds)
     if len(odds) < 5:
         raise ValueError("最低5頭分の単勝オッズが必要です")
@@ -256,7 +253,6 @@ def calculate_race_features(odds: List[float]) -> Dict:
     }
 
 def calculate_rough_score(features: Dict) -> Dict:
-    """特徴量から0～100の荒れスコアを計算する"""
     score_odds1 = clamp((features["1番人気オッズ"] - 1.5) / (6.0 - 1.5))
     score_odds2 = clamp((features["2番人気オッズ"] - 3.0) / (10.0 - 3.0))
     score_odds3 = clamp((features["3番人気オッズ"] - 4.0) / (15.0 - 4.0))
@@ -353,47 +349,19 @@ PLACE_CODE_MAP = {
     "06": "中山", "07": "中京", "08": "京都", "09": "阪神", "10": "小倉"
 }
 
-async def get_race_list(page, date_str, is_simple=False):
-    log_debug(f"[DEBUG] get_race_list開始: 日付={date_str}", is_simple)
-    races = []
-    url_db = f"https://db.netkeiba.com/race/list/{date_str}/"
-    try:
-        await page.goto(url_db, wait_until="domcontentloaded", timeout=15000)
-        content = await page.content()
-        soup = BeautifulSoup(content, "html.parser")
-        for a in soup.find_all("a", href=re.compile(r"/race/\d{12}/")):
-            match = re.search(r"/race/(\d{12})/", a.get("href", ""))
-            if match:
-                race_id = match.group(1)
-                p_code = race_id[4:6]
-                if p_code in PLACE_CODE_MAP:
-                    race_no = int(race_id[10:12])
-                    if 1 <= race_no <= 12:
-                        races.append({"race_id": race_id, "場所": PLACE_CODE_MAP[p_code], "R": race_no})
-    except Exception as e:
-        log_debug(f"[WARN] DB取得エラー: {e}", is_simple)
-
-    if not races:
-        url_race = f"https://race.netkeiba.com/top/race_list.html?kaisai_date={date_str}"
-        try:
-            await page.goto(url_race, wait_until="domcontentloaded", timeout=15000)
-            await page.wait_for_selector("a[href*='race_id=']", timeout=5000)
-            content = await page.content()
-            soup = BeautifulSoup(content, "html.parser")
-            for a in soup.find_all("a", href=re.compile(r"race_id=\d{12}")):
-                match = re.search(r"race_id=(\d{12})", a.get("href", ""))
-                if match:
-                    race_id = match.group(1)
-                    p_code = race_id[4:6]
-                    if p_code in PLACE_CODE_MAP:
-                        race_no = int(race_id[10:12])
-                        if 1 <= race_no <= 12:
-                            races.append({"race_id": race_id, "場所": PLACE_CODE_MAP[p_code], "R": race_no})
-        except Exception as e:
-            log_debug(f"[WARN] 当日ページ取得エラー: {e}", is_simple)
-
-    unique_races = {f"{r['場所']}_{r['R']}": r for r in races}
-    return sorted(list(unique_races.values()), key=lambda x: (x["場所"], x["R"]))
+# 各会場ごとの購入目安（オッズレンジ）定義
+VENUE_ODDS_RANGES = {
+    "東京": {"堅": "10～30倍", "並": "10～30倍", "小荒": "15～35倍", "中荒": "30～50倍", "大荒": "60～90倍"},
+    "京都": {"堅": "5～25倍", "並": "5～25倍", "小荒": "20～40倍", "中荒": "20～40倍", "大荒": "50～80倍"},
+    "阪神": {"堅": "5～25倍", "並": "5～25倍", "小荒": "15～35倍", "中荒": "20～40倍", "大荒": "80～110倍"},
+    "中山": {"堅": "0～20倍", "並": "5～25倍", "小荒": "30～50倍", "中荒": "45～65倍", "大荒": "80～110倍"},
+    "福島": {"堅": "0～20倍", "並": "10～30倍", "小荒": "10～30倍", "中荒": "35～55倍", "大荒": "60～90倍"},
+    "新潟": {"堅": "0～20倍", "並": "5～25倍", "小荒": "20～40倍", "中荒": "20～40倍", "大荒": "50～80倍"},
+    "函館": {"堅": "0～20倍", "並": "5～25倍", "小荒": "10～30倍", "中荒": "15～35倍", "大荒": "60～80倍"},
+    "札幌": {"堅": "10～30倍", "並": "5～25倍", "小荒": "40～60倍", "中荒": "30～50倍", "大荒": "60～80倍"},
+    "中京": {"堅": "0～20倍", "並": "10～30倍", "小荒": "10～30倍", "中荒": "25～45倍", "大荒": "60～80倍"},
+    "小倉": {"堅": "0～20倍", "並": "110～130倍", "小荒": "60～80倍", "中荒": "55～75倍", "大荒": "60～80倍"}
+}
 
 def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=False, trend="フラット"):
     if good_horses is None: good_horses = []
@@ -408,7 +376,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     df_target["is_good_condition"] = df_target["馬番"].isin(good_horses)
     df_target["is_bad_condition"] = df_target["馬番"].isin(bad_horses)
 
-    #  dataframeから単勝オッズリストを作成して荒れ度分析を実行
     try:
         tansho_odds = sorted([float(o) for o in df_target["単勝オッズ"].dropna() if float(o) > 0])
     except Exception:
@@ -613,8 +580,9 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     all_aite_nums = sorted(pd.concat([aite1_df, aite2_df]).drop_duplicates(subset=["馬番"])["馬番"].tolist())
     fmt_points = len(list(itertools.combinations(all_aite_nums, 2)))
 
-    ODDS_RANGE_MAP = {"堅": "購入目安 ～20倍", "並": "購入目安 20～40倍", "小荒": "購入目安 40～60倍", "中荒": "購入目安 60～80倍", "大荒": "購入目安 80倍以上"}
-    target_odds_range = ODDS_RANGE_MAP.get(race_pattern, "")
+    # 会場・荒れ度ごとの購入目安を辞書から動的に取得（未定義の場合はデフォルト）
+    track_ranges = VENUE_ODDS_RANGES.get(track, {"堅": "～20倍", "並": "20～40倍", "小荒": "40～60倍", "中荒": "60～80倍", "大荒": "80倍以上"})
+    target_odds_range = f"購入目安 {track_ranges.get(race_pattern, '20～40倍')}"
 
     phase6_lines = [
         "#### ■ PHASE 6：最終ランキングと買い目\n",
