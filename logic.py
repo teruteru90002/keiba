@@ -10,6 +10,7 @@ from datetime import datetime
 from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright
 import streamlit as st
+from typing import List, Dict
 
 # Playwrightブラウザのセットアップ
 os.system("playwright install chromium")
@@ -193,113 +194,159 @@ def estimate_position_type_final_corner(past_runs):
     else: return "追"
 
 # ============================================================
-# 配当帯確率計算ロジック（単勝1番人気オッズ + 3連複オッズ反映版）
+# combined_race_analyzer日別.py 由来のスコアベース荒れ度判定ロジック
 # ============================================================
-def calculate_payout_probabilities(single_o1, o1, o10, o20, o30, o50):
-    if o1 is None:
-        return None
+def clamp(value: float, low: float = 0.0, high: float = 1.0) -> float:
+    """0～1の範囲に収める"""
+    return max(low, min(high, value))
 
-    v_o1 = float(o1)
-    v_o10 = float(o10) if o10 is not None else v_o1 * 3.2
-    v_o20 = float(o20) if o20 is not None else v_o10 * 1.8
-    v_o30 = float(o30) if o30 is not None else v_o20 * 1.5
-    v_o50 = float(o50) if o50 is not None else v_o30 * 1.4
+def calc_support_rates(odds: List[float]) -> List[float]:
+    """単勝オッズから正規化した支持率を計算する"""
+    inverse = [1.0 / x for x in odds if x > 0]
+    total = sum(inverse)
+    if total == 0:
+        return [0.0 for _ in odds]
+    return [x / total for x in inverse]
 
-    s_o1 = float(single_o1) if (single_o1 is not None and float(single_o1) > 0) else 3.0
-
-    spread_factor = (v_o30 / max(v_o1, 1.0)) / 14.0
-    single_bias = (s_o1 / 3.0) ** 0.6
-    est_center = (v_o1 * 1.2 + (v_o10 / 2.2) * min(max(spread_factor, 0.7), 1.6)) * single_bias
-
-    zones = [15.0, 30.0, 50.0, 70.0, 95.0]
-    scores = [max(0.3, (55.0 - abs(z - est_center) * 0.55) * (1.0 + i * 0.04)) for i, z in enumerate(zones)]
-
-    if s_o1 <= 1.9:
-        scores[0] *= 2.5
-        scores[1] *= 1.2
-        scores[3] *= 0.4
-        scores[4] *= 0.2
-    elif s_o1 <= 2.9:
-        scores[0] *= 1.5
-        scores[1] *= 1.3
-    elif s_o1 >= 5.0:
-        scores[0] *= 0.2
-        scores[1] *= 0.5
-        scores[2] *= 1.3
-        scores[3] *= 1.6
-        scores[4] *= 1.8
-
-    if v_o1 >= 15.0:
-        scores[0] *= 0.3
-    if v_o1 >= 25.0:
-        scores[0] = 0.0
-    if v_o1 >= 35.0:
-        scores[1] = 0.0
-    if v_o1 >= 55.0:
-        scores[2] = 0.0
-    if v_o1 >= 75.0:
-        scores[3] = 0.0
-
-    total_score = sum(scores)
-
-    if total_score > 0:
-        p = [round(s / total_score * 100) for s in scores]
-        diff = 100 - sum(p)
-        non_zero_indices = [i for i, s in enumerate(scores) if s > 0]
-        if non_zero_indices:
-            p[non_zero_indices[0]] += diff
-        else:
-            p[0] += diff
-    else:
-        p = [0, 0, 0, 0, 100]
-
+def calculate_race_features(odds: List[float]) -> Dict:
+    """全出走馬の単勝オッズから特徴量を作る"""
+    odds = sorted(odds)
+    if len(odds) < 5:
+        raise ValueError("最低5頭分の単勝オッズが必要です")
+    support = calc_support_rates(odds)
+    
+    odds_1 = odds[0]
+    odds_2 = odds[1]
+    odds_3 = odds[2]
+    odds_5 = odds[4] if len(odds) >= 5 else odds[-1]
+    
+    ratio_2_1 = odds_2 / odds_1 if odds_1 > 0 else 0
+    ratio_3_1 = odds_3 / odds_1 if odds_1 > 0 else 0
+    ratio_5_1 = odds_5 / odds_1 if odds_1 > 0 else 0
+    
+    support_1 = support[0] if len(support) > 0 else 0
+    support_top2 = sum(support[:2])
+    support_top3 = sum(support[:3])
+    support_top5 = sum(support[:5])
+    
+    count_under5 = sum(x < 5 for x in odds)
+    count_5_10 = sum(5 <= x < 10 for x in odds)
+    count_10_20 = sum(10 <= x < 20 for x in odds)
+    count_20_50 = sum(20 <= x < 50 for x in odds)
+    count_over50 = sum(x >= 50 for x in odds)
+    
     return {
-        "堅": max(0, p[0]),
-        "並": max(0, p[1]),
-        "小荒": max(0, p[2]),
-        "中荒": max(0, p[3]),
-        "大荒": max(0, p[4])
+        "出走頭数": len(odds),
+        "1番人気オッズ": odds_1,
+        "2番人気オッズ": odds_2,
+        "3番人気オッズ": odds_3,
+        "5番人気オッズ": odds_5,
+        "2人気_1人気比": ratio_2_1,
+        "3人気_1人気比": ratio_3_1,
+        "5人気_1人気比": ratio_5_1,
+        "1番人気支持率": support_1,
+        "上位2頭支持率": support_top2,
+        "上位3頭支持率": support_top3,
+        "上位5頭支持率": support_top5,
+        "5倍未満頭数": count_under5,
+        "5_10倍頭数": count_5_10,
+        "10_20倍頭数": count_10_20,
+        "20_50倍頭数": count_20_50,
+        "50倍以上頭数": count_over50,
     }
 
-# ============================================================
-# 3連複荒れ度判定ロジック（単勝1〜3番人気の複勝入着確率を反映版）
-# ============================================================
-def determine_race_pattern(payout_probs, prob_top3_2_or_more=0.0):
-    if not payout_probs:
-        return "データ不足"
-
-    p_ken = payout_probs.get("堅", 0)
-    p_nami = payout_probs.get("並", 0)
-    p_ko = payout_probs.get("小荒", 0)
-    p_chu = payout_probs.get("中荒", 0)
-    p_dai = payout_probs.get("大荒", 0)
-
-    scores = {
-        "堅": p_ken,
-        "並": p_nami,
-        "小荒": p_ko,
-        "中荒": p_chu,
-        "大荒": p_dai
+def calculate_rough_score(features: Dict) -> Dict:
+    """特徴量から0～100の荒れスコアを計算する"""
+    score_odds1 = clamp((features["1番人気オッズ"] - 1.5) / (6.0 - 1.5))
+    score_odds2 = clamp((features["2番人気オッズ"] - 3.0) / (10.0 - 3.0))
+    score_odds3 = clamp((features["3番人気オッズ"] - 4.0) / (15.0 - 4.0))
+    score_odds5 = clamp((features["5番人気オッズ"] - 6.0) / (25.0 - 6.0))
+    odds_score = (
+        score_odds1 * 8 +
+        score_odds2 * 5 +
+        score_odds3 * 4 +
+        score_odds5 * 3
+    )
+    
+    ratio21_score = 1 - clamp((features["2人気_1人気比"] - 1.0) / 2.0)
+    ratio31_score = 1 - clamp((features["3人気_1人気比"] - 1.0) / 3.0)
+    ratio51_score = 1 - clamp((features["5人気_1人気比"] - 1.0) / 5.0)
+    ratio_score = (
+        ratio21_score * 8 +
+        ratio31_score * 7 +
+        ratio51_score * 5
+    )
+    
+    support1 = features["1番人気支持率"]
+    support1_score = (1 - clamp((support1 - 0.15) / (0.40 - 0.15))) * 15
+    
+    top2_score = (1 - clamp((features["上位2頭支持率"] - 0.30) / (0.65 - 0.30)))
+    top3_score = (1 - clamp((features["上位3頭支持率"] - 0.40) / (0.75 - 0.40)))
+    top5_score = (1 - clamp((features["上位5頭支持率"] - 0.55) / (0.90 - 0.55)))
+    concentration_score = (
+        top2_score * 6 +
+        top3_score * 8 +
+        top5_score * 6
+    )
+    
+    n = features["出走頭数"]
+    if n > 0:
+        middle_ratio = (
+            features["5_10倍頭数"] +
+            features["10_20倍頭数"] +
+            features["20_50倍頭数"]
+        ) / n
+        favorite_ratio = features["5倍未満頭数"] / n
+    else:
+        middle_ratio = 0
+        favorite_ratio = 0
+        
+    distribution_score = (
+        clamp(middle_ratio / 0.60) * 15 +
+        clamp((0.30 - favorite_ratio) / 0.30) * 5
+    )
+    
+    horse_count_score = clamp((features["出走頭数"] - 10) / 8) * 5
+    
+    total_score = (
+        odds_score +
+        ratio_score +
+        support1_score +
+        concentration_score +
+        distribution_score +
+        horse_count_score
+    )
+    total_score = round(total_score, 1)
+    
+    if total_score < 20:
+        category = "堅"
+    elif total_score < 35:
+        category = "並"
+    elif total_score < 60:
+        category = "小荒"
+    elif total_score < 75:
+        category = "中荒"
+    else:
+        category = "大荒"
+        
+    return {
+        "荒れスコア": total_score,
+        "荒れ度": category,
+        "上位人気オッズ点": round(odds_score, 1),
+        "オッズ比点": round(ratio_score, 1),
+        "1番人気支持率点": round(support1_score, 1),
+        "支持集中度点": round(concentration_score, 1),
+        "オッズ分布点": round(distribution_score, 1),
+        "出走頭数点": round(horse_count_score, 1),
     }
 
-    # 単勝1〜3番人気の複勝入着確率（2頭以上入る確率: prob_top3_2_or_more）を考慮して補正
-    if prob_top3_2_or_more >= 70.0:
-        scores["堅"] *= 1.4
-        scores["並"] *= 1.2
-        scores["中荒"] *= 0.6
-        scores["大荒"] *= 0.4
-    elif prob_top3_2_or_more >= 55.0:
-        scores["堅"] *= 1.2
-        scores["並"] *= 1.1
-        scores["大荒"] *= 0.8
-    elif prob_top3_2_or_more < 40.0:
-        scores["堅"] *= 0.5
-        scores["並"] *= 0.7
-        scores["小荒"] *= 1.2
-        scores["中荒"] *= 1.4
-        scores["大荒"] *= 1.5
-
-    return max(scores, key=scores.get)
+def analyze_race(odds: List[float]) -> Dict:
+    features = calculate_race_features(odds)
+    result = calculate_rough_score(features)
+    return {
+        **features,
+        **result
+    }
 
 PLACE_CODE_MAP = {
     "01": "札幌", "02": "函館", "03": "福島", "04": "新潟", "05": "東京",
@@ -348,73 +395,6 @@ async def get_race_list(page, date_str, is_simple=False):
     unique_races = {f"{r['場所']}_{r['R']}": r for r in races}
     return sorted(list(unique_races.values()), key=lambda x: (x["場所"], x["R"]))
 
-async def fetch_race_odds(place_name, race_no, date_str=None, is_simple=False):
-    if not date_str:
-        date_str = datetime.now().strftime("%Y%m%d")
-
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True, args=["--no-sandbox", "--disable-setuid-sandbox"])
-        context = await browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        )
-        page = await context.new_page()
-
-        races = await get_race_list(page, date_str, is_simple=is_simple)
-        target_race_id = next((r["race_id"] for r in races if r["場所"] == place_name and r["R"] == int(race_no)), None)
-                
-        if not target_race_id:
-            await browser.close()
-            return None
-
-        odds_list = []
-        urls = [
-            f"https://race.netkeiba.com/odds/index.html?type=b7&race_id={target_race_id}&housiki=c99",
-            f"https://race.netkeiba.com/odds/index.html?type=b7&race_id={target_race_id}",
-            f"https://db.netkeiba.com/race/odds/index.html?type=b7&race_id={target_race_id}"
-        ]
-
-        for url in urls:
-            if odds_list: break
-            for retry in range(2):
-                try:
-                    await page.goto(url, wait_until="domcontentloaded", timeout=10000)
-                    await asyncio.sleep(1.2)
-                    soup = BeautifulSoup(await page.content(), "html.parser")
-                    
-                    elements = soup.select("span[id^='odds-']") or soup.select("td.Odds_Value") or soup.select("td.Odds")
-                    for el in elements:
-                        try:
-                            val = float(el.get_text(strip=True))
-                            if val > 0: odds_list.append(val)
-                        except ValueError: 
-                            continue
-                    if odds_list: break
-                except Exception:
-                    await asyncio.sleep(1.0)
-            if odds_list: break
-
-        await browser.close()
-
-        odds = sorted(odds_list) if odds_list else []
-        if len(odds) < 30:
-            return None
-
-        return {
-            "o1": odds[0],
-            "o10": odds[9] if len(odds) >= 10 else None,
-            "o20": odds[19] if len(odds) >= 20 else None,
-            "o30": odds[29] if len(odds) >= 30 else None,
-            "o50": odds[49] if len(odds) >= 50 else None,
-            "o100": odds[99] if len(odds) >= 100 else (odds[-1] if len(odds) > 0 else None)
-        }
-
-def get_race_odds(place_name, race_no, date_str=None, is_simple=False):
-    try:
-        return asyncio.run(fetch_race_odds(place_name, race_no, date_str, is_simple=is_simple))
-    except Exception as e:
-        log_debug(f"[ERROR] get_race_odds内部例外: {e}", is_simple)
-        return None
-
 def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=False, trend="フラット"):
     if good_horses is None: good_horses = []
     if bad_horses is None: bad_horses = []
@@ -424,42 +404,34 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     track = next((t for t in JRA_TRACKS if t in raw_text), race_info.get("track_name", "東京"))
     race_no = race_info.get("race_no") or (int(re.search(r'(\d{1,2})\s*R', raw_text, re.IGNORECASE).group(1)) if re.search(r'(\d{1,2})\s*R', raw_text, re.IGNORECASE) else 11)
 
-    race_date_raw = race_info.get("date", "")
-    date_str = re.sub(r'\D', '', str(race_date_raw)) if race_date_raw else None
-
     df_target = df.copy().reset_index(drop=True)
     df_target["is_good_condition"] = df_target["馬番"].isin(good_horses)
     df_target["is_bad_condition"] = df_target["馬番"].isin(bad_horses)
 
+    #  dataframeから単勝オッズリストを作成して荒れ度分析を実行
     try:
-        single_o1 = df_target["単勝オッズ"].min()
+        tansho_odds = sorted([float(o) for o in df_target["単勝オッズ"].dropna() if float(o) > 0])
     except Exception:
-        single_o1 = None
+        tansho_odds = []
 
-    odds_info = get_race_odds(track, race_no, date_str, is_simple=is_simple)
-
-    if odds_info and odds_info.get("o1") is not None:
-        o1, o10, o20, o30, o50, o100 = odds_info["o1"], odds_info["o10"], odds_info["o20"], odds_info["o30"], odds_info["o50"], odds_info["o100"]
-        o1_str, o10_str, o20_str, o30_str, o50_str, o100_str = f"{o1:.1f}倍", (f"{o10:.1f}倍" if o10 else "-"), (f"{o20:.1f}倍" if o20 else "-"), (f"{o30:.1f}倍" if o30 else "-"), (f"{o50:.1f}倍" if o50 else "-"), (f"{o100:.1f}倍" if o100 else "-")
-        payout_probs = calculate_payout_probabilities(single_o1, o1, o10, o20, o30, o50)
+    if len(tansho_odds) >= 5:
+        try:
+            analysis_result = analyze_race(tansho_odds)
+            race_pattern = analysis_result["荒れ度"]
+            rough_score = analysis_result["荒れスコア"]
+            analysis_table_md = (
+                "\n| 荒れ度判定 | 荒れスコア | 1番人気オッズ | 2番人気オッズ | 3番人気オッズ | 1番人気支持率 |\n"
+                "| --- | --- | --- | --- | --- | --- |\n"
+                f"| **{race_pattern}** | **{rough_score}点** | {analysis_result['1番人気オッズ']:.1f}倍 | {analysis_result['2番人気オッズ']:.1f}倍 | {analysis_result['3番人気オッズ']:.1f}倍 | {analysis_result['1番人気支持率']*100:.1f}% |"
+            )
+        except Exception:
+            race_pattern = "データ不足"
+            rough_score = 0.0
+            analysis_table_md = "\n* **荒れ度分析**: 計算エラー"
     else:
-        o1_str = o10_str = o20_str = o30_str = o50_str = o100_str = "未取得"
-        payout_probs = None
-
-    odds_table_md = (
-        "\n| 3連複1位 | 3連複10位 | 3連複20位 | 3連複30位 | 3連複50位 | 3連複100位 |\n"
-        "| --- | --- | --- | --- | --- | --- |\n"
-        f"| {o1_str} | {o10_str} | {o20_str} | {o30_str} | {o50_str} | {o100_str} |"
-    )
-
-    if payout_probs:
-        prob_table_md = (
-            "\n| 堅（～20倍） | 並（20～40倍） | 小荒（40～60倍） | 中荒（60～80倍） | 大荒（80倍以上） |\n"
-            "| --- | --- | --- | --- | --- |\n"
-            f"| **約{payout_probs['堅']}%** | **約{payout_probs['並']}%** | **約{payout_probs['小荒']}%** | **約{payout_probs['中荒']}%** | **約{payout_probs['大荒']}%** |"
-        )
-    else:
-        prob_table_md = "\n* **推定配当確率**: データ不足のため算出不可"
+        race_pattern = "データ不足"
+        rough_score = 0.0
+        analysis_table_md = "\n* **荒れ度分析**: データ不足のため算出不可"
 
     surface = "ダート" if "ダート" in raw_text else ("芝" if "芝" in raw_text else str(race_info.get("track", "")))
     
@@ -615,21 +587,15 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     df_sorted["複勝率(MC)"] = (np.sum(ranks <= 3, axis=0) / NUM_SIMS * 100).round(1)
     df_sorted["期待値"] = (df_sorted["単勝オッズ"] * (df_sorted["勝率(MC)"] / 100.0)).round(2)
 
-    top3_in_place_counts = np.sum(ranks[:, df_sorted.sort_values(by="単勝オッズ").index[:3]] <= 3, axis=1)
-    prob_top3_3, prob_top3_2, prob_top3_1, prob_top3_0 = [(np.sum(top3_in_place_counts == i) / NUM_SIMS) * 100 for i in [3, 2, 1, 0]]
-    prob_top3_2_or_more = prob_top3_2 + prob_top3_3
-
     PATTERN_DESCS = {
-        "堅": "20倍以下の低配当が発生する確率が高く、荒れる可能性が極めて低いパターンです",
-        "並": "20～40倍ゾーンに確率の山が集中するパターンです",
-        "小荒": "40～60倍あたりに中心的な山がシフトする領域です",
-        "中荒": "60～80倍の中穴ゾーンの確率が高まる傾向です",
-        "大荒": "80倍以上の万馬券ゾーンの確率が高まっているパターンです",
+        "堅": "オッズが上位に集中しており、堅い決着が予想されるパターンです",
+        "並": "標準的なオッズ分布で、堅実から中位人気の決着になりやすいパターンです",
+        "小荒": "中位人気馬にもチャンスがあり、少し荒れる可能性のある領域です",
+        "中荒": "人気が割れており、中穴層の台頭で中程度荒れる傾向のパターンです",
+        "大荒": "オッズが大きく分散し、大波乱が十分に想定されるハイリスク・ハイリターンなパターンです",
         "データ不足": "条件を満たさず、レンジを無理に決めない"
     }
 
-    # 単勝1〜3番人気の複勝入着確率（prob_top3_2_or_more）を荒れ度判定関数に渡して連動させる
-    race_pattern = determine_race_pattern(payout_probs, prob_top3_2_or_more)
     pattern_desc = PATTERN_DESCS.get(race_pattern, "")
 
     df_valid = df_sorted[(df_sorted["オッズ順位"] < 10) & (df_sorted["単勝オッズ"] < 30.0)]
@@ -653,10 +619,8 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     phase6_lines = [
         "#### ■ PHASE 6：最終ランキングと買い目\n",
         f"#### 1. レース情報\n[{race_name} / {track}{race_no}R / {surface} / {distance}m]",
-        f"* **取得3連複オッズ**:\n{odds_table_md}",
-        f"\n* **推定配当確率**:\n{prob_table_md}",
-        f"\n**【レース判定結果】：{race_pattern}** （{pattern_desc}）\n",
-        f"  * 単勝1〜3番人気の複勝入着確率: 2頭以上入る合計確率: **{prob_top3_2_or_more:.1f}%**"
+        f"\n* **荒れ度分析（スコア判定）**:\n{analysis_table_md}",
+        f"\n**【レース判定結果】：{race_pattern}** （荒れスコア: **{rough_score}点** / {pattern_desc}）\n"
     ]
 
     phase6_lines.append("\n#### 2. 最終ランキング\n| 順位 | 馬(オッズ) | 合成値(順位) | オッズ(順位) | 能力(順位) | 勝率 | 複勝率 | 期待値 | 位置 | 走数 |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
