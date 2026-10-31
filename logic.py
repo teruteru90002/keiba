@@ -13,7 +13,8 @@ import streamlit as st
 from typing import List, Dict
 
 # Playwrightブラウザのセットアップ
-os.system("playwright install chromium")
+import sys
+os.system(f"{sys.executable} -m playwright install chromium")
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config_data.json")
 
@@ -363,6 +364,20 @@ VENUE_ODDS_RANGES = {
     "小倉": {"堅": "0～20倍", "並": "110～130倍", "小荒": "60～80倍", "中荒": "55～75倍", "大荒": "60～80倍"}
 }
 
+# ご提示いただいた「購入に○がついている組み合わせ」の定義
+VALID_PURCHASE_COMBINATIONS = {
+    "東京": {"堅": True,  "並": True,  "小荒": True,  "中荒": True,  "大荒": False},
+    "京都": {"堅": True,  "並": True,  "小荒": False, "中荒": False, "大荒": False},
+    "阪神": {"堅": True,  "並": True,  "小荒": True,  "中荒": True,  "大荒": False},
+    "中山": {"堅": True,  "並": False, "小荒": False, "中荒": False, "大荒": False},
+    "福島": {"堅": True,  "並": True,  "小荒": True,  "中荒": True,  "大荒": False},
+    "新潟": {"堅": True,  "並": True,  "小荒": False, "中荒": True,  "大荒": False},
+    "函館": {"堅": True,  "並": True,  "小荒": True,  "中荒": False, "大荒": False},
+    "札幌": {"堅": True,  "並": True,  "小荒": False, "中荒": True,  "大荒": False},
+    "中京": {"堅": True,  "並": True,  "小荒": True,  "中荒": False, "大荒": False},
+    "小倉": {"堅": True,  "並": True,  "小荒": False, "中荒": False, "大荒": False}
+}
+
 def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=False, trend="フラット"):
     if good_horses is None: good_horses = []
     if bad_horses is None: bad_horses = []
@@ -381,28 +396,30 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     except Exception:
         tansho_odds = []
 
-    is_buy = False
     if len(tansho_odds) >= 5:
         try:
             analysis_result = analyze_race(tansho_odds)
             race_pattern = analysis_result["荒れ度"]
             rough_score = analysis_result["荒れスコア"]
             
-            # 荒れスコア判定等に基づき購入判定フラグ(is_buy)をセット
-            if rough_score >= 20.0:
-                is_buy = True
+            # 会場・荒れ度の組み合わせに基づいて購入条件（○）に合致するか判定
+            track_purchase_map = VALID_PURCHASE_COMBINATIONS.get(track, {})
+            is_marked_circle = track_purchase_map.get(race_pattern, False)
+            display_race_pattern = f"{race_pattern}{'★' if is_marked_circle else ''}"
 
             analysis_table_md = (
                 "\n| 荒れ度判定 | 荒れスコア | 1番人気オッズ | 2番人気オッズ | 3番人気オッズ | 1番人気支持率 |\n"
                 "| --- | --- | --- | --- | --- | --- |\n"
-                f"| **{race_pattern}** | **{rough_score}点** | {analysis_result['1番人気オッズ']:.1f}倍 | {analysis_result['2番人気オッズ']:.1f}倍 | {analysis_result['3番人気オッズ']:.1f}倍 | {analysis_result['1番人気支持率']*100:.1f}% |"
+                f"| **{display_race_pattern}** | **{rough_score}点** | {analysis_result['1番人気オッズ']:.1f}倍 | {analysis_result['2番人気オッズ']:.1f}倍 | {analysis_result['3番人気オッズ']:.1f}倍 | {analysis_result['1番人気支持率']*100:.1f}% |"
             )
         except Exception:
             race_pattern = "データ不足"
+            display_race_pattern = "データ不足"
             rough_score = 0.0
             analysis_table_md = "\n* **荒れ度分析**: 計算エラー"
     else:
         race_pattern = "データ不足"
+        display_race_pattern = "データ不足"
         rough_score = 0.0
         analysis_table_md = "\n* **荒れ度分析**: データ不足のため算出不可"
 
@@ -586,17 +603,20 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     all_aite_nums = sorted(pd.concat([aite1_df, aite2_df]).drop_duplicates(subset=["馬番"])["馬番"].tolist())
     fmt_points = len(list(itertools.combinations(all_aite_nums, 2)))
 
-    # 会場・荒れ度ごとの購入目安を取得し、購入○(is_buy=True)の場合は末尾に「★」を付与
+    # 会場・荒れ度に応じた購入目安レンジを取得し、○がついていれば末尾に「★」を付与
     track_ranges = VENUE_ODDS_RANGES.get(track, {"堅": "～20倍", "並": "20～40倍", "小荒": "40～60倍", "中荒": "60～80倍", "大荒": "80倍以上"})
-    raw_range_str = track_ranges.get(race_pattern, "20～40倍")
-    star_mark = "★" if is_buy else ""
+    raw_range_str = track_ranges.get(race_pattern, '20～40倍')
+    
+    track_purchase_map = VALID_PURCHASE_COMBINATIONS.get(track, {})
+    is_marked_circle = track_purchase_map.get(race_pattern, False)
+    star_mark = "★" if is_marked_circle else ""
     target_odds_range = f"購入目安 {raw_range_str}{star_mark}"
 
     phase6_lines = [
         "#### ■ PHASE 6：最終ランキングと買い目\n",
         f"#### 1. レース情報\n[{race_name} / {track}{race_no}R / {surface} / {distance}m]",
         f"\n* **荒れ度分析（スコア判定）**:\n{analysis_table_md}",
-        f"\n**【レース判定結果】：{race_pattern}** （荒れスコア: **{rough_score}点** / {pattern_desc}）\n"
+        f"\n**【レース判定結果】：{display_race_pattern}** （荒れスコア: **{rough_score}点** / {pattern_desc}）\n"
     ]
 
     phase6_lines.append("\n#### 2. 最終ランキング\n| 順位 | 馬(オッズ) | 合成値(順位) | オッズ(順位) | 能力(順位) | 勝率 | 複勝率 | 期待値 | 位置 | 走数 |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
@@ -613,7 +633,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     aite2_str = ", ".join(f"{h:>2}" for h in aite2_df["馬番"])
 
     phase6_lines.extend([
-        f"\n#### 3. 買い目（判定：【{race_pattern}】 {target_odds_range}）\n",
+        f"\n#### 3. 買い目（判定：【{display_race_pattern}】 {target_odds_range}）\n",
         "**【３連複１頭軸流し（馬番表記）】**  ",
         f"軸  ：{jiku_horse['馬番']}（{jiku_horse['単勝オッズ']}倍）  ",
         f"相手1：{aite1_display_str}  ",
