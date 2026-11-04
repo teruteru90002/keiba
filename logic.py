@@ -402,7 +402,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
             race_pattern = analysis_result["荒れ度"]
             rough_score = analysis_result["荒れスコア"]
             
-            # 会場・荒れ度の組み合わせに基づいて購入条件（○）に合致するか判定
             track_purchase_map = VALID_PURCHASE_COMBINATIONS.get(track, {})
             is_marked_circle = track_purchase_map.get(race_pattern, False)
             display_race_pattern = f"{race_pattern}{'★' if is_marked_circle else ''}"
@@ -603,7 +602,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     all_aite_nums = sorted(pd.concat([aite1_df, aite2_df]).drop_duplicates(subset=["馬番"])["馬番"].tolist())
     fmt_points = len(list(itertools.combinations(all_aite_nums, 2)))
 
-    # 会場・荒れ度に応じた購入目安レンジを取得し、○がついていれば末尾に「★」を付与
     track_ranges = VENUE_ODDS_RANGES.get(track, {"堅": "～20倍", "並": "20～40倍", "小荒": "40～60倍", "中荒": "60～80倍", "大荒": "80倍以上"})
     raw_range_str = track_ranges.get(race_pattern, '20～40倍')
     
@@ -632,10 +630,11 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     
     aite2_str = ", ".join(f"{h:>2}" for h in aite2_df["馬番"])
 
+    # 軸馬の出力フォーマットを要求された形式（馬番（オッズ 複勝率））に修正
     phase6_lines.extend([
         f"\n#### 3. 買い目（判定：【{display_race_pattern}】 {target_odds_range}）\n",
         "**【３連複１頭軸流し（馬番表記）】**  ",
-        f"軸  ：{jiku_horse['馬番']}（{jiku_horse['単勝オッズ']}倍）  ",
+        f"軸  ：{jiku_horse['馬番']}（{jiku_horse['単勝オッズ']}倍 {jiku_horse['複勝率(MC)']:.1f}%）  ",
         f"相手1：{aite1_display_str}  ",
         f"相手2：{aite2_str}  \n",
         "#### 4. 入力用買い目\n",
