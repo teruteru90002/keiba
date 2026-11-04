@@ -607,7 +607,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     
     track_purchase_map = VALID_PURCHASE_COMBINATIONS.get(track, {})
     is_marked_circle = track_purchase_map.get(race_pattern, False)
-#    star_mark = "★" if is_marked_circle else ""
     target_odds_range = f"購入目安 {raw_range_str}"
 
     phase6_lines = [
