@@ -696,13 +696,17 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
                     fmt_combos.add(combo)
         fmt_points = len(fmt_combos)
 
+        # 入力用買い目の馬番順（昇順）ソート処理
+        a1_sorted_str = ",".join(map(str, sorted(a1_list))) if a1_list else "該当なし"
+        a2_sorted_str = ",".join(map(str, sorted(a2_list))) if a2_list else "該当なし"
+
         buying_lines = [
             "**【３連複フォーメーション（馬番表記）】**  ",
             f"1頭目（軸）  ：{jiku_horse['馬番']}（{jiku_horse['単勝オッズ']}倍 {jiku_horse['複勝率(MC)']:.1f}%）  ",
             f"2頭目（相手1）：{aite1_display_str}  ",
             f"3頭目（相手2）：{aite2_display_str}  \n",
             "#### 4. 入力用買い目\n",
-            f"* 基本購入：{jiku_horse['馬番']} - {','.join(map(str, a1_list))} - {','.join(map(str, a2_list))}（{fmt_points}点）"
+            f"* 基本購入：{jiku_horse['馬番']} - {a1_sorted_str} - {a2_sorted_str}（{fmt_points}点）"
         ]
 
     else:
@@ -726,13 +730,16 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         aite2_str = ", ".join(f"{h:>2}" for h in aite2_df["馬番"]) if not aite2_df.empty else "該当なし"
         selected_horse_numbers = {jiku_horse["馬番"]} | set(all_aite_nums)
 
+        # 入力用買い目の馬番順（昇順）ソート処理
+        all_aite_sorted_str = ",".join(map(str, sorted(all_aite_nums))) if all_aite_nums else "該当なし"
+
         buying_lines = [
             "**【３連複１頭軸流し（馬番表記）】**  ",
             f"軸 ：{jiku_horse['馬番']}（{jiku_horse['単勝オッズ']}倍 {jiku_horse['複勝率(MC)']:.1f}%）  ",
             f"相手1：{aite1_display_str}  ",
             f"相手2：{aite2_str}  \n",
             "#### 4. 入力用買い目\n",
-            f"* 基本購入：{jiku_horse['馬番']} - {','.join(map(str, all_aite_nums))}（{fmt_points}点）"
+            f"* 基本購入：{jiku_horse['馬番']} - {all_aite_sorted_str}（{fmt_points}点）"
         ]
 
     phase6_lines = [
