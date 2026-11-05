@@ -658,11 +658,11 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     purchase_verdict = "購入" if is_marked_purchase else "見送り"
 
     # ============================================================
-    # 軸馬・相手馬選定ロジック（複勝率20％以上の頭数で買い方を切替）
+    # 軸馬・相手馬選定ロジック（複勝率15％以上の頭数で買い方を切替）
     # ============================================================
     jiku_horse = df_valid.sort_values(by="オッズ順位").iloc[0] if not df_valid.empty else df_sorted.iloc[0]
 
-    high_place_pct_count = (df_sorted["複勝率(MC)"] >= 20.0).sum()
+    high_place_pct_count = (df_sorted["複勝率(MC)"] >= 15.0).sum()
     if high_place_pct_count >= 8:
         buy_style = "３連複フォーメーション"
     else:
@@ -761,7 +761,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     phase6_lines.extend([
         f"\n#### 3. 買い目判定仕様（会場: {track} / 荒れ度: {race_pattern}（{odds_condition}））\n",
         f"* **判定結果**：【{purchase_verdict}】",
-        f"* **買い方** ：{buy_style}（複勝率20％以上: {high_place_pct_count}頭）",
+        f"* **買い方** ：{buy_style}（複勝率15％以上: {high_place_pct_count}頭）",
         f"* **購入条件**：{odds_condition}\n"
     ])
     phase6_lines.extend(buying_lines)
