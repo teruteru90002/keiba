@@ -750,7 +750,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         "#### ■ PHASE 6：最終ランキングと買い目\n",
         f"#### 1. レース情報\n[{race_name} / {track}{race_no}R / {surface} / {distance}m]",
         f"\n* **荒れ度分析（スコア判定）**:\n{analysis_table_md}",
-        f"\n**【レース判定結果】：会場[{track}] × 荒れ度[{race_pattern}]** → **【{purchase_verdict}】** （荒れスコア: **{rough_score}点** / {pattern_desc}）\n"
+        f"\n**【レース判定結果】：会場[{track}] × 荒れ度[{race_pattern}]（{odds_condition}）** → **【{purchase_verdict}】** （荒れスコア: **{rough_score}点** / {pattern_desc}）\n"
     ]
 
     phase6_lines.append("\n#### 2. 最終ランキング\n| 順位 | 馬(オッズ) | 合成値(順位) | オッズ(順位) | 能力(順位) | 勝率 | 複勝率 | 期待値 | 位置 | 走数 |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
@@ -760,7 +760,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         phase6_lines.append(f"| {prefix}{idx + 1}{prefix} | {prefix}{r['馬番']} {r['馬名']}({r['単勝オッズ']}倍){prefix} | {prefix}{r['合成値']:.2f} ({r['合成順位']}位){prefix} | {prefix}{r['オッズスコア']:.1f} ({r['オッズ順位']}位){prefix} | {prefix}{r['能力スコア']:.1f} ({r['能力順位']}位){prefix} | {prefix}{r['勝率(MC)']:.1f}%{prefix} | {prefix}{r['複勝率(MC)']:.1f}%{prefix} | {prefix}{r['期待値']:.2f}{prefix} | {prefix}{r.get('位置取り', '差')}{prefix} | {prefix}{r.get('走数', 0)}{prefix} |")
 
     phase6_lines.extend([
-        f"\n#### 3. 買い目判定仕様（会場: {track} / 荒れ度: {race_pattern}）\n",
+        f"\n#### 3. 買い目判定仕様（会場: {track} / 荒れ度: {race_pattern}（{odds_condition}））\n",
         f"* **判定結果**：【{purchase_verdict}】",
         f"* **買い方** ：{buy_style}（複勝率20％以上: {high_place_pct_count}頭）",
         f"* **購入条件**：{odds_condition}\n"
