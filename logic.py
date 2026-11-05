@@ -650,9 +650,8 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     df_valid = df_sorted[(df_sorted["オッズ順位"] <= 10) | (df_sorted["単勝オッズ"] < 30.0)]
     if len(df_valid) < 5: df_valid = df_sorted.head(10)
 
-    # 会場・荒れ度に基づく「買い方」および「購入倍率条件」の判定を取得
+    # 会場・荒れ度に基づく「購入倍率条件」の取得
     strategy_info = VENUE_STRATEGY_MAP.get(track, {}).get(race_pattern, {"style": "フォーメーション10点", "range": "20倍以上"})
-    buy_style = strategy_info["style"]
     odds_condition = strategy_info["range"]
 
     track_purchase_map = VALID_PURCHASE_COMBINATIONS.get(track, {})
@@ -664,6 +663,13 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     # ============================================================
     # 軸馬：オッズ順位最上位（変更なし）
     jiku_horse = df_valid.sort_values(by="オッズ順位").iloc[0] if not df_valid.empty else df_sorted.iloc[0]
+
+    # 【ユーザー指定条件の反映】複勝率20％以上が8頭以上であれば３連複フォーメーション、以外は１頭軸流しに変更
+    count_over_20 = len(df_sorted[df_sorted["複勝率(MC)"] >= 20.0])
+    if count_over_20 >= 8:
+        buy_style = "フォーメーション10点"
+    else:
+        buy_style = "1頭軸流し"
 
     if buy_style == "フォーメーション10点":
         # 【フォーメーション10点の場合】
