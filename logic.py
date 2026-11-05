@@ -350,32 +350,92 @@ PLACE_CODE_MAP = {
     "06": "中山", "07": "中京", "08": "京都", "09": "阪神", "10": "小倉"
 }
 
-# 各会場ごとの購入目安（オッズレンジ）定義
-VENUE_ODDS_RANGES = {
-    "東京": {"堅": "10～30倍", "並": "20～40倍", "小荒": "20～40倍", "中荒": "30～60倍", "大荒": "60～90倍"},
-    "京都": {"堅": "10～30倍", "並": "10～30倍", "小荒": "20～40倍", "中荒": "20～50倍", "大荒": "50～80倍"},
-    "阪神": {"堅": "10～30倍", "並": "10～30倍", "小荒": "20～40倍", "中荒": "20～50倍", "大荒": "50～80倍"},
-    "中山": {"堅": "10～30倍", "並": "10～30倍", "小荒": "30～50倍", "中荒": "30～60倍", "大荒": "60～90倍"},
-    "福島": {"堅": "10～30倍", "並": "10～30倍", "小荒": "10～30倍", "中荒": "30～60倍", "大荒": "60～90倍"},
-    "新潟": {"堅": "10～30倍", "並": "10～30倍", "小荒": "20～40倍", "中荒": "20～50倍", "大荒": "50～80倍"},
-    "函館": {"堅": "10～30倍", "並": "10～30倍", "小荒": "10～30倍", "中荒": "20～50倍", "大荒": "50～80倍"},
-    "札幌": {"堅": "10～30倍", "並": "10～30倍", "小荒": "30～50倍", "中荒": "30～60倍", "大荒": "60～90倍"},
-    "中京": {"堅": "10～30倍", "並": "10～30倍", "小荒": "10～30倍", "中荒": "30～60倍", "大荒": "60～90倍"},
-    "小倉": {"堅": "10～30倍", "並": "20～40倍", "小荒": "30～50倍", "中荒": "40～70倍", "大荒": "60～90倍"}
+# 条件表に基づく会場・荒れ度ごとの「買い方」および「購入オッズ倍率（条件）」定義
+VENUE_STRATEGY_MAP = {
+    "東京": {
+        "堅": {"style": "1番人気軸5点", "range": "10～30倍"},
+        "並": {"style": "1番人気軸5点", "range": "10～30倍"},
+        "小荒": {"style": "フォーメーション10点", "range": "20倍以上"},
+        "中荒": {"style": "フォーメーション10点", "range": "30倍以上"},
+        "大荒": {"style": "フォーメーション10点", "range": "30倍以上"}
+    },
+    "京都": {
+        "堅": {"style": "1番人気軸5点", "range": "5～25倍"},
+        "並": {"style": "1番人気軸5点", "range": "5～25倍"},
+        "小荒": {"style": "フォーメーション10点", "range": "20倍以上"},
+        "中荒": {"style": "フォーメーション10点", "range": "30倍以上"},
+        "大荒": {"style": "フォーメーション10点", "range": "30倍以上"}
+    },
+    "阪神": {
+        "堅": {"style": "1番人気軸5点", "range": "5～25倍"},
+        "並": {"style": "1番人気軸5点", "range": "5～25倍"},
+        "小荒": {"style": "フォーメーション10点", "range": "20倍以上"},
+        "中荒": {"style": "フォーメーション10点", "range": "30倍以上"},
+        "大荒": {"style": "フォーメーション10点", "range": "30倍以上"}
+    },
+    "福島": {
+        "堅": {"style": "1番人気軸5点", "range": "0～20倍"},
+        "並": {"style": "1番人気軸5点", "range": "10～30倍"},
+        "小荒": {"style": "フォーメーション10点", "range": "20倍以上"},
+        "中荒": {"style": "フォーメーション10点", "range": "30倍以上"},
+        "大荒": {"style": "フォーメーション10点", "range": "30倍以上"}
+    },
+    "中山": {
+        "堅": {"style": "1番人気軸5点", "range": "0～20倍"},
+        "並": {"style": "1番人気軸5点", "range": "5～25倍"},
+        "小荒": {"style": "フォーメーション10点", "range": "20倍以上"},
+        "中荒": {"style": "フォーメーション10点", "range": "20倍以上"},
+        "大荒": {"style": "フォーメーション10点", "range": "30倍以上"}
+    },
+    "新潟": {
+        "堅": {"style": "1番人気軸5点", "range": "0～20倍"},
+        "並": {"style": "1番人気軸5点", "range": "5～25倍"},
+        "小荒": {"style": "フォーメーション10点", "range": "20倍以上"},
+        "中荒": {"style": "フォーメーション10点", "range": "20倍以上"},
+        "大荒": {"style": "フォーメーション10点", "range": "30倍以上"}
+    },
+    "函館": {
+        "堅": {"style": "1番人気軸5点", "range": "0～20倍"},
+        "並": {"style": "1番人気軸5点", "range": "5～25倍"},
+        "小荒": {"style": "フォーメーション10点", "range": "20倍以上"},
+        "中荒": {"style": "1番人気軸5点", "range": "15～35倍"},
+        "大荒": {"style": "フォーメーション10点", "range": "30倍以上"}
+    },
+    "札幌": {
+        "堅": {"style": "1番人気軸5点", "range": "10～30倍"},
+        "並": {"style": "1番人気軸5点", "range": "5～25倍"},
+        "小荒": {"style": "フォーメーション10点", "range": "20倍以上"},
+        "中荒": {"style": "フォーメーション10点", "range": "20倍以上"},
+        "大荒": {"style": "フォーメーション10点", "range": "30倍以上"}
+    },
+    "小倉": {
+        "堅": {"style": "1番人気軸5点", "range": "0～20倍"},
+        "並": {"style": "フォーメーション10点", "range": "20倍以上"},
+        "小荒": {"style": "フォーメーション10点", "range": "20倍以上"},
+        "中荒": {"style": "フォーメーション10点", "range": "30倍以上"},
+        "大荒": {"style": "フォーメーション10点", "range": "30倍以上"}
+    },
+    "中京": {
+        "堅": {"style": "1番人気軸5点", "range": "5～25倍"},
+        "並": {"style": "1番人気軸5点", "range": "5～25倍"},
+        "小荒": {"style": "フォーメーション10点", "range": "20倍以上"},
+        "中荒": {"style": "フォーメーション10点", "range": "30倍以上"},
+        "大荒": {"style": "フォーメーション10点", "range": "30倍以上"}
+    }
 }
 
-# ご提示いただいた「購入に○がついている組み合わせ」の定義
+# ご提示いただいた「購入 / 見送り」判定条件テーブル
 VALID_PURCHASE_COMBINATIONS = {
     "東京": {"堅": True,  "並": True,  "小荒": True,  "中荒": True,  "大荒": False},
-    "京都": {"堅": True,  "並": True,  "小荒": True, "中荒": False, "大荒": False},
-    "阪神": {"堅": True,  "並": True,  "小荒": True,  "中荒": False,  "大荒": False},
-    "中山": {"堅": False,  "並": True, "小荒": True, "中荒": False, "大荒": False},
-    "福島": {"堅": False,  "並": True,  "小荒": True,  "中荒": True,  "大荒": False},
-    "新潟": {"堅": False,  "並": True,  "小荒": True, "中荒": True,  "大荒": False},
-    "函館": {"堅": True,  "並": True,  "小荒": True,  "中荒": False, "大荒": False},
-    "札幌": {"堅": True,  "並": True,  "小荒": True, "中荒": True,  "大荒": False},
-    "中京": {"堅": True,  "並": True,  "小荒": True,  "中荒": False, "大荒": False},
-    "小倉": {"堅": False,  "並": True,  "小荒": True, "中荒": False, "大荒": False}
+    "京都": {"堅": False, "並": True,  "小荒": True,  "中荒": True,  "大荒": False},
+    "阪神": {"堅": False, "並": True,  "小荒": True,  "中荒": True,  "大荒": False},
+    "福島": {"堅": False, "並": True,  "小荒": True,  "中荒": True,  "大荒": False},
+    "中山": {"堅": False, "並": True,  "小荒": True,  "中荒": True,  "大荒": False},
+    "新潟": {"堅": False, "並": True,  "小荒": True,  "中荒": True,  "大荒": False},
+    "函館": {"堅": False, "並": True,  "小荒": True,  "中荒": False, "大荒": False},
+    "札幌": {"堅": False, "並": True,  "小荒": True,  "中荒": True,  "大荒": False},
+    "小倉": {"堅": False, "並": True,  "小荒": True,  "中荒": False, "大荒": False},
+    "中京": {"堅": False, "並": True,  "小荒": True,  "中荒": False, "大荒": False}
 }
 
 def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=False, trend="フラット"):
@@ -404,7 +464,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
             
             track_purchase_map = VALID_PURCHASE_COMBINATIONS.get(track, {})
             is_marked_circle = track_purchase_map.get(race_pattern, False)
-            display_race_pattern = f"{race_pattern}{'★' if is_marked_circle else ''}"
+            display_race_pattern = f"{race_pattern}{'（購入対象）' if is_marked_circle else '（見送り対象）'}"
 
             analysis_table_md = (
                 "\n| 荒れ度判定 | 荒れスコア | 1番人気オッズ | 2番人気オッズ | 3番人気オッズ | 1番人気支持率 |\n"
@@ -602,18 +662,20 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     all_aite_nums = sorted(pd.concat([aite1_df, aite2_df]).drop_duplicates(subset=["馬番"])["馬番"].tolist())
     fmt_points = len(list(itertools.combinations(all_aite_nums, 2)))
 
-    track_ranges = VENUE_ODDS_RANGES.get(track, {"堅": "～20倍", "並": "20～40倍", "小荒": "40～60倍", "中荒": "60～80倍", "大荒": "80倍以上"})
-    raw_range_str = track_ranges.get(race_pattern, '20～40倍')
-    
+    # 会場・荒れ度に基づく「買い方」および「購入倍率条件」の判定を取得
+    strategy_info = VENUE_STRATEGY_MAP.get(track, {}).get(race_pattern, {"style": "フォーメーション10点", "range": "20倍以上"})
+    buy_style = strategy_info["style"]
+    odds_condition = strategy_info["range"]
+
     track_purchase_map = VALID_PURCHASE_COMBINATIONS.get(track, {})
-    is_marked_circle = track_purchase_map.get(race_pattern, False)
-    target_odds_range = f"購入目安 {raw_range_str}"
+    is_marked_purchase = track_purchase_map.get(race_pattern, False)
+    purchase_verdict = "購入" if is_marked_purchase else "見送り"
 
     phase6_lines = [
         "#### ■ PHASE 6：最終ランキングと買い目\n",
         f"#### 1. レース情報\n[{race_name} / {track}{race_no}R / {surface} / {distance}m]",
         f"\n* **荒れ度分析（スコア判定）**:\n{analysis_table_md}",
-        f"\n**【レース判定結果】：{display_race_pattern}** （荒れスコア: **{rough_score}点** / {pattern_desc}）\n"
+        f"\n**【レース判定結果】：会場[{track}] × 荒れ度[{race_pattern}]** → **【{purchase_verdict}】** （荒れスコア: **{rough_score}点** / {pattern_desc}）\n"
     ]
 
     phase6_lines.append("\n#### 2. 最終ランキング\n| 順位 | 馬(オッズ) | 合成値(順位) | オッズ(順位) | 能力(順位) | 勝率 | 複勝率 | 期待値 | 位置 | 走数 |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
@@ -629,11 +691,14 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     
     aite2_str = ", ".join(f"{h:>2}" for h in aite2_df["馬番"])
 
-    # 軸馬の出力フォーマットを要求された形式（馬番（オッズ 複勝率））に修正
+    # 条件に基づく買い方・条件倍率・購入判定を出力
     phase6_lines.extend([
-        f"\n#### 3. 買い目（判定：【{display_race_pattern}】 {target_odds_range}）\n",
+        f"\n#### 3. 買い目判定仕様（会場: {track} / 荒れ度: {race_pattern}）\n",
+        f"* **判定結果**：【{purchase_verdict}】",
+        f"* **買い方** ：{buy_style}",
+        f"* **購入条件**：{odds_condition}\n",
         "**【３連複１頭軸流し（馬番表記）】**  ",
-        f"軸  ：{jiku_horse['馬番']}（{jiku_horse['単勝オッズ']}倍 {jiku_horse['複勝率(MC)']:.1f}%）  ",
+        f"軸 ：{jiku_horse['馬番']}（{jiku_horse['単勝オッズ']}倍 {jiku_horse['複勝率(MC)']:.1f}%）  ",
         f"相手1：{aite1_display_str}  ",
         f"相手2：{aite2_str}  \n",
         "#### 4. 入力用買い目\n",
