@@ -670,13 +670,13 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     if buy_style == "３連複フォーメーション":
         # 【フォーメーションの場合】
-        # 相手1：軸以外のオッズ順位上位3頭（複勝率10%以上のみ・補充なし）
+        # 相手1：軸以外のオッズ順位上位3頭（複勝率15%以上のみ・補充なし）
         df_without_jiku = df_sorted[df_sorted["馬番"] != jiku_horse["馬番"]]
-        aite1_df = df_without_jiku[df_without_jiku["複勝率(MC)"] >= 10.0].sort_values(by="オッズ順位").head(3)
+        aite1_df = df_without_jiku[df_without_jiku["複勝率(MC)"] >= 15.0].sort_values(by="オッズ順位").head(3)
 
-        # 相手2：軸・相手1以外かつ複勝率10%以上の馬から合成値上位5頭（補充なし）
+        # 相手2：軸・相手1以外かつ複勝率15%以上の馬から合成値上位5頭（補充なし）
         exclude_horses_f1 = {jiku_horse["馬番"]} | set(aite1_df["馬番"].tolist())
-        aite2_df = df_sorted[(~df_sorted["馬番"].isin(exclude_horses_f1)) & (df_sorted["複勝率(MC)"] >= 10.0)].sort_values(by="合成順位").head(5)
+        aite2_df = df_sorted[(~df_sorted["馬番"].isin(exclude_horses_f1)) & (df_sorted["複勝率(MC)"] >= 15.0)].sort_values(by="合成順位").head(5)
 
         aite1_nums = ", ".join([str(h) for h in aite1_df["馬番"]]) if not aite1_df.empty else "該当なし"
         aite1_pcts = ",".join([f"{df_sorted.loc[df_sorted['馬番'] == h, '複勝率(MC)'].values[0]:.1f}%" for h in aite1_df["馬番"]]) if not aite1_df.empty else ""
@@ -714,14 +714,14 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     else:
         # 【1頭軸流しの場合】
-        # 相手1：オッズ順位上位2頭（複勝率10%以上のみ・補充なし）
+        # 相手1：オッズ順位上位2頭（複勝率15%以上のみ・補充なし）
         df_without_jiku = df_valid[df_valid["馬番"] != jiku_horse["馬番"]]
-        aite1_df = df_without_jiku[df_without_jiku["複勝率(MC)"] >= 10.0].sort_values(by="オッズ順位").head(2)
+        aite1_df = df_without_jiku[df_without_jiku["複勝率(MC)"] >= 15.0].sort_values(by="オッズ順位").head(2)
 
-        # 相手2：軸・相手1以外かつ複勝率10%以上の馬（補充なし）
+        # 相手2：軸・相手1以外かつ複勝率15% 이상의馬（補充なし）
         aite2_count = 5 if race_pattern in ["中荒", "大荒"] else 4
         exclude_horses = {jiku_horse["馬番"]} | set(aite1_df["馬番"].tolist())
-        aite2_df = df_sorted[(~df_sorted["馬番"].isin(exclude_horses)) & (df_sorted["複勝率(MC)"] >= 10.0)].sort_values(by="合成順位").head(aite2_count)
+        aite2_df = df_sorted[(~df_sorted["馬番"].isin(exclude_horses)) & (df_sorted["複勝率(MC)"] >= 15.0)].sort_values(by="合成順位").head(aite2_count)
 
         all_aite_nums = sorted(pd.concat([aite1_df, aite2_df]).drop_duplicates(subset=["馬番"])["馬番"].tolist()) if not (aite1_df.empty and aite2_df.empty) else []
         fmt_points = len(list(itertools.combinations(all_aite_nums, 2))) if len(all_aite_nums) >= 2 else 0
