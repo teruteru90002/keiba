@@ -663,7 +663,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     jiku_horse = df_valid.sort_values(by="オッズ順位").iloc[0] if not df_valid.empty else df_sorted.iloc[0]
 
     high_place_pct_count = (df_sorted["複勝率(MC)"] >= 15.0).sum()
-    if high_place_pct_count >= 8:
+    if high_place_pct_count >= 9:
         buy_style = "３連複フォーメーション"
     else:
         buy_style = "１頭軸流し"
@@ -718,7 +718,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         df_without_jiku = df_valid[df_valid["馬番"] != jiku_horse["馬番"]]
         aite1_df = df_without_jiku[df_without_jiku["複勝率(MC)"] >= 15.0].sort_values(by="オッズ順位").head(2)
 
-        # 相手2：軸・相手1以外かつ複勝率15% 이상의馬（補充なし）
+        # 相手2：軸・相手1以外かつ複勝率15%以上の馬（補充なし）
         aite2_count = 5 if race_pattern in ["中荒", "大荒"] else 4
         exclude_horses = {jiku_horse["馬番"]} | set(aite1_df["馬番"].tolist())
         aite2_df = df_sorted[(~df_sorted["馬番"].isin(exclude_horses)) & (df_sorted["複勝率(MC)"] >= 15.0)].sort_values(by="合成順位").head(aite2_count)
