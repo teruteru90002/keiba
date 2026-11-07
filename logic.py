@@ -668,7 +668,11 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         if odds_1 < 3.0:
             jiku_horse = df_sorted[df_sorted["オッズ順位"] == 1].iloc[0] if not df_sorted[df_sorted["オッズ順位"] == 1].empty else df_sorted.iloc[0]
         elif odds_ratio < 1.3:
-            jiku_horse = df_sorted[df_sorted["オッズ順位"] == 2].iloc[0] if not df_sorted[df_sorted["オッズ順位"] == 2].empty else (df_sorted.iloc[1] if len(df_sorted) > 1 else df_sorted.iloc[0])
+            cand_2 = df_sorted[df_sorted["オッズ順位"] == 2]
+            if not cand_2.empty and cand_2.iloc[0]["合成順位"] <= 3:
+                jiku_horse = cand_2.iloc[0]
+            else:
+                jiku_horse = df_sorted[df_sorted["オッズ順位"] == 1].iloc[0] if not df_sorted[df_sorted["オッズ順位"] == 1].empty else df_sorted.iloc[0]
         else:
             jiku_horse = df_sorted[df_sorted["オッズ順位"] == 1].iloc[0] if not df_sorted[df_sorted["オッズ順位"] == 1].empty else df_sorted.iloc[0]
     else:
