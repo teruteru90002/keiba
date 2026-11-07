@@ -732,8 +732,8 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
         buying_lines = [
             "**【３連複１頭軸流し（馬番表記）】**  ",
-            f"軸   ：{jiku_horse['馬番']}",
-            f"相手1：{aite1_nums}",
+            f"軸   ：{jiku_horse['馬番']}  ",
+            f"相手1：{aite1_nums}  ",
             f"相手2：{aite2_nums}",
             "\n#### 4. 入力用買い目\n",
             f"* 基本購入：{jiku_horse['馬番']} - {all_aite_sorted_str}（{fmt_points}点）"
