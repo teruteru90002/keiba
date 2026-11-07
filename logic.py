@@ -674,9 +674,10 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         df_without_jiku = df_sorted[df_sorted["馬番"] != jiku_horse["馬番"]]
         aite1_df = df_without_jiku[df_without_jiku["複勝率(MC)"] >= 15.0].sort_values(by="オッズ順位").head(3)
 
-        # 相手2：軸・相手1以外かつ複勝率15%以上の馬から合成値上位5頭（補充なし）
+        # 相手2：軸・相手1以外かつ複勝率15%以上の馬から合成値上位頭数（中荒・大荒なら4頭、それ以外は5頭・補充なし）
+        aite2_limit = 4 if race_pattern in ["中荒", "大荒"] else 5
         exclude_horses_f1 = {jiku_horse["馬番"]} | set(aite1_df["馬番"].tolist())
-        aite2_df = df_sorted[(~df_sorted["馬番"].isin(exclude_horses_f1)) & (df_sorted["複勝率(MC)"] >= 15.0)].sort_values(by="合成順位").head(5)
+        aite2_df = df_sorted[(~df_sorted["馬番"].isin(exclude_horses_f1)) & (df_sorted["複勝率(MC)"] >= 15.0)].sort_values(by="合成順位").head(aite2_limit)
 
         aite1_nums = ", ".join([str(h) for h in aite1_df["馬番"]]) if not aite1_df.empty else "該当なし"
         aite1_pcts = ",".join([f"{df_sorted.loc[df_sorted['馬番'] == h, '複勝率(MC)'].values[0]:.1f}%" for h in aite1_df["馬番"]]) if not aite1_df.empty else ""
@@ -718,9 +719,10 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         df_without_jiku = df_valid[df_valid["馬番"] != jiku_horse["馬番"]]
         aite1_df = df_without_jiku[df_without_jiku["複勝率(MC)"] >= 15.0].sort_values(by="オッズ順位").head(2)
 
-        # 相手2：軸・相手1以外かつ複勝率15%以上の馬（合成順位上位5頭、補充なし）
+        # 相手2：軸・相手1以外かつ複勝率15%以上の馬（合成順位上位頭数：中荒・大荒なら6頭、それ以外は5頭、補充なし）
+        aite2_limit = 6 if race_pattern in ["中荒", "大荒"] else 5
         exclude_horses = {jiku_horse["馬番"]} | set(aite1_df["馬番"].tolist())
-        aite2_df = df_sorted[(~df_sorted["馬番"].isin(exclude_horses)) & (df_sorted["複勝率(MC)"] >= 15.0)].sort_values(by="合成順位").head(5)
+        aite2_df = df_sorted[(~df_sorted["馬番"].isin(exclude_horses)) & (df_sorted["複勝率(MC)"] >= 15.0)].sort_values(by="合成順位").head(aite2_limit)
 
         all_aite_nums = sorted(pd.concat([aite1_df, aite2_df]).drop_duplicates(subset=["馬番"])["馬番"].tolist()) if not (aite1_df.empty and aite2_df.empty) else []
         fmt_points = len(list(itertools.combinations(all_aite_nums, 2))) if len(all_aite_nums) >= 2 else 0
