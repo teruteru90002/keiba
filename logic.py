@@ -663,7 +663,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     jiku_horse = df_valid.sort_values(by="オッズ順位").iloc[0] if not df_valid.empty else df_sorted.iloc[0]
 
     high_place_pct_count = (df_sorted["複勝率(MC)"] >= 15.0).sum()
-    if high_place_pct_count >= 9:
+    if high_place_pct_count >= 8:
         buy_style = "３連複フォーメーション"
     else:
         buy_style = "１頭軸流し"
