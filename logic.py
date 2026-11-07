@@ -660,7 +660,19 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     # ============================================================
     # 軸馬・相手馬選定ロジック（複勝率15％以上の頭数で買い方を切替）
     # ============================================================
-    jiku_horse = df_valid.sort_values(by="オッズ順位").iloc[0] if not df_valid.empty else df_sorted.iloc[0]
+    if race_pattern in ["小荒", "中荒", "大荒"]:
+        odds_1 = tansho_odds[0] if len(tansho_odds) > 0 else 1.0
+        odds_2 = tansho_odds[1] if len(tansho_odds) > 1 else odds_1
+        odds_ratio = odds_2 / odds_1 if odds_1 > 0 else 1.0
+
+        if odds_1 < 3.0:
+            jiku_horse = df_sorted[df_sorted["オッズ順位"] == 1].iloc[0] if not df_sorted[df_sorted["オッズ順位"] == 1].empty else df_sorted.iloc[0]
+        elif odds_ratio < 1.3:
+            jiku_horse = df_sorted[df_sorted["オッズ順位"] == 2].iloc[0] if not df_sorted[df_sorted["オッズ順位"] == 2].empty else (df_sorted.iloc[1] if len(df_sorted) > 1 else df_sorted.iloc[0])
+        else:
+            jiku_horse = df_sorted[df_sorted["オッズ順位"] == 1].iloc[0] if not df_sorted[df_sorted["オッズ順位"] == 1].empty else df_sorted.iloc[0]
+    else:
+        jiku_horse = df_valid.sort_values(by="オッズ順位").iloc[0] if not df_valid.empty else df_sorted.iloc[0]
 
     high_place_pct_count = (df_sorted["複勝率(MC)"] >= 15.0).sum()
     if high_place_pct_count >= 8:
