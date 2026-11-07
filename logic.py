@@ -670,7 +670,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
         if odds_1 < 3.0:
             jiku_horse = sorted_by_odds.iloc[0] if not sorted_by_odds.empty else df_sorted.iloc[0]
-        elif odds_ratio < 1.3:
+        elif odds_ratio <= 1.2:
             # 2番目にオッズが低い馬（2番人気）を取得し、合成順位が3位以内かチェック
             if len(sorted_by_odds) >= 2:
                 cand_2 = sorted_by_odds.iloc[1]
