@@ -613,7 +613,8 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     df_calc["オッズスコア"] = [round(100.0 * (max_odds_val - o) / odds_range, 1) if odds_range > 0 else 100.0 for o in df_calc["単勝オッズ"]]
     df_calc["能力順位"] = df_calc["能力スコア"].rank(ascending=False, method="min").astype(int)
-    df_calc["オッズ順位"] = df_calc["オッズスコア"].rank(ascending=False, method="min").astype(int)
+    # 単勝オッズベースで正確なオッズ順位（1番人気、2番人気…）を算出
+    df_calc["オッズ順位"] = df_calc["単勝オッズ"].rank(ascending=True, method="min").astype(int)
 
     phase5_lines = ["#### ■ PHASE 5：全頭合成値（馬番順リスト）\n"]
     for idx, r in df_calc.iterrows():
@@ -665,18 +666,24 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         odds_2 = tansho_odds[1] if len(tansho_odds) > 1 else odds_1
         odds_ratio = odds_2 / odds_1 if odds_1 > 0 else 1.0
 
+        sorted_by_odds = df_sorted.sort_values(by="単勝オッズ")
+
         if odds_1 < 3.0:
-            jiku_horse = df_sorted[df_sorted["オッズ順位"] == 1].iloc[0] if not df_sorted[df_sorted["オッズ順位"] == 1].empty else df_sorted.iloc[0]
+            jiku_horse = sorted_by_odds.iloc[0] if not sorted_by_odds.empty else df_sorted.iloc[0]
         elif odds_ratio < 1.3:
-            cand_2 = df_sorted[df_sorted["オッズ順位"] == 2]
-            if not cand_2.empty and cand_2.iloc[0]["合成順位"] <= 3:
-                jiku_horse = cand_2.iloc[0]
+            # 2番目にオッズが低い馬（2番人気）を取得し、合成順位が3位以内かチェック
+            if len(sorted_by_odds) >= 2:
+                cand_2 = sorted_by_odds.iloc[1]
+                if cand_2["合成順位"] <= 3:
+                    jiku_horse = cand_2
+                else:
+                    jiku_horse = sorted_by_odds.iloc[0]
             else:
-                jiku_horse = df_sorted[df_sorted["オッズ順位"] == 1].iloc[0] if not df_sorted[df_sorted["オッズ順位"] == 1].empty else df_sorted.iloc[0]
+                jiku_horse = sorted_by_odds.iloc[0]
         else:
-            jiku_horse = df_sorted[df_sorted["オッズ順位"] == 1].iloc[0] if not df_sorted[df_sorted["オッズ順位"] == 1].empty else df_sorted.iloc[0]
+            jiku_horse = sorted_by_odds.iloc[0] if not sorted_by_odds.empty else df_sorted.iloc[0]
     else:
-        jiku_horse = df_valid.sort_values(by="オッズ順位").iloc[0] if not df_valid.empty else df_sorted.iloc[0]
+        jiku_horse = df_valid.sort_values(by="単勝オッズ").iloc[0] if not df_valid.empty else df_sorted.iloc[0]
 
     # 軸馬表記の調整（2番人気/オッズ順位2位の場合は「※」を付与）
     jiku_mark = "※" if jiku_horse["オッズ順位"] == 2 else ""
