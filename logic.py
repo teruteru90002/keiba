@@ -707,9 +707,9 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
             f"1頭目（軸）  ：{jiku_horse['馬番']}",
             f"        ({jiku_horse['単勝オッズ']}倍 {jiku_horse['複勝率(MC)']:.1f}%)  ",
             f"2頭目（相手1）：{aite1_nums}",
-            f"        ({aite1_pcts})" if aite1_pcts else "",
+            f"        ({aite1_pcts})  " if aite1_pcts else "",
             f"3頭目（相手2）：{aite2_nums}",
-            f"        ({aite2_pcts})" if aite2_pcts else "",
+            f"        ({aite2_pcts})  " if aite2_pcts else "",
             "\n#### 4. 入力用買い目\n",
             f"* 基本購入：{jiku_horse['馬番']} - {a1_sorted_str} - {a2_sorted_str}（{fmt_points}点）"
         ]
