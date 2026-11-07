@@ -674,16 +674,13 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         df_without_jiku = df_sorted[df_sorted["馬番"] != jiku_horse["馬番"]]
         aite1_df = df_without_jiku[df_without_jiku["複勝率(MC)"] >= 15.0].sort_values(by="オッズ順位").head(3)
 
-        # 相手2：軸・相手1以外かつ複勝率15%以上の馬から合成値上位頭数（中荒・大荒なら6頭、それ以外は5頭・補充なし）
+        # 相手2：軸・相手1以外かつ複勝率15% 이상의馬から合成値上位頭数（中荒・大荒なら6頭、それ以外は5頭・補充なし）
         aite2_limit = 6 if race_pattern in ["中荒", "大荒"] else 5
         exclude_horses_f1 = {jiku_horse["馬番"]} | set(aite1_df["馬番"].tolist())
         aite2_df = df_sorted[(~df_sorted["馬番"].isin(exclude_horses_f1)) & (df_sorted["複勝率(MC)"] >= 15.0)].sort_values(by="合成順位").head(aite2_limit)
 
         aite1_nums = ", ".join([str(h) for h in aite1_df["馬番"]]) if not aite1_df.empty else "該当なし"
-        aite1_pcts = ",".join([f"{df_sorted.loc[df_sorted['馬番'] == h, '複勝率(MC)'].values[0]:.1f}%" for h in aite1_df["馬番"]]) if not aite1_df.empty else ""
-        
         aite2_nums = ", ".join([str(h) for h in aite2_df["馬番"]]) if not aite2_df.empty else "該当なし"
-        aite2_pcts = ",".join([f"{df_sorted.loc[df_sorted['馬番'] == h, '複勝率(MC)'].values[0]:.1f}%" for h in aite2_df["馬番"]]) if not aite2_df.empty else ""
 
         selected_horse_numbers = {jiku_horse["馬番"]} | set(aite1_df["馬番"].tolist()) | set(aite2_df["馬番"].tolist())
 
@@ -705,16 +702,11 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         buying_lines = [
             "**【３連複フォーメーション（馬番表記）】**  ",
             f"1頭目（軸）  ：{jiku_horse['馬番']}",
-            f"        ({jiku_horse['単勝オッズ']}倍 {jiku_horse['複勝率(MC)']:.1f}%)  ",
             f"2頭目（相手1）：{aite1_nums}",
-            f"        ({aite1_pcts})  " if aite1_pcts else "",
             f"3頭目（相手2）：{aite2_nums}",
-            f"        ({aite2_pcts})  " if aite2_pcts else "",
             "\n#### 4. 入力用買い目\n",
             f"* 基本購入：{jiku_horse['馬番']} - {a1_sorted_str} - {a2_sorted_str}（{fmt_points}点）"
         ]
-        # 空行要素を除去
-        buying_lines = [line for line in buying_lines if line != ""]
 
     else:
         # 【1頭軸流しの場合】
@@ -731,10 +723,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         fmt_points = len(list(itertools.combinations(all_aite_nums, 2))) if len(all_aite_nums) >= 2 else 0
 
         aite1_nums = ", ".join([str(h) for h in aite1_df["馬番"]]) if not aite1_df.empty else "該当なし"
-        aite1_pcts = ",".join([f"{df_sorted.loc[df_sorted['馬番'] == h, '複勝率(MC)'].values[0]:.1f}%" for h in aite1_df["馬番"]]) if not aite1_df.empty else ""
-
         aite2_nums = ", ".join([str(h) for h in aite2_df["馬番"]]) if not aite2_df.empty else "該当なし"
-        aite2_pcts = ",".join([f"{df_sorted.loc[df_sorted['馬番'] == h, '複勝率(MC)'].values[0]:.1f}%" for h in aite2_df["馬番"]]) if not aite2_df.empty else ""
 
         selected_horse_numbers = {jiku_horse["馬番"]} | set(all_aite_nums)
 
@@ -744,16 +733,11 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         buying_lines = [
             "**【３連複１頭軸流し（馬番表記）】**  ",
             f"軸   ：{jiku_horse['馬番']}",
-            f"    ({jiku_horse['単勝オッズ']}倍 {jiku_horse['複勝率(MC)']:.1f}%)  ",
             f"相手1：{aite1_nums}",
-            f"    ({aite1_pcts})" if aite1_pcts else "",
             f"相手2：{aite2_nums}",
-            f"     ({aite2_pcts})" if aite2_pcts else "",
             "\n#### 4. 入力用買い目\n",
             f"* 基本購入：{jiku_horse['馬番']} - {all_aite_sorted_str}（{fmt_points}点）"
         ]
-        # 空行要素を除去
-        buying_lines = [line for line in buying_lines if line != ""]
 
     phase6_lines = [
         "#### ■ PHASE 6：最終ランキングと買い目\n",
@@ -769,7 +753,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         phase6_lines.append(f"| {prefix}{idx + 1}{prefix} | {prefix}{r['馬番']} {r['馬名']}({r['単勝オッズ']}倍){prefix} | {prefix}{r['合成値']:.2f} ({r['合成順位']}位){prefix} | {prefix}{r['オッズスコア']:.1f} ({r['オッズ順位']}位){prefix} | {prefix}{r['能力スコア']:.1f} ({r['能力順位']}位){prefix} | {prefix}{r['勝率(MC)']:.1f}%{prefix} | {prefix}{r['複勝率(MC)']:.1f}%{prefix} | {prefix}{r['期待値']:.2f}{prefix} | {prefix}{r.get('位置取り', '差')}{prefix} | {prefix}{r.get('走数', 0)}{prefix} |")
 
     phase6_lines.extend([
-        "\n#### 3. 買い目",
+        "\n#### 3. 買い目判定仕様",
         f"   （会場: {track} / 荒れ度: {race_pattern}（{odds_condition}））\n",
         f"* **判定結果**：【{purchase_verdict}】",
         f"* **買い方** ：{buy_style}（複勝率15％以上: {high_place_pct_count}頭）",
