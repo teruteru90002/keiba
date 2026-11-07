@@ -315,13 +315,13 @@ def calculate_rough_score(features: Dict) -> Dict:
     )
     total_score = round(total_score, 1)
     
-    if total_score < 20:
+    if total_score < 25:
         category = "堅"
-    elif total_score < 35:
+    elif total_score < 40:
         category = "並"
-    elif total_score < 60:
+    elif total_score < 55:
         category = "小荒"
-    elif total_score < 75:
+    elif total_score < 70:
         category = "中荒"
     else:
         category = "大荒"
