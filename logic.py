@@ -674,6 +674,10 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     else:
         jiku_horse = df_valid.sort_values(by="オッズ順位").iloc[0] if not df_valid.empty else df_sorted.iloc[0]
 
+    # 軸馬表記の調整（2番人気/オッズ順位2位の場合は「※」を付与）
+    jiku_mark = "※" if jiku_horse["オッズ順位"] == 2 else ""
+    jiku_display_str = f"{jiku_horse['馬番']}{jiku_mark}"
+
     high_place_pct_count = (df_sorted["複勝率(MC)"] >= 15.0).sum()
     if high_place_pct_count >= 8:
         buy_style = "３連複フォーメーション"
@@ -713,11 +717,11 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
         buying_lines = [
             "**【３連複フォーメーション（馬番表記）】**  ",
-            f"1頭目（軸）  ：{jiku_horse['馬番']}  ",
+            f"1頭目（軸）  ：{jiku_display_str}  ",
             f"2頭目（相手1）：{aite1_nums}  ",
             f"3頭目（相手2）：{aite2_nums}",
             "\n#### 4. 入力用買い目\n",
-            f"* 基本購入：{jiku_horse['馬番']} - {a1_sorted_str} - {a2_sorted_str}（{fmt_points}点）"
+            f"* 基本購入：{jiku_display_str} - {a1_sorted_str} - {a2_sorted_str}（{fmt_points}点）"
         ]
 
     else:
@@ -744,11 +748,11 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
         buying_lines = [
             "**【３連複１頭軸流し（馬番表記）】**  ",
-            f"軸   ：{jiku_horse['馬番']}  ",
+            f"軸   ：{jiku_display_str}  ",
             f"相手1：{aite1_nums}  ",
             f"相手2：{aite2_nums}",
             "\n#### 4. 入力用買い目\n",
-            f"* 基本購入：{jiku_horse['馬番']} - {all_aite_sorted_str}（{fmt_points}点）"
+            f"* 基本購入：{jiku_display_str} - {all_aite_sorted_str}（{fmt_points}点）"
         ]
 
     phase6_lines = [
