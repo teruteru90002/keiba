@@ -659,35 +659,11 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     purchase_verdict = "購入" if is_marked_purchase else "見送り"
 
     # ============================================================
-    # 軸馬・相手馬選定ロジック（複勝率15％以上の頭数で買い方を切替）
+    # 軸馬・相手馬選定ロジック（軸：1番人気、相手1：軸を除く複勝率30%以上、相手2：軸、相手1を除く複勝率10%以上）
     # ============================================================
-    if race_pattern in ["小荒", "中荒", "大荒"]:
-        odds_1 = tansho_odds[0] if len(tansho_odds) > 0 else 1.0
-        odds_2 = tansho_odds[1] if len(tansho_odds) > 1 else odds_1
-        odds_ratio = odds_2 / odds_1 if odds_1 > 0 else 1.0
-
-        sorted_by_odds = df_sorted.sort_values(by="単勝オッズ")
-
-        if odds_1 < 3.0:
-            jiku_horse = sorted_by_odds.iloc[0] if not sorted_by_odds.empty else df_sorted.iloc[0]
-        elif odds_ratio <= 1.2:
-            # 2番目にオッズが低い馬（2番人気）を取得し、合成順位が3位以内かチェック
-            if len(sorted_by_odds) >= 2:
-                cand_2 = sorted_by_odds.iloc[1]
-                if cand_2["合成順位"] <= 3:
-                    jiku_horse = cand_2
-                else:
-                    jiku_horse = sorted_by_odds.iloc[0]
-            else:
-                jiku_horse = sorted_by_odds.iloc[0]
-        else:
-            jiku_horse = sorted_by_odds.iloc[0] if not sorted_by_odds.empty else df_sorted.iloc[0]
-    else:
-        jiku_horse = df_valid.sort_values(by="単勝オッズ").iloc[0] if not df_valid.empty else df_sorted.iloc[0]
-
-    # 軸馬表記の調整（2番人気/オッズ順位2位の場合は「※」を付与）
-    jiku_mark = "※" if jiku_horse["オッズ順位"] == 2 else ""
-    jiku_display_str = f"{jiku_horse['馬番']}{jiku_mark}"
+    sorted_by_odds = df_sorted.sort_values(by="単勝オッズ")
+    jiku_horse = sorted_by_odds.iloc[0] if not sorted_by_odds.empty else df_sorted.iloc[0]
+    jiku_display_str = f"{jiku_horse['馬番']}"
 
     high_place_pct_count = (df_sorted["複勝率(MC)"] >= 15.0).sum()
     if high_place_pct_count >= 8:
@@ -695,23 +671,13 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     else:
         buy_style = "１頭軸流し"
 
+    df_without_jiku = df_sorted[df_sorted["馬番"] != jiku_horse["馬番"]]
+    aite1_df = df_without_jiku[df_without_jiku["複勝率(MC)"] >= 30.0].sort_values(by="オッズ順位")
+
+    exclude_horses = {jiku_horse["馬番"]} | set(aite1_df["馬番"].tolist())
+    aite2_df = df_sorted[(~df_sorted["馬番"].isin(exclude_horses)) & (df_sorted["複勝率(MC)"] >= 10.0)].sort_values(by="合成順位")
+
     if buy_style == "３連複フォーメーション":
-        # 【フォーメーションの場合】
-        # 相手1：軸以外のオッズ順位上位3頭（複勝率15%以上のみ・補充なし）
-        df_without_jiku = df_sorted[df_sorted["馬番"] != jiku_horse["馬番"]]
-        aite1_df = df_without_jiku[df_without_jiku["複勝率(MC)"] >= 15.0].sort_values(by="オッズ順位").head(3)
-
-        # 相手2：軸・相手1以外かつ複勝率15%以上の馬から合成値上位頭数（中荒・大荒なら6頭、それ以外は5頭・補充なし）
-        aite2_limit = 6 if race_pattern in ["中荒", "大荒"] else 5
-        exclude_horses_f1 = {jiku_horse["馬番"]} | set(aite1_df["馬番"].tolist())
-        aite2_df = df_sorted[(~df_sorted["馬番"].isin(exclude_horses_f1)) & (df_sorted["複勝率(MC)"] >= 15.0)].sort_values(by="合成順位").head(aite2_limit)
-
-        aite1_nums = ", ".join([str(h) for h in aite1_df["馬番"]]) if not aite1_df.empty else "該当なし"
-        aite2_nums = ", ".join([str(h) for h in aite2_df["馬番"]]) if not aite2_df.empty else "該当なし"
-
-        selected_horse_numbers = {jiku_horse["馬番"]} | set(aite1_df["馬番"].tolist()) | set(aite2_df["馬番"].tolist())
-
-        # フォーメーションの購入点数算出
         a1_list = aite1_df["馬番"].tolist()
         a2_list = aite2_df["馬番"].tolist()
         fmt_combos = set()
@@ -722,9 +688,12 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
                     fmt_combos.add(combo)
         fmt_points = len(fmt_combos)
 
-        # 入力用買い目の馬番順（昇順）ソート処理
         a1_sorted_str = ",".join(map(str, sorted(a1_list))) if a1_list else "該当なし"
         a2_sorted_str = ",".join(map(str, sorted(a2_list))) if a2_list else "該当なし"
+        aite1_nums = ", ".join([str(h) for h in a1_list]) if a1_list else "該当なし"
+        aite2_nums = ", ".join([str(h) for h in a2_list]) if a2_list else "該当なし"
+
+        selected_horse_numbers = {jiku_horse["馬番"]} | set(a1_list) | set(a2_list)
 
         buying_lines = [
             "**【３連複フォーメーション（馬番表記）】**  ",
@@ -736,17 +705,8 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         ]
 
     else:
-        # 【1頭軸流しの場合】
-        # 相手1：オッズ順位上位2頭（複勝率15%以上のみ・補充なし）
-        df_without_jiku = df_valid[df_valid["馬番"] != jiku_horse["馬番"]]
-        aite1_df = df_without_jiku[df_without_jiku["複勝率(MC)"] >= 15.0].sort_values(by="オッズ順位").head(2)
-
-        # 相手2：軸・相手1以外かつ複勝率15%以上の馬（合成順位上位頭数：中荒・大荒なら5頭、それ以外は4頭、補充なし）
-        aite2_limit = 5 if race_pattern in ["中荒", "大荒"] else 4
-        exclude_horses = {jiku_horse["馬番"]} | set(aite1_df["馬番"].tolist())
-        aite2_df = df_sorted[(~df_sorted["馬番"].isin(exclude_horses)) & (df_sorted["複勝率(MC)"] >= 15.0)].sort_values(by="合成順位").head(aite2_limit)
-
-        all_aite_nums = sorted(pd.concat([aite1_df, aite2_df]).drop_duplicates(subset=["馬番"])["馬番"].tolist()) if not (aite1_df.empty and aite2_df.empty) else []
+        all_aite_df = pd.concat([aite1_df, aite2_df]).drop_duplicates(subset=["馬番"])
+        all_aite_nums = sorted(all_aite_df["馬番"].tolist()) if not all_aite_df.empty else []
         fmt_points = len(list(itertools.combinations(all_aite_nums, 2))) if len(all_aite_nums) >= 2 else 0
 
         aite1_nums = ", ".join([str(h) for h in aite1_df["馬番"]]) if not aite1_df.empty else "該当なし"
@@ -754,7 +714,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
         selected_horse_numbers = {jiku_horse["馬番"]} | set(all_aite_nums)
 
-        # 入力用買い目の馬番順（昇順）ソート処理
         all_aite_sorted_str = ",".join(map(str, sorted(all_aite_nums))) if all_aite_nums else "該当なし"
 
         buying_lines = [
