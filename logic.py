@@ -658,7 +658,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     # ============================================================
     # 軸馬・相手馬選定ロジック（すべてフォーメーション固定）
     # 軸：1番人気
-    # 相手1：軸を除く複勝率30%以上
+    # 相手1：軸を除く複勝率25%以上
     # 相手2：軸、相手1を除く複勝率10%以上
     # ============================================================
     sorted_by_odds = df_sorted.sort_values(by="単勝オッズ")
@@ -668,7 +668,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     buy_style = "３連複フォーメーション"
 
     df_without_jiku = df_sorted[df_sorted["馬番"] != jiku_horse["馬番"]]
-    aite1_df = df_without_jiku[df_without_jiku["複勝率(MC)"] >= 30.0].sort_values(by="オッズ順位")
+    aite1_df = df_without_jiku[df_without_jiku["複勝率(MC)"] >= 25.0].sort_values(by="オッズ順位")
 
     exclude_horses = {jiku_horse["馬番"]} | set(aite1_df["馬番"].tolist())
     aite2_df = df_sorted[(~df_sorted["馬番"].isin(exclude_horses)) & (df_sorted["複勝率(MC)"] >= 10.0)].sort_values(by="合成順位")
