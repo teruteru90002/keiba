@@ -728,11 +728,11 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     selected_horse_numbers = {jiku_horse["馬番"]} | set(a1_list) | set(a2_list) | set(a3_list)
 
     buying_lines = [
-        "**【３連複フォーメーション（馬番表記）】**  ",
-        f"1頭目（軸）  ：{jiku_display_str}  ",
-        f"2頭目（相手1）：{aite1_nums}  ",
-        f"3頭目（相手2）：{aite2_nums}  ",
-        f"4頭目（相手3）：{aite3_nums}",
+        "**【買い目候補】**  ",
+        f"軸候補  ：{jiku_display_str}  ",
+        f"候補1(複勝率25%以上)：{aite1_nums}  ",
+        f"候補2(複勝率15%以上)：{aite2_nums}  ",
+        f"候補3(複勝率10%以上)：{aite3_nums}",
         "\n#### 4. 入力用買い目\n",
         f"* 基本購入：{jiku_display_str} - {a1_sorted_str} - {a2_sorted_str} - {a3_sorted_str}（{fmt_points}点）"
     ]
