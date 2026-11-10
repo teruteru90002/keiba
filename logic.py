@@ -729,7 +729,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     buying_lines = [
         "**【買い目候補】**  ",
-        f"軸候補  ：{jiku_display_str}  ",
+        f"軸候補(1番人気)  ：{jiku_display_str}  ",
         f"候補1(複勝率25%以上)：{aite1_nums}  ",
         f"候補2(複勝率15%以上)：{aite2_nums}  ",
         f"候補3(複勝率10%以上)：{aite3_nums}",
