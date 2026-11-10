@@ -658,7 +658,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     # ============================================================
     # 軸馬・相手馬選定ロジック（すべてフォーメーション固定・単勝30倍以上カット）
     # 軸：1番人気
-    # 相手1：単勝30倍未満かつ軸を除く複勝率25%以上
+    # 相手1：単勝30倍未満かつ軸を除く複勝率25%以上（最大3頭まで）
     # 相手2：単勝30倍未満かつ軸、相手1を除く複勝率10%以上
     # ============================================================
     sorted_by_odds = df_sorted.sort_values(by="単勝オッズ")
@@ -673,7 +673,9 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         df_valid_pool = df_sorted.copy()
 
     df_without_jiku = df_valid_pool[df_valid_pool["馬番"] != jiku_horse["馬番"]]
-    aite1_df = df_without_jiku[df_without_jiku["複勝率(MC)"] >= 25.0].sort_values(by="オッズ順位")
+    
+    # 相手1：条件を満たす馬からオッズ順位上位「最大3頭」に制限
+    aite1_df = df_without_jiku[df_without_jiku["複勝率(MC)"] >= 25.0].sort_values(by="オッズ順位").head(3)
 
     exclude_horses = {jiku_horse["馬番"]} | set(aite1_df["馬番"].tolist())
     aite2_df = df_valid_pool[(~df_valid_pool["馬番"].isin(exclude_horses)) & (df_valid_pool["複勝率(MC)"] >= 10.0)].sort_values(by="合成順位")
