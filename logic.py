@@ -660,7 +660,8 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     # 軸：1番人気
     # 対象プール：単勝30倍未満、または30倍以上であっても複勝率(MC)15%以上の馬
     # 相手1：対象プール内かつ軸を除く複勝率25%以上（合成順位でソート）
-    # 相手2：対象プール内かつ軸、相手1を除く複勝率10%以上（合成順位でソート）
+    # 相手2：対象プール内かつ軸、相手1を除く複勝率15%以上（合成順位でソート）
+    # 相手3：対象プール内かつ軸、相手1、相手2を除く複勝率10%以上（合成順位でソート）
     # ============================================================
     sorted_by_odds = df_sorted.sort_values(by="単勝オッズ")
     jiku_horse = sorted_by_odds.iloc[0] if not sorted_by_odds.empty else df_sorted.iloc[0]
@@ -675,37 +676,65 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     df_without_jiku = df_valid_pool[df_valid_pool["馬番"] != jiku_horse["馬番"]]
     
-    # 相手1：複勝率(MC) 25%以上（合成順位でソート）
+    # 相手1：複勝率(MC) 25%以上
     aite1_df = df_without_jiku[df_without_jiku["複勝率(MC)"] >= 25.0].sort_values(by="合成順位")
-
-    exclude_horses = {jiku_horse["馬番"]} | set(aite1_df["馬番"].tolist())
-    # 相手2：複勝率(MC) 10%以上（合成順位でソート）
-    aite2_df = df_valid_pool[(~df_valid_pool["馬番"].isin(exclude_horses)) & (df_valid_pool["複勝率(MC)"] >= 10.0)].sort_values(by="合成順位")
-
     a1_list = aite1_df["馬番"].tolist()
+
+    # 相手2：複勝率(MC) 15%以上（軸・相手1を除外）
+    exclude_for_a2 = {jiku_horse["馬番"]} | set(a1_list)
+    aite2_df = df_valid_pool[(~df_valid_pool["馬番"].isin(exclude_for_a2)) & (df_valid_pool["複勝率(MC)"] >= 15.0)].sort_values(by="合成順位")
     a2_list = aite2_df["馬番"].tolist()
+
+    # 相手3：複勝率(MC) 10%以上（軸・相手1・相手2を除外）
+    exclude_for_a3 = exclude_for_a2 | set(a2_list)
+    aite3_df = df_valid_pool[(~df_valid_pool["馬番"].isin(exclude_for_a3)) & (df_valid_pool["複勝率(MC)"] >= 10.0)].sort_values(by="合成順位")
+    a3_list = aite3_df["馬番"].tolist()
+
+    # 3連複フォーメーション（軸 - 相手1 - 相手2 - 相手3）の組合せ点数計算
     fmt_combos = set()
+    j_num = jiku_horse["馬番"]
+    
+    # 軸 - 相手1 - 相手2
     for h1 in a1_list:
         for h2 in a2_list:
             if h1 != h2:
-                combo = tuple(sorted([jiku_horse["馬番"], h1, h2]))
+                combo = tuple(sorted([j_num, h1, h2]))
                 fmt_combos.add(combo)
+                
+    # 軸 - 相手1 - 相手3
+    for h1 in a1_list:
+        for h3 in a3_list:
+            if h1 != h3:
+                combo = tuple(sorted([j_num, h1, h3]))
+                fmt_combos.add(combo)
+                
+    # 軸 - 相手2 - 相手3
+    for h2 in a2_list:
+        for h3 in a3_list:
+            if h2 != h3:
+                combo = tuple(sorted([j_num, h2, h3]))
+                fmt_combos.add(combo)
+                
     fmt_points = len(fmt_combos)
 
     a1_sorted_str = ",".join(map(str, sorted(a1_list))) if a1_list else "該当なし"
     a2_sorted_str = ",".join(map(str, sorted(a2_list))) if a2_list else "該当なし"
+    a3_sorted_str = ",".join(map(str, sorted(a3_list))) if a3_list else "該当なし"
+    
     aite1_nums = ", ".join([str(h) for h in a1_list]) if a1_list else "該当なし"
     aite2_nums = ", ".join([str(h) for h in a2_list]) if a2_list else "該当なし"
+    aite3_nums = ", ".join([str(h) for h in a3_list]) if a3_list else "該当なし"
 
-    selected_horse_numbers = {jiku_horse["馬番"]} | set(a1_list) | set(a2_list)
+    selected_horse_numbers = {jiku_horse["馬番"]} | set(a1_list) | set(a2_list) | set(a3_list)
 
     buying_lines = [
         "**【３連複フォーメーション（馬番表記）】**  ",
         f"1頭目（軸）  ：{jiku_display_str}  ",
         f"2頭目（相手1）：{aite1_nums}  ",
-        f"3頭目（相手2）：{aite2_nums}",
+        f"3頭目（相手2）：{aite2_nums}  ",
+        f"4頭目（相手3）：{aite3_nums}",
         "\n#### 4. 入力用買い目\n",
-        f"* 基本購入：{jiku_display_str} - {a1_sorted_str} - {a2_sorted_str}（{fmt_points}点）"
+        f"* 基本購入：{jiku_display_str} - {a1_sorted_str} - {a2_sorted_str} - {a3_sorted_str}（{fmt_points}点）"
     ]
 
     phase6_lines = [
