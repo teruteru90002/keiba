@@ -659,7 +659,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     # 軸馬・相手馬選定ロジック（フォーメーション固定）
     # 軸：1番人気
     # 対象プール：単勝30倍未満、または30倍以上であっても複勝率(MC)15%以上の馬
-    # 候補1：対象プール内かつ軸を除く複勝率30%以上（合成順位でソート）
+    # 候補1：対象プール内かつ軸を除く、[単勝2～4番人気（オッズ順位2〜4）] または [複勝率30%以上]（合成順位でソート）
     # 候補2：対象プール内かつ軸、候補1を除く複勝率15%以上（合成順位でソート）
     # 候補3：対象プール内かつ軸、候補1、候補2を除く複勝率10%以上（合成順位でソート）
     # ============================================================
@@ -676,8 +676,11 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     df_without_jiku = df_valid_pool[df_valid_pool["馬番"] != jiku_horse["馬番"]]
     
-    # 候補1：複勝率(MC) 30%以上
-    aite1_df = df_without_jiku[df_without_jiku["複勝率(MC)"] >= 30.0].sort_values(by="合成順位")
+    # 候補1：2～4番人気の3頭 または 複勝率30％以上（OR条件）
+    aite1_df = df_without_jiku[
+        ((df_without_jiku["オッズ順位"] >= 2) & (df_without_jiku["オッズ順位"] <= 4)) |
+        (df_without_jiku["複勝率(MC)"] >= 30.0)
+    ].sort_values(by="合成順位")
     a1_list = aite1_df["馬番"].tolist()
 
     # 候補2：複勝率(MC) 15%以上（軸・候補1を除外）
@@ -730,7 +733,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     buying_lines = [
         "**【買い目候補】**  ",
         f"軸候補(1番人気)  ：{jiku_display_str}  ",
-        f"候補1(複勝率30%以上)：{aite1_nums}  ",
+        f"候補1(2〜4番人気 or 複勝率30%以上)：{aite1_nums}  ",
         f"候補2(複勝率15%以上)：{aite2_nums}  ",
         f"候補3(複勝率10%以上)：{aite3_nums}",
         "\n#### 4. 入力用買い目\n",
