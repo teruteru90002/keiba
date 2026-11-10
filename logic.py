@@ -656,10 +656,11 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     purchase_verdict = "購入" if is_marked_purchase else "見送り"
 
     # ============================================================
-    # 軸馬・相手馬選定ロジック（すべてフォーメーション固定・単勝30倍以上カット）
+    # 軸馬・相手馬選定ロジック（フォーメーション固定）
     # 軸：1番人気
-    # 相手1：単勝30倍未満かつ軸を除く複勝率25%以上
-    # 相手2：単勝30倍未満かつ軸、相手1を除く複勝率10%以上
+    # 対象プール：単勝30倍未満、または30倍以上であっても複勝率(MC)15%以上の馬
+    # 相手1：対象プール内かつ軸を除く複勝率25%以上
+    # 相手2：対象プール内かつ軸、相手1を除く複勝率10%以上
     # ============================================================
     sorted_by_odds = df_sorted.sort_values(by="単勝オッズ")
     jiku_horse = sorted_by_odds.iloc[0] if not sorted_by_odds.empty else df_sorted.iloc[0]
@@ -667,18 +668,18 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     buy_style = "３連複フォーメーション"
 
-    # 単勝30倍未満の馬のみを対象プールとする
-    df_valid_pool = df_sorted[df_sorted["単勝オッズ"] < 30.0].copy()
+    # 単勝30倍未満、または30倍以上でも複勝率15%以上の馬を対象プールとする
+    df_valid_pool = df_sorted[(df_sorted["単勝オッズ"] < 30.0) | (df_sorted["複勝率(MC)"] >= 15.0)].copy()
     if df_valid_pool.empty:
         df_valid_pool = df_sorted.copy()
 
     df_without_jiku = df_valid_pool[df_valid_pool["馬番"] != jiku_horse["馬番"]]
     
-    # 相手1：条件を複勝率(MC) 25%以上（頭数制限なし）に変更
+    # 相手1：複勝率(MC) 25%以上
     aite1_df = df_without_jiku[df_without_jiku["複勝率(MC)"] >= 25.0].sort_values(by="オッズ順位")
 
     exclude_horses = {jiku_horse["馬番"]} | set(aite1_df["馬番"].tolist())
-    # 相手2：条件を複勝率(MC) 10%以上に設定
+    # 相手2：複勝率(MC) 10%以上
     aite2_df = df_valid_pool[(~df_valid_pool["馬番"].isin(exclude_horses)) & (df_valid_pool["複勝率(MC)"] >= 10.0)].sort_values(by="合成順位")
 
     a1_list = aite1_df["馬番"].tolist()
