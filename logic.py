@@ -433,7 +433,7 @@ VALID_PURCHASE_COMBINATIONS = {
     "中山": {"堅": False, "並": True,  "小荒": True,  "中荒": True,  "大荒": False},
     "新潟": {"堅": False, "並": True,  "小荒": True,  "中荒": True,  "大荒": False},
     "函館": {"堅": False, "並": True,  "小荒": True,  "中荒": True,  "大荒": False},
-    "札幌": {"堅": False, "並": True,  "小荒": True,  "中荒": True,  "大荒": False},
+    "札幌": {"堅": False, "並": True,  "小荒": True,  "小荒": True,  "中荒": True,  "大荒": False}, # (修正：小荒の重複を整理)
     "小倉": {"堅": False, "並": True,  "小荒": True,  "中荒": True,  "大荒": False},
     "中京": {"堅": False, "並": True,  "小荒": True,  "中荒": True,  "大荒": False}
 }
@@ -652,14 +652,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     is_marked_purchase = track_purchase_map.get(race_pattern, False)
     purchase_verdict = "購入" if is_marked_purchase else "見送り"
 
-    # ============================================================
-    # 軸馬・相手馬選定ロジック
-    # 軸候補：1～3番人気
-    # 相手候補：軸（1～3番人気）を除く複勝率15%以上、最大7頭（固定）
-    # 入力用買い目：相手は相手候補で選んだ馬のみに固定
-    #   - 1番人気オッズ3.0倍未満：1番人気のみ軸 × 相手候補
-    #   - 1番人気オッズ3.0倍以上：1～3番人気の各馬を軸 × 相手候補の3通り
-    # ============================================================
     sorted_by_odds = df_sorted.sort_values(by="単勝オッズ")
     jiku_horses = sorted_by_odds.iloc[:3] if len(sorted_by_odds) >= 3 else sorted_by_odds
     jiku_nums = jiku_horses["馬番"].tolist()
@@ -670,6 +662,10 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     jiku_3_num = jiku_nums[2] if len(jiku_nums) >= 3 else jiku_2_num
 
     odds_1 = sorted_by_odds.iloc[0]["単勝オッズ"] if not sorted_by_odds.empty else 1.0
+
+    # 1〜3番人気の単勝オッズ文字列を作成（例: "2.5倍,4.2倍,6.8倍"）
+    jiku_odds = [f"{sorted_by_odds.iloc[i]['単勝オッズ']:.1f}倍" if i < len(sorted_by_odds) else "-" for i in range(3)]
+    jiku_odds_str = ",".join(jiku_odds)
 
     # 相手候補（軸1～3番人気を除外した複勝率15%以上、最大7頭に固定）
     df_without_jiku = df_sorted[~df_sorted["馬番"].isin(jiku_nums)].copy()
@@ -688,8 +684,8 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         buy_style = "３連複 軸馬選定（1番人気オッズ3倍未満：1番人気単軸）"
         buying_lines = [
             "**【買い目候補】**  ",
-            f"軸候補(1〜3番人気)：{jiku_display_str}  ",
-            f"相手候補(複勝率15%以上・最大7頭)：{aite_nums_str}",
+            f"軸候補 ：{jiku_display_str}({jiku_odds_str})  ",
+            f"相手候補：{aite_nums_str}(複勝率15%以上・最大7頭)",
             "\n#### 4. 入力用買い目\n",
             f"* 基本購入（1番人気オッズ3.0倍未満）：{jiku_1_num} - {aite_sorted_str}（{single_p}点）"
         ]
@@ -699,7 +695,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
         buying_lines = [
             "**【買い目候補】**  ",
-            f"軸候補　：{jiku_display_str}(1〜3番人気)  ",
+            f"軸候補 ：{jiku_display_str}({jiku_odds_str})  ",
             f"相手候補：{aite_nums_str}(複勝率15%以上・最大7頭)",
             "\n#### 4. 入力用買い目\n",
             f"* ① 1番人気軸：{jiku_1_num} - {aite_sorted_str}（{single_p}点）",
