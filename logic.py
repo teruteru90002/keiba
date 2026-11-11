@@ -613,7 +613,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     df_calc["オッズスコア"] = [round(100.0 * (max_odds_val - o) / odds_range, 1) if odds_range > 0 else 100.0 for o in df_calc["単勝オッズ"]]
     df_calc["能力順位"] = df_calc["能力スコア"].rank(ascending=False, method="min").astype(int)
-    # 単勝オッズベースで正確なオッズ順位（1番人気、2番人気…）を算出
     df_calc["オッズ順位"] = df_calc["単勝オッズ"].rank(ascending=True, method="min").astype(int)
 
     phase5_lines = ["#### ■ PHASE 5：全頭合成値（馬番順リスト）\n"]
@@ -647,8 +646,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     }
 
     pattern_desc = PATTERN_DESCS.get(race_pattern, "")
-
-    # 購入倍率条件の取得（VENUE_STRATEGY_MAPから直接取得）
     odds_condition = VENUE_STRATEGY_MAP.get(track, {}).get(race_pattern, "20倍以上")
 
     track_purchase_map = VALID_PURCHASE_COMBINATIONS.get(track, {})
@@ -656,63 +653,42 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     purchase_verdict = "購入" if is_marked_purchase else "見送り"
 
     # ============================================================
-    # 軸馬・相手馬選定ロジック（フォーメーション固定：軸 - 候補1 - 候補2）
-    # 軸：1番人気
-    # 対象プール：単勝30倍未満、または30倍以上であっても複勝率(MC)15%以上の馬
-    # 候補1：対象プール内かつ軸を除く、単勝2～4番人気（オッズ順位2〜4位）の3頭（合成順位でソート）
-    # 候補2：対象プール内かつ軸、候補1を除く複勝率15%以上（合成順位でソート）
+    # 軸馬・相手馬選定ロジック（軸2頭：1・2番人気 / 相手：軸を除く複勝率15%以上）
     # ============================================================
     sorted_by_odds = df_sorted.sort_values(by="単勝オッズ")
-    jiku_horse = sorted_by_odds.iloc[0] if not sorted_by_odds.empty else df_sorted.iloc[0]
-    jiku_display_str = f"{jiku_horse['馬番']}"
+    jiku_horses = sorted_by_odds.iloc[:2] if len(sorted_by_odds) >= 2 else sorted_by_odds
+    jiku_nums = jiku_horses["馬番"].tolist()
+    jiku_display_str = ", ".join(map(str, jiku_nums)) if jiku_nums else "該当なし"
 
-    buy_style = "３連複フォーメーション"
+    buy_style = "３連複 軸2頭流し"
 
-    # 単勝30倍未満、または30倍以上でも複勝率15%以上の馬を対象プールとする
-    df_valid_pool = df_sorted[(df_sorted["単勝オッズ"] < 30.0) | (df_sorted["複勝率(MC)"] >= 15.0)].copy()
-    if df_valid_pool.empty:
-        df_valid_pool = df_sorted.copy()
+    # 軸（1・2番人気）を除外した上で、複勝率(MC)が15%以上の馬を相手候補とする
+    df_without_jiku = df_sorted[~df_sorted["馬番"].isin(jiku_nums)].copy()
+    aite_df = df_without_jiku[df_without_jiku["複勝率(MC)"] >= 15.0].sort_values(by="合成順位")
+    aite_list = aite_df["馬番"].tolist()
 
-    df_without_jiku = df_valid_pool[df_valid_pool["馬番"] != jiku_horse["馬番"]]
-    
-    # 候補1：2～4番人気の3頭
-    aite1_df = df_without_jiku[
-        (df_without_jiku["オッズ順位"] >= 2) & (df_without_jiku["オッズ順位"] <= 4)
-    ].sort_values(by="合成順位")
-    a1_list = aite1_df["馬番"].tolist()
-
-    # 候補2：複勝率(MC) 15%以上（軸・候補1を除外）
-    exclude_for_a2 = {jiku_horse["馬番"]} | set(a1_list)
-    aite2_df = df_valid_pool[(~df_valid_pool["馬番"].isin(exclude_for_a2)) & (df_valid_pool["複勝率(MC)"] >= 15.0)].sort_values(by="合成順位")
-    a2_list = aite2_df["馬番"].tolist()
-
-    # 3連複フォーメーション（軸 - 候補1 - 候補2）の組合せ点数計算
+    # 3連複 軸2頭流しの組合せ点数計算
     fmt_combos = set()
-    j_num = jiku_horse["馬番"]
-    
-    for h1 in a1_list:
-        for h2 in a2_list:
-            if h1 != h2:
-                combo = tuple(sorted([j_num, h1, h2]))
+    if len(jiku_nums) >= 2:
+        j1, j2 = jiku_nums[0], jiku_nums[1]
+        for h in aite_list:
+            if h != j1 and h != j2:
+                combo = tuple(sorted([j1, j2, h]))
                 fmt_combos.add(combo)
                 
     fmt_points = len(fmt_combos)
 
-    a1_sorted_str = ",".join(map(str, sorted(a1_list))) if a1_list else "該当なし"
-    a2_sorted_str = ",".join(map(str, sorted(a2_list))) if a2_list else "該当なし"
-    
-    aite1_nums = ", ".join([str(h) for h in a1_list]) if a1_list else "該当なし"
-    aite2_nums = ", ".join([str(h) for h in a2_list]) if a2_list else "該当なし"
+    aite_sorted_str = ",".join(map(str, sorted(aite_list))) if aite_list else "該当なし"
+    aite_nums_str = ", ".join([str(h) for h in aite_list]) if aite_list else "該当なし"
 
-    selected_horse_numbers = {jiku_horse["馬番"]} | set(a1_list) | set(a2_list)
+    selected_horse_numbers = set(jiku_nums) | set(aite_list)
 
     buying_lines = [
         "**【買い目候補】**  ",
-        f"軸候補(1番人気)  ：{jiku_display_str}  ",
-        f"候補1(2〜4番人気) ：{aite1_nums}  ",
-        f"候補2(複勝率15%以上)：{aite2_nums}",
+        f"軸候補(1・2番人気)：{jiku_display_str}  ",
+        f"相手候補(複勝率15%以上)：{aite_nums_str}",
         "\n#### 4. 入力用買い目\n",
-        f"* 基本購入：{jiku_display_str} - {a1_sorted_str} - {a2_sorted_str}（{fmt_points}点）"
+        f"* 基本購入：{jiku_display_str} - {aite_sorted_str}（{fmt_points}点）"
     ]
 
     phase6_lines = [
