@@ -647,7 +647,8 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         "#### ■ PHASE 6：最終ランキングと買い目\n",
         f"#### 1. レース情報\n[{race_name} / {track}{race_no}R / {surface} / {distance}m]",
         f"\n* **荒れ度分析（スコア判定）**:\n{analysis_table_md}",
-        f"\n**【レース判定結果】：会場[{track}] × 荒れ度[{race_pattern}]（{odds_condition}）** → **【{purchase_verdict}】** （荒れスコア: **{rough_score}点** / {pattern_desc}）\n"
+        f"\n**【レース判定結果】：会場[{track}] × 荒れ度[{race_pattern}]（{odds_condition}）\n"
+        f"\n**【{purchase_verdict}】** （荒れスコア: **{rough_score}点** / {pattern_desc}）\n"
     ]
 
     phase6_lines.append("\n#### 2. 最終ランキング\n| 順位 | 馬(オッズ) | 合成値(順位) | オッズ(順位) | 能力(順位) | 勝率 | 複勝率 | 期待値 | 位置 | 走数 |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
