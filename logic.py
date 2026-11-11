@@ -194,9 +194,6 @@ def estimate_position_type_final_corner(past_runs):
     elif avg_ratio <= 0.75: return "差"
     else: return "追"
 
-# ============================================================
-# スコアベースの荒れ度判定ロジック
-# ============================================================
 def clamp(value: float, low: float = 0.0, high: float = 1.0) -> float:
     return max(low, min(high, value))
 
@@ -350,81 +347,19 @@ PLACE_CODE_MAP = {
     "06": "中山", "07": "中京", "08": "京都", "09": "阪神", "10": "小倉"
 }
 
-# 会場・荒れ度ごとの「購入オッズ倍率（条件）」定義
 VENUE_STRATEGY_MAP = {
-    "東京": {
-        "堅": "10～30倍",
-        "並": "20～40倍",
-        "小荒": "20～50倍",
-        "中荒": "30～60倍",
-        "大荒": "60～90倍"
-    },
-    "京都": {
-        "堅": "10～30倍",
-        "並": "10～30倍",
-        "小荒": "20～50倍",
-        "中荒": "20～50倍",
-        "大荒": "50～80倍"
-    },
-    "阪神": {
-        "堅": "10～30倍",
-        "並": "10～30倍",
-        "小荒": "20～50倍",
-        "中荒": "20～50倍",
-        "大荒": "50～80倍"
-    },
-    "福島": {
-        "堅": "10～30倍",
-        "並": "10～30倍",
-        "小荒": "20～50倍",
-        "中荒": "30～60倍",
-        "大荒": "60～90倍"
-    },
-    "中山": {
-        "堅": "10～30倍",
-        "並": "10～30倍",
-        "小荒": "20～50倍",
-        "中荒": "30～60倍",
-        "大荒": "60～90倍"
-    },
-    "新潟": {
-        "堅": "10～30倍",
-        "並": "10～30倍",
-        "小荒": "20～50倍",
-        "中荒": "20～50倍",
-        "大荒": "50～80倍"
-    },
-    "函館": {
-        "堅": "10～30倍",
-        "並": "10～30倍",
-        "小荒": "20～50倍",
-        "中荒": "20～50倍",
-        "大荒": "50～80倍"
-    },
-    "札幌": {
-        "堅": "10～30倍",
-        "並": "10～30倍",
-        "小荒": "30～50倍",
-        "中荒": "30～60倍",
-        "大荒": "60～90倍"
-    },
-    "小倉": {
-        "堅": "10～30倍",
-        "並": "20～40倍",
-        "小荒": "30～50倍",
-        "中荒": "40～70倍",
-        "大荒": "60～90倍"
-    },
-    "中京": {
-        "堅": "10～30倍",
-        "並": "10～30倍",
-        "小荒": "20～50倍",
-        "中荒": "30～60倍",
-        "大荒": "60～90倍"
-    }
+    "東京": {"堅": "10～30倍", "並": "20～40倍", "小荒": "20～50倍", "中荒": "30～60倍", "大荒": "60～90倍"},
+    "京都": {"堅": "10～30倍", "並": "10～30倍", "小荒": "20～50倍", "中荒": "20～50倍", "大荒": "50～80倍"},
+    "阪神": {"堅": "10～30倍", "並": "10～30倍", "小荒": "20～50倍", "中荒": "20～50倍", "大荒": "50～80倍"},
+    "福島": {"堅": "10～30倍", "並": "10～30倍", "小荒": "20～50倍", "中荒": "30～60倍", "大荒": "60～90倍"},
+    "中山": {"堅": "10～30倍", "並": "10～30倍", "小荒": "20～50倍", "中荒": "30～60倍", "大荒": "60～90倍"},
+    "新潟": {"堅": "10～30倍", "並": "10～30倍", "小荒": "20～50倍", "中荒": "20～50倍", "大荒": "50～80倍"},
+    "函館": {"堅": "10～30倍", "並": "10～30倍", "小荒": "20～50倍", "中荒": "20～50倍", "大荒": "50～80倍"},
+    "札幌": {"堅": "10～30倍", "並": "10～30倍", "小荒": "30～50倍", "中荒": "30～60倍", "大荒": "60～90倍"},
+    "小倉": {"堅": "10～30倍", "並": "20～40倍", "小荒": "30～50倍", "中荒": "40～70倍", "大荒": "60～90倍"},
+    "中京": {"堅": "10～30倍", "並": "10～30倍", "小荒": "20～50倍", "中荒": "30～60倍", "大荒": "60～90倍"}
 }
 
-# 「購入 / 見送り」判定条件テーブル
 VALID_PURCHASE_COMBINATIONS = {
     "東京": {"堅": False, "並": True,  "小荒": True,  "中荒": True,  "大荒": False},
     "京都": {"堅": False, "並": True,  "小荒": True,  "中荒": True,  "大荒": False},
@@ -636,6 +571,18 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     df_sorted["複勝率(MC)"] = (np.sum(ranks <= 3, axis=0) / NUM_SIMS * 100).round(1)
     df_sorted["期待値"] = (df_sorted["単勝オッズ"] * (df_sorted["勝率(MC)"] / 100.0)).round(2)
 
+    # 1番人気・2番人気の同時3着内確率の計算
+    sorted_by_odds = df_sorted.sort_values(by="単勝オッズ")
+    if len(sorted_by_odds) >= 2:
+        fav1_num = sorted_by_odds.iloc[0]["馬番"]
+        fav2_num = sorted_by_odds.iloc[1]["馬番"]
+        fav1_idx = df_sorted[df_sorted["馬番"] == fav1_num].index[0]
+        fav2_idx = df_sorted[df_sorted["馬番"] == fav2_num].index[0]
+        both_top3_count = np.sum((ranks[:, fav1_idx] <= 3) & (ranks[:, fav2_idx] <= 3))
+        both_top3_prob = (both_top3_count / NUM_SIMS) * 100
+    else:
+        both_top3_prob = 0.0
+
     PATTERN_DESCS = {
         "堅": "オッズが上位に集中しており、堅い決着が予想されるパターンです",
         "並": "標準的なオッズ分布で、堅実から中位人気の決着になりやすいパターンです",
@@ -652,15 +599,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     is_marked_purchase = track_purchase_map.get(race_pattern, False)
     purchase_verdict = "購入" if is_marked_purchase else "見送り"
 
-    # ============================================================
-    # 軸馬・相手馬選定ロジック
-    # 軸候補：オッズ人気上位2頭
-    # 相手候補：軸（オッズ上位2頭）を除き複勝率15%以上、合成順位順で上位7頭
-    # 入力用買い目：
-    #   - 1番人気オッズ3.0倍未満：1番人気のみ軸 × 相手候補
-    #   - 1番人気オッズ3.0倍以上：1, 2番人気の各馬を軸 × 相手候補の2通り
-    # ============================================================
-    sorted_by_odds = df_sorted.sort_values(by="単勝オッズ")
     jiku_horses = sorted_by_odds.iloc[:2] if len(sorted_by_odds) >= 2 else sorted_by_odds
     jiku_nums = jiku_horses["馬番"].tolist()
     jiku_display_str = ", ".join(map(str, jiku_nums)) if jiku_nums else "該当なし"
@@ -670,11 +608,9 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     odds_1 = sorted_by_odds.iloc[0]["単勝オッズ"] if not sorted_by_odds.empty else 1.0
 
-    # 1〜2番人気の単勝オッズ文字列を作成（例: "2.5倍,4.2倍"）
     jiku_odds = [f"{sorted_by_odds.iloc[i]['単勝オッズ']:.1f}倍" if i < len(sorted_by_odds) else "-" for i in range(2)]
     jiku_odds_str = ",".join(jiku_odds)
 
-    # 相手候補（軸のオッズ上位2頭を除外、複勝率15%以上、合成順位順で上位7頭）
     df_without_jiku = df_sorted[~df_sorted["馬番"].isin(jiku_nums)].copy()
     aite_df = df_without_jiku[df_without_jiku["複勝率(MC)"] >= 15.0].sort_values(by="合成順位").head(7)
     aite_list = aite_df["馬番"].tolist()
@@ -688,16 +624,14 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     single_p = (n_aite * (n_aite - 1)) // 2 if n_aite >= 2 else 0
 
     if odds_1 < 3.0:
-        buy_style = "３連複 軸馬選定（1番人気オッズ3倍未満：1番人気単軸）"
         buying_lines = [
             "**【買い目候補】**  ",
             f"軸候補 ：{jiku_display_str}({jiku_odds_str})  ",
             f"相手候補：{aite_nums_str}(複勝率15%以上・合成順位順上位7頭)",
             "\n#### 4. 入力用買い目\n",
-            f"* 基本購入（1番人気オッズ3.0倍未満）：{jiku_1_num} - {aite_sorted_str}（{single_p}点）"
+            f"* 基本購入（1番人気オッズ3倍未満）：{jiku_1_num} - {aite_sorted_str}（{single_p}点）"
         ]
     else:
-        buy_style = "３連複 軸馬選定（1番人気オッズ3倍以上：1・2番人気の2通り）"
         total_p = single_p * 2
 
         buying_lines = [
@@ -707,7 +641,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
             "\n#### 4. 入力用買い目\n",
             f"* ① 1番人気軸：{jiku_1_num} - {aite_sorted_str}（{single_p}点）",
             f"* ② 2番人気軸：{jiku_2_num} - {aite_sorted_str}（{single_p}点）",
-#            f"* 合計点数：{total_p}点"
         ]
 
     phase6_lines = [
@@ -726,7 +659,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     phase6_lines.extend([
         f"\n#### 3. 買い目判定（会場: {track} / 荒れ度: {race_pattern}）\n",
         f"* **判定結果**：【{purchase_verdict}】",
-        f"* **買い方** ：{buy_style}",
+        f"* **1番人気＋2番人気 同時3着内確率**：{both_top3_prob:.1f}%",
         f"* **購入条件**：{odds_condition}\n"
     ])
     phase6_lines.extend(buying_lines)
