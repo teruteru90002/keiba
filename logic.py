@@ -584,11 +584,11 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         both_top3_prob = 0.0
 
     PATTERN_DESCS = {
-        "堅": "オッズが上位に集中しており、堅い決着が予想されるパターンです",
-        "並": "標準的なオッズ分布で、堅実から中位人気の決着になりやすいパターンです",
-        "小荒": "中位人気馬にもチャンスがあり、少し荒れる可能性のある領域です",
-        "中荒": "人気が割れており、中穴層の台頭で中程度荒れる傾向のパターンです",
-        "大荒": "オッズが大きく分散し、大波乱が十分に想定されるハイリスク・ハイリターンなパターンです",
+        "堅": "オッズが上位に集中、堅い決着",
+        "並": "標準的なオッズ分布、堅実から中位人気の決着",
+        "小荒": "中位人気馬にもチャンスあり、少し荒れる",
+        "中荒": "人気が割れており、中穴層の台頭で中程度荒れる",
+        "大荒": "オッズが大きく分散、大波乱が十分に想定される",
         "データ不足": "条件を満たさず、レンジを無理に決めない"
     }
 
@@ -647,7 +647,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         "#### ■ PHASE 6：最終ランキングと買い目\n",
         f"#### 1. レース情報\n[{race_name} / {track}{race_no}R / {surface} / {distance}m]",
         f"\n* **荒れ度分析（スコア判定）**:\n{analysis_table_md}",
-        f"\n**【レース判定結果】：会場[{track}] × 荒れ度[{race_pattern}]（{odds_condition}）\n"
+        f"\n**【レース判定結果】**：荒れ度[{race_pattern}]（{odds_condition}）\n"
         f"\n**【{purchase_verdict}】** （荒れスコア: **{rough_score}点** / {pattern_desc}）\n"
     ]
 
