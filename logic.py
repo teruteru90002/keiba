@@ -653,43 +653,79 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     purchase_verdict = "購入" if is_marked_purchase else "見送り"
 
     # ============================================================
-    # 軸馬・相手馬選定ロジック（軸2頭：1・2番人気 / 相手：軸を除く複勝率15%以上 最大7頭）
+    # 軸馬・相手馬選定ロジック
+    # 買い目候補：1・2番人気（固定） / 相手：軸を除く複勝率15%以上 最大7頭（固定）
+    # 入力用買い目：1番人気オッズ3倍未満なら1番人気のみ、3倍以上なら1番人気軸と2番人気軸の2通り
     # ============================================================
     sorted_by_odds = df_sorted.sort_values(by="単勝オッズ")
     jiku_horses = sorted_by_odds.iloc[:2] if len(sorted_by_odds) >= 2 else sorted_by_odds
     jiku_nums = jiku_horses["馬番"].tolist()
     jiku_display_str = ", ".join(map(str, jiku_nums)) if jiku_nums else "該当なし"
 
-    buy_style = "３連複 軸2頭流し"
+    jiku_1_num = jiku_nums[0] if len(jiku_nums) >= 1 else 1
+    jiku_2_num = jiku_nums[1] if len(jiku_nums) >= 2 else jiku_1_num
 
-    # 軸（1・2番人気）を除外した上で、複勝率(MC)が15%以上の馬を合成順位順に抽出し最大7頭に制限
+    odds_1 = sorted_by_odds.iloc[0]["単勝オッズ"] if not sorted_by_odds.empty else 1.0
+
+    # 相手候補（軸1・2番人気を除外した複勝率15%以上、最大7頭）
     df_without_jiku = df_sorted[~df_sorted["馬番"].isin(jiku_nums)].copy()
     aite_df = df_without_jiku[df_without_jiku["複勝率(MC)"] >= 15.0].sort_values(by="合成順位").head(7)
     aite_list = aite_df["馬番"].tolist()
-
-    # 3連複 軸2頭流しの組合せ点数計算
-    fmt_combos = set()
-    if len(jiku_nums) >= 2:
-        j1, j2 = jiku_nums[0], jiku_nums[1]
-        for h in aite_list:
-            if h != j1 and h != j2:
-                combo = tuple(sorted([j1, j2, h]))
-                fmt_combos.add(combo)
-                
-    fmt_points = len(fmt_combos)
 
     aite_sorted_str = ",".join(map(str, sorted(aite_list))) if aite_list else "該当なし"
     aite_nums_str = ", ".join([str(h) for h in aite_list]) if aite_list else "該当なし"
 
     selected_horse_numbers = set(jiku_nums) | set(aite_list)
 
-    buying_lines = [
-        "**【買い目候補】**  ",
-        f"軸候補(1・2番人気)：{jiku_display_str}  ",
-        f"相手候補(複勝率15%以上・最大7頭)：{aite_nums_str}",
-        "\n#### 4. 入力用買い目\n",
-        f"* 基本購入：{jiku_display_str} - {aite_sorted_str}（{fmt_points}点）"
-    ]
+    if odds_1 < 3.0:
+        buy_style = "３連複 軸2頭流し（1番人気単軸購入）"
+        fmt_combos = set()
+        if len(jiku_nums) >= 2:
+            j1, j2 = jiku_nums[0], jiku_nums[1]
+            for h in aite_list:
+                if h != j1 and h != j2:
+                    combo = tuple(sorted([j1, j2, h]))
+                    fmt_combos.add(combo)
+        fmt_points = len(fmt_combos)
+
+        buying_lines = [
+            "**【買い目候補】**  ",
+            f"軸候補(1・2番人気)：{jiku_display_str}  ",
+            f"相手候補(複勝率15%以上・最大7頭)：{aite_nums_str}",
+            "\n#### 4. 入力用買い目\n",
+            f"* 基本購入（1番人気オッズ3.0倍未満）：{jiku_1_num} - {aite_sorted_str}（{fmt_points}点）"
+        ]
+    else:
+        buy_style = "３連複 軸2頭流し（1番人気オッズ3倍以上・2通り購入）"
+        
+        # 1番人気-相手候補
+        df_w_j1 = df_sorted[df_sorted["馬番"] != jiku_1_num].copy()
+        a1_df = df_w_j1[df_w_j1["複勝率(MC)"] >= 15.0].sort_values(by="合成順位").head(7)
+        a1_list = a1_df["馬番"].tolist()
+        n1 = len(a1_list)
+        p1 = (n1 * (n1 - 1)) // 2 if n1 >= 2 else 0
+        a1_str = ",".join(map(str, sorted(a1_list))) if a1_list else "該当なし"
+
+        # 2番人気-相手候補
+        df_w_j2 = df_sorted[df_sorted["馬番"] != jiku_2_num].copy()
+        a2_df = df_w_j2[df_w_j2["複勝率(MC)"] >= 15.0].sort_values(by="合成順位").head(7)
+        a2_list = a2_df["馬番"].tolist()
+        n2 = len(a2_list)
+        p2 = (n2 * (n2 - 1)) // 2 if n2 >= 2 else 0
+        a2_str = ",".join(map(str, sorted(a2_list))) if a2_list else "該当なし"
+
+        total_p = p1 + p2
+        selected_horse_numbers |= set(a1_list) | set(a2_list)
+
+        buying_lines = [
+            "**【買い目候補】**  ",
+            f"軸候補(1・2番人気)：{jiku_display_str}  ",
+            f"相手候補(複勝率15%以上・最大7頭)：{aite_nums_str}",
+            "\n#### 4. 入力用買い目\n",
+            f"* ① 1番人気軸（オッズ{odds_1:.1f}倍 ≧ 3.0）：{jiku_1_num} - {a1_str}（{p1}点）",
+            f"* ② 2番人気軸：{jiku_2_num} - {a2_str}（{p2}点）",
+            f"* 合計点数：{total_p}点"
+        ]
 
     phase6_lines = [
         "#### ■ PHASE 6：最終ランキングと買い目\n",
