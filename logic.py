@@ -659,7 +659,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     phase6_lines.extend([
         f"\n#### 3. 買い目判定（会場: {track} / 荒れ度: {race_pattern}）\n",
         f"* **判定結果**：【{purchase_verdict}】",
-        f"* **1番人気＋2番人気 同時3着内確率**：{both_top3_prob:.1f}%",
+        f"* **1,2番人気 同時3着内確率**：{both_top3_prob:.1f}%",
         f"* **購入条件**：{odds_condition}\n"
     ])
     phase6_lines.extend(buying_lines)
