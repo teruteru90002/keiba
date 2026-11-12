@@ -571,17 +571,22 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     df_sorted["複勝率(MC)"] = (np.sum(ranks <= 3, axis=0) / NUM_SIMS * 100).round(1)
     df_sorted["期待値"] = (df_sorted["単勝オッズ"] * (df_sorted["勝率(MC)"] / 100.0)).round(2)
 
-    # 1番人気・2番人気の同時3着内確率の計算
+    # 1番人気・2番人気の同時3着内確率および同時3着外確率の計算
     sorted_by_odds = df_sorted.sort_values(by="単勝オッズ")
     if len(sorted_by_odds) >= 2:
         fav1_num = sorted_by_odds.iloc[0]["馬番"]
         fav2_num = sorted_by_odds.iloc[1]["馬番"]
         fav1_idx = df_sorted[df_sorted["馬番"] == fav1_num].index[0]
         fav2_idx = df_sorted[df_sorted["馬番"] == fav2_num].index[0]
+        
         both_top3_count = np.sum((ranks[:, fav1_idx] <= 3) & (ranks[:, fav2_idx] <= 3))
         both_top3_prob = (both_top3_count / NUM_SIMS) * 100
+        
+        both_out_top3_count = np.sum((ranks[:, fav1_idx] > 3) & (ranks[:, fav2_idx] > 3))
+        both_out_top3_prob = (both_out_top3_count / NUM_SIMS) * 100
     else:
         both_top3_prob = 0.0
+        both_out_top3_prob = 0.0
 
     PATTERN_DESCS = {
         "堅": "オッズが上位に集中、堅い決着",
@@ -661,6 +666,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         f"\n#### 3. 買い目判定（会場: {track} / 荒れ度: {race_pattern}）\n",
         f"* **判定結果**：【{purchase_verdict}】",
         f"* **1,2番人気 同時3着内確率**：{both_top3_prob:.1f}%",
+        f"* **1,2番人気 同時3着外確率**：{both_out_top3_prob:.1f}%",
         f"* **購入条件**：{odds_condition}\n"
     ])
     phase6_lines.extend(buying_lines)
