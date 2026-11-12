@@ -588,6 +588,16 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         both_top3_prob = 0.0
         both_out_top3_prob = 0.0
 
+    # オッズ断層の計算（オッズ上位から順に「次位人気オッズ / 上位人気オッズ」の比率を算出し2倍以上となる上位の馬番を取得）
+    odds_fault_nums = []
+    if len(sorted_by_odds) >= 2:
+        for i in range(len(sorted_by_odds) - 1):
+            curr_o = sorted_by_odds.iloc[i]["単勝オッズ"]
+            next_o = sorted_by_odds.iloc[i+1]["単勝オッズ"]
+            if curr_o > 0 and (next_o / curr_o) >= 2.0:
+                odds_fault_nums.append(str(sorted_by_odds.iloc[i]["馬番"]))
+    odds_fault_str = ", ".join(odds_fault_nums) if odds_fault_nums else "なし"
+
     PATTERN_DESCS = {
         "堅": "オッズが上位に集中、堅い決着",
         "並": "標準的なオッズ分布、堅実から中位人気の決着",
@@ -673,9 +683,10 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         f"* **判定結果**：【{purchase_verdict}】",
         f"* **想定倍率**：{odds_condition}",
         f"* **1,2番人気 同時3着内確率**：{both_top3_prob:.1f}%",
-        f"* **1,2番人気 同時3着外確率**：{both_out_top3_prob:.1f}% \n"
-
+        f"* **1,2番人気 同時3着外確率**：{both_out_top3_prob:.1f}%",
+        f"* **オッズ断層**：{odds_fault_str} \n"
     ])
     phase6_lines.extend(buying_lines)
 
     return "\n".join(phase6_lines if is_simple else phase1_lines + phase2_lines + phase5_lines + ["\n#### ■ 3-3. 軸馬・相手馬決定判定プロセス"] + phase6_lines)
+```[cite: 1]
