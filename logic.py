@@ -634,9 +634,12 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     df_without_jiku = df_sorted[~df_sorted["馬番"].isin(jiku_nums)].copy()
     aite_df = df_without_jiku[df_without_jiku["複勝率(MC)"] >= 15.0].sort_values(by="合成順位").head(7)
-    aite_list = aite_df["馬番"].tolist()
+    
+    # 相手候補をオッズ順（単勝オッズの昇順）に並べ替える
+    aite_df_sorted = aite_df.sort_values(by="単勝オッズ")
+    aite_list = aite_df_sorted["馬番"].tolist()
 
-    aite_sorted_str = ",".join(map(str, sorted(aite_list))) if aite_list else "該当なし"
+    aite_sorted_str = ",".join(map(str, aite_list)) if aite_list else "該当なし"
     aite_nums_str = ", ".join([str(h) for h in aite_list]) if aite_list else "該当なし"
 
     selected_horse_numbers = set(jiku_nums) | set(aite_list)
