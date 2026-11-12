@@ -613,8 +613,14 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     odds_1 = sorted_by_odds.iloc[0]["単勝オッズ"] if not sorted_by_odds.empty else 1.0
 
-    jiku_odds = [f"{sorted_by_odds.iloc[i]['単勝オッズ']:.1f}倍" if i < len(sorted_by_odds) else "-" for i in range(2)]
-    jiku_odds_str = ",".join(jiku_odds)
+    # オッズ比の計算 (2番人気オッズ / 1番人気オッズ)
+    if len(sorted_by_odds) >= 2:
+        o1 = sorted_by_odds.iloc[0]["単勝オッズ"]
+        o2 = sorted_by_odds.iloc[1]["単勝オッズ"]
+        ratio_2_1 = o2 / o1 if o1 > 0 else 0.0
+        jiku_odds_str = f"{o1:.1f}倍,{o2:.1f}倍    オッズ比{ratio_2_1:.1f}"
+    else:
+        jiku_odds_str = f"{odds_1:.1f}倍,-"
 
     df_without_jiku = df_sorted[~df_sorted["馬番"].isin(jiku_nums)].copy()
     aite_df = df_without_jiku[df_without_jiku["複勝率(MC)"] >= 15.0].sort_values(by="合成順位").head(7)
