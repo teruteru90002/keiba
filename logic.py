@@ -689,4 +689,3 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     phase6_lines.extend(buying_lines)
 
     return "\n".join(phase6_lines if is_simple else phase1_lines + phase2_lines + phase5_lines + ["\n#### ■ 3-3. 軸馬・相手馬決定判定プロセス"] + phase6_lines)
-```[cite: 1]
