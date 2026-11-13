@@ -404,19 +404,18 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
             analysis_table_md = (
                 "\n| 荒れ度判定 | 荒れスコア | 1番人気オッズ | 2番人気オッズ | 3番人気オッズ | 1番人気支持率 |\n"
                 "| --- | --- | --- | --- | --- | --- |\n"
-                f"| **{display_race_pattern}** | **{rough_score}点** | {analysis_result['1番人気オッズ']:.1f}倍 | {analysis_result['2番人気オッズ']:.1f}倍 | {analysis_result['3番人気オッズ']:.1f}倍 | {analysis_result['1番人気支持率']*100:.1f}% |\n\n"
-                "判定基準：堅<30,並<50,小荒<60,中荒<70,大荒>=70"
+                f"| **{display_race_pattern}** | **{rough_score}点** | {analysis_result['1番人気オッズ']:.1f}倍 | {analysis_result['2番人気オッズ']:.1f}倍 | {analysis_result['3番人気オッズ']:.1f}倍 | {analysis_result['1番人気支持率']*100:.1f}% |"
             )
         except Exception:
             race_pattern = "データ不足"
             display_race_pattern = "データ不足"
             rough_score = 0.0
-            analysis_table_md = "\n* **荒れ度分析**: 計算エラー\n\n判定基準：堅<30,並<50,小荒<60,中荒<70,大荒>=70"
+            analysis_table_md = "\n* **荒れ度分析**: 計算エラー"
     else:
         race_pattern = "データ不足"
         display_race_pattern = "データ不足"
         rough_score = 0.0
-        analysis_table_md = "\n* **荒れ度分析**: データ不足のため算出不可\n\n判定基準：堅<30,並<50,小荒<60,中荒<70,大荒>=70"
+        analysis_table_md = "\n* **荒れ度分析**: データ不足のため算出不可"
 
     surface = "ダート" if "ダート" in raw_text else ("芝" if "芝" in raw_text else str(race_info.get("track", "")))
     
@@ -718,6 +717,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         f"\n* **荒れ度分析（スコア判定）**:\n{analysis_table_md}",
         f"\n**【レース判定結果】**：荒れ度[{race_pattern}]（{odds_condition}）\n"
         f"\n**【{purchase_verdict}】**：荒れスコア **{rough_score}点** （{pattern_desc}）\n"
+        "\n判定基準：堅<30,並<50,小荒<60,中荒<70,大荒>=70\n"
     ]
 
     phase6_lines.append("\n#### 2. 最終ランキング\n| 順位 | 馬 | オッズ | 合成値(順位) | オッズ(順位) | 能力(順位) | 勝率 | 複勝率 | 期待値 | 位置 | 走数 |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
