@@ -405,6 +405,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
                 "\n| 荒れ度判定 | 荒れスコア | 1番人気オッズ | 2番人気オッズ | 3番人気オッズ | 1番人気支持率 |\n"
                 "| --- | --- | --- | --- | --- | --- |\n"
                 f"| **{display_race_pattern}** | **{rough_score}点** | {analysis_result['1番人気オッズ']:.1f}倍 | {analysis_result['2番人気オッズ']:.1f}倍 | {analysis_result['3番人気オッズ']:.1f}倍 | {analysis_result['1番人気支持率']*100:.1f}% |"
+                "堅<30,並<50,小荒<60,中荒<70,大荒>=70"
             )
         except Exception:
             race_pattern = "データ不足"
