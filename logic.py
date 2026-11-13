@@ -642,7 +642,12 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         jiku_odds_str = f"{odds_1:.1f}倍,-"
 
     df_without_jiku = df_sorted[~df_sorted["馬番"].isin(jiku_nums)].copy()
-    aite_df = df_without_jiku[df_without_jiku["複勝率(MC)"] >= 15.0].sort_values(by="合成順位").head(7)
+    
+    # 中荒、大荒の場合は7頭制限（head(7)）を廃止し、条件に合う馬をすべて抽出する
+    if race_pattern in ["中荒", "大荒"]:
+        aite_df = df_without_jiku[df_without_jiku["複勝率(MC)"] >= 15.0].sort_values(by="合成順位")
+    else:
+        aite_df = df_without_jiku[df_without_jiku["複勝率(MC)"] >= 15.0].sort_values(by="合成順位").head(7)
     
     # 相手候補をオッズ順（単勝オッズの昇順）に並べ替える
     aite_df_sorted = aite_df.sort_values(by="単勝オッズ")
