@@ -588,7 +588,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         both_top3_prob = 0.0
         both_out_top3_prob = 0.0
 
-    # オッズ断層の計算（オッズ上位から順に「次位人気オッズ / 上位人気オッズ」の比率を算出し2倍以上となる上位の馬番を取得）
+    # オッズ断層の計算
     odds_fault_nums = []
     if len(sorted_by_odds) >= 2:
         for i in range(len(sorted_by_odds) - 1):
@@ -615,8 +615,10 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     purchase_verdict = "購入" if is_marked_purchase else "見送り"
 
     odds_1 = sorted_by_odds.iloc[0]["単勝オッズ"] if not sorted_by_odds.empty else 1.0
+    fav1_num = sorted_by_odds.iloc[0]["馬番"] if len(sorted_by_odds) >= 1 else 1
+    fav2_num = sorted_by_odds.iloc[1]["馬番"] if len(sorted_by_odds) >= 2 else fav1_num
     
-    # 堅のときだけ1番人気のみ（1頭軸）。並、小荒、中荒、大荒は小荒等と同じルール。
+    # 「堅」または1番人気3.0倍未満のときだけ1頭軸（1番人気のみ）
     is_single_jiku = (race_pattern == "堅") or (odds_1 < 3.0)
 
     if is_single_jiku:
@@ -643,7 +645,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     df_without_jiku = df_sorted[~df_sorted["馬番"].isin(jiku_nums)].copy()
     
-    # 中荒、大荒の場合は7頭制限（head(7)）を廃止し、条件に合う馬をすべて抽出する
+    # 中荒、大荒の場合は7頭制限を廃止
     if race_pattern in ["中荒", "大荒"]:
         aite_df = df_without_jiku[df_without_jiku["複勝率(MC)"] >= 15.0].sort_values(by="合成順位")
     else:
@@ -651,22 +653,31 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     
     # 相手候補をオッズ順（単勝オッズの昇順）に並べ替える
     aite_df_sorted = aite_df.sort_values(by="単勝オッズ")
-    aite_list = aite_df_sorted["馬番"].tolist()
+    base_aite_list = aite_df_sorted["馬番"].tolist()
 
-    # 「並」のときだけは相手候補に2番人気を入れる
+    # 「並」のときは、1番人気軸の相手に2番人気を入れ、2番人気軸の相手に1番人気を入れる
     if race_pattern == "並" and len(sorted_by_odds) >= 2:
-        fav2_num = sorted_by_odds.iloc[1]["馬番"]
-        if fav2_num not in aite_list and fav2_num not in jiku_nums:
-            aite_list.append(fav2_num)
-            aite_list = sorted(aite_list, key=lambda h: df_sorted[df_sorted["馬番"] == h]["単勝オッズ"].values[0] if not df_sorted[df_sorted["馬番"] == h].empty else 999.0)
+        aite_list_1 = base_aite_list.copy()
+        if fav2_num not in aite_list_1:
+            aite_list_1.append(fav2_num)
+        aite_list_1 = sorted(aite_list_1, key=lambda h: df_sorted[df_sorted["馬番"] == h]["単勝オッズ"].values[0] if not df_sorted[df_sorted["馬番"] == h].empty else 999.0)
 
-    aite_sorted_str = ",".join(map(str, aite_list)) if aite_list else "該当なし"
-    aite_nums_str = ", ".join([str(h) for h in aite_list]) if aite_list else "該当なし"
+        aite_list_2 = base_aite_list.copy()
+        if fav1_num not in aite_list_2:
+            aite_list_2.append(fav1_num)
+        aite_list_2 = sorted(aite_list_2, key=lambda h: df_sorted[df_sorted["馬番"] == h]["単勝オッズ"].values[0] if not df_sorted[df_sorted["馬番"] == h].empty else 999.0)
+    else:
+        aite_list_1 = base_aite_list
+        aite_list_2 = base_aite_list
 
-    selected_horse_numbers = set(jiku_nums) | set(aite_list)
+    aite_sorted_str_1 = ",".join(map(str, aite_list_1)) if aite_list_1 else "該当なし"
+    aite_sorted_str_2 = ",".join(map(str, aite_list_2)) if aite_list_2 else "該当なし"
+    aite_nums_str = ", ".join([str(h) for h in aite_list_1]) if aite_list_1 else "該当なし"
 
-    n_aite = len(aite_list)
-    single_p = (n_aite * (n_aite - 1)) // 2 if n_aite >= 2 else 0
+    selected_horse_numbers = set(jiku_nums) | set(aite_list_1) | set(aite_list_2)
+
+    n_aite_1 = len(aite_list_1)
+    p_1 = (n_aite_1 * (n_aite_1 - 1)) // 2 if n_aite_1 >= 2 else 0
 
     if is_single_jiku:
         buying_lines = [
@@ -674,18 +685,32 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
             f"軸候補 ：{jiku_display_str}({jiku_odds_str})  ",
             f"相手候補：{aite_nums_str}",
             "\n#### 4. 入力用買い目\n",
-            f"* 1番人気軸：{jiku_1_num} - {aite_sorted_str}（{single_p}点）"
+            f"* 1番人気軸：{jiku_1_num} - {aite_sorted_str_1}（{p_1}点）"
         ]
-    else:
-        total_p = single_p * 2
+    elif race_pattern == "並":
+        n_aite_2 = len(aite_list_2)
+        p_2 = (n_aite_2 * (n_aite_2 - 1)) // 2 if n_aite_2 >= 2 else 0
+        aite_nums_str_2 = ", ".join([str(h) for h in aite_list_2])
 
         buying_lines = [
             "**【買い目候補】**  ",
             f"軸候補 ：{jiku_display_str}({jiku_odds_str})  ",
             f"相手候補：{aite_nums_str}",
             "\n#### 4. 入力用買い目\n",
-            f"* 1番人気軸：{jiku_1_num} - {aite_sorted_str}（{single_p}点）",
-            f"* 2番人気軸：{jiku_2_num} - {aite_sorted_str}（{single_p}点）",
+            f"* 1番人気軸：{jiku_1_num} - {aite_sorted_str_1}（{p_1}点）",
+            f"* 2番人気軸：{jiku_2_num} - {aite_sorted_str_2}（{p_2}点）",
+        ]
+    else:
+        n_aite_base = len(base_aite_list)
+        p_base = (n_aite_base * (n_aite_base - 1)) // 2 if n_aite_base >= 2 else 0
+
+        buying_lines = [
+            "**【買い目候補】**  ",
+            f"軸候補 ：{jiku_display_str}({jiku_odds_str})  ",
+            f"相手候補：{aite_nums_str}",
+            "\n#### 4. 入力用買い目\n",
+            f"* 1番人気軸：{jiku_1_num} - {aite_sorted_str_1}（{p_base}点）",
+            f"* 2番人気軸：{jiku_2_num} - {aite_sorted_str_1}（{p_base}点）",
         ]
 
     phase6_lines = [
