@@ -558,6 +558,9 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         phase5_lines.append(f"馬番{r['馬番']} [{r['馬名']}]：能力項[{ab_term:.2f}] ＋ オッズ項[{odds_term:.2f}] ＝ 合成値[{syn_val:.2f}]")
 
     df_sorted = df_calc.sort_values(by=["合成値", "能力スコア", "オッズ順位", "馬番"], ascending=[False, False, False, True]).reset_index(drop=True)
+    
+    # 最終ランキングを単勝オッズ昇順に並び替え
+    df_sorted = df_sorted.sort_values(by="単勝オッズ", ascending=True).reset_index(drop=True)
     df_sorted["合成順位"] = range(1, len(df_sorted) + 1)
 
     TRACK_STD_DEV = {"東京": 15.0, "京都": 15.0, "阪神": 15.0, "中山": 18.0, "中京": 18.0, "新潟": 20.0, "福島": 20.0, "函館": 20.0, "札幌": 20.0, "小倉": 20.0}
@@ -618,7 +621,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     fav1_num = sorted_by_odds.iloc[0]["馬番"] if len(sorted_by_odds) >= 1 else 1
     fav2_num = sorted_by_odds.iloc[1]["馬番"] if len(sorted_by_odds) >= 2 else fav1_num
     
-    # 「堅」または1番人気3.0倍未満のときだけ1頭軸（1番人気のみ）
     is_single_jiku = (race_pattern == "堅") or (odds_1 < 3.0)
 
     if is_single_jiku:
@@ -632,7 +634,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     jiku_1_num = jiku_nums[0] if len(jiku_nums) >= 1 else 1
     jiku_2_num = jiku_nums[1] if len(jiku_nums) >= 2 else jiku_1_num
 
-    # オッズ比の計算 (2番人気オッズ / 1番人気オッズ)
     if is_single_jiku:
         jiku_odds_str = f"{odds_1:.1f}倍"
     elif len(sorted_by_odds) >= 2:
@@ -645,17 +646,14 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     df_without_jiku = df_sorted[~df_sorted["馬番"].isin(jiku_nums)].copy()
     
-    # 中荒、大荒の場合は7頭制限を廃止
     if race_pattern in ["中荒", "大荒"]:
         aite_df = df_without_jiku[df_without_jiku["複勝率(MC)"] >= 15.0].sort_values(by="合成順位")
     else:
         aite_df = df_without_jiku[df_without_jiku["複勝率(MC)"] >= 15.0].sort_values(by="合成順位").head(7)
     
-    # 相手候補をオッズ順（単勝オッズの昇順）に並べ替える
     aite_df_sorted = aite_df.sort_values(by="単勝オッズ")
     base_aite_list = aite_df_sorted["馬番"].tolist()
 
-    # 「並」のときは、1番人気軸の相手に2番人気を入れ、2番人気軸の相手に1番人気を入れる
     if race_pattern == "並" and len(sorted_by_odds) >= 2:
         aite_list_1 = base_aite_list.copy()
         if fav2_num not in aite_list_1:
@@ -721,11 +719,11 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         f"\n**【{purchase_verdict}】**：荒れスコア **{rough_score}点** （{pattern_desc}）\n"
     ]
 
-    phase6_lines.append("\n#### 2. 最終ランキング\n| 順位 | 馬(オッズ) | 合成値(順位) | オッズ(順位) | 能力(順位) | 勝率 | 複勝率 | 期待値 | 位置 | 走数 |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
+    phase6_lines.append("\n#### 2. 最終ランキング\n| 順位 | 馬 | オッズ | 合成値(順位) | オッズ(順位) | 能力(順位) | 勝率 | 複勝率 | 期待値 | 位置 | 走数 |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
 
     for idx, r in df_sorted.iterrows():
         prefix = "**" if r["馬番"] in selected_horse_numbers else ""
-        phase6_lines.append(f"| {prefix}{idx + 1}{prefix} | {prefix}{r['馬番']} {r['馬名']}({r['単勝オッズ']}倍){prefix} | {prefix}{r['合成値']:.2f} ({r['合成順位']}位){prefix} | {prefix}{r['オッズスコア']:.1f} ({r['オッズ順位']}位){prefix} | {prefix}{r['能力スコア']:.1f} ({r['能力順位']}位){prefix} | {prefix}{r['勝率(MC)']:.1f}%{prefix} | {prefix}{r['複勝率(MC)']:.1f}%{prefix} | {prefix}{r['期待値']:.2f}{prefix} | {prefix}{r.get('位置取り', '差')}{prefix} | {prefix}{r.get('走数', 0)}{prefix} |")
+        phase6_lines.append(f"| {prefix}{idx + 1}{prefix} | {prefix}{r['馬番']} {r['馬名']}{prefix} | {prefix}{r['単勝オッズ']}倍{prefix} | {prefix}{r['合成値']:.2f} ({r['合成順位']}位){prefix} | {prefix}{r['オッズスコア']:.1f} ({r['オッズ順位']}位){prefix} | {prefix}{r['能力スコア']:.1f} ({r['能力順位']}位){prefix} | {prefix}{r['勝率(MC)']:.1f}%{prefix} | {prefix}{r['複勝率(MC)']:.1f}%{prefix} | {prefix}{r['期待値']:.2f}{prefix} | {prefix}{r.get('位置取り', '差')}{prefix} | {prefix}{r.get('走数', 0)}{prefix} |")
 
     phase6_lines.extend([
         f"\n#### 3. 買い目判定（会場: {track} / 荒れ度: {race_pattern}）\n",
