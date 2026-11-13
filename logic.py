@@ -614,17 +614,25 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     is_marked_purchase = track_purchase_map.get(race_pattern, False)
     purchase_verdict = "購入" if is_marked_purchase else "見送り"
 
-    jiku_horses = sorted_by_odds.iloc[:2] if len(sorted_by_odds) >= 2 else sorted_by_odds
+    odds_1 = sorted_by_odds.iloc[0]["単勝オッズ"] if not sorted_by_odds.empty else 1.0
+    is_single_jiku = (race_pattern in ["堅", "並"]) or (odds_1 < 3.0)
+
+    # 堅・並または1番人気3.0倍未満の場合は1番人気のみを軸とし、2番人気は相手候補へ回す
+    if is_single_jiku:
+        jiku_horses = sorted_by_odds.iloc[:1] if len(sorted_by_odds) >= 1 else sorted_by_odds
+    else:
+        jiku_horses = sorted_by_odds.iloc[:2] if len(sorted_by_odds) >= 2 else sorted_by_odds
+
     jiku_nums = jiku_horses["馬番"].tolist()
     jiku_display_str = ", ".join(map(str, jiku_nums)) if jiku_nums else "該当なし"
 
     jiku_1_num = jiku_nums[0] if len(jiku_nums) >= 1 else 1
     jiku_2_num = jiku_nums[1] if len(jiku_nums) >= 2 else jiku_1_num
 
-    odds_1 = sorted_by_odds.iloc[0]["単勝オッズ"] if not sorted_by_odds.empty else 1.0
-
     # オッズ比の計算 (2番人気オッズ / 1番人気オッズ)
-    if len(sorted_by_odds) >= 2:
+    if is_single_jiku:
+        jiku_odds_str = f"{odds_1:.1f}倍"
+    elif len(sorted_by_odds) >= 2:
         o1 = sorted_by_odds.iloc[0]["単勝オッズ"]
         o2 = sorted_by_odds.iloc[1]["単勝オッズ"]
         ratio_2_1 = o2 / o1 if o1 > 0 else 0.0
@@ -647,7 +655,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     n_aite = len(aite_list)
     single_p = (n_aite * (n_aite - 1)) // 2 if n_aite >= 2 else 0
 
-    if odds_1 < 3.0:
+    if is_single_jiku:
         buying_lines = [
             "**【買い目候補】**  ",
             f"軸候補 ：{jiku_display_str}({jiku_odds_str})  ",
