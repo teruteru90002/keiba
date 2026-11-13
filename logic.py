@@ -316,9 +316,9 @@ def calculate_rough_score(features: Dict) -> Dict:
         category = "堅"
     elif total_score < 50:
         category = "並"
-    elif total_score < 70:
+    elif total_score < 60:
         category = "小荒"
-    elif total_score < 90:
+    elif total_score < 70:
         category = "中荒"
     else:
         category = "大荒"
