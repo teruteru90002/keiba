@@ -347,18 +347,25 @@ PLACE_CODE_MAP = {
     "06": "中山", "07": "中京", "08": "京都", "09": "阪神", "10": "小倉"
 }
 
-VENUE_STRATEGY_MAP = {
-    "東京": {"堅": "～20倍", "並": "20倍～40倍", "小荒": "40倍～60倍", "中荒": "60倍～90倍", "大荒": "90倍～130倍"},
-    "京都": {"堅": "～20倍", "並": "20倍～40倍", "小荒": "40倍～60倍", "中荒": "60倍～90倍", "大荒": "90倍～130倍"},
-    "阪神": {"堅": "～20倍", "並": "20倍～40倍", "小荒": "40倍～60倍", "中荒": "60倍～90倍", "大荒": "90倍～130倍"},
-    "福島": {"堅": "～20倍", "並": "20倍～40倍", "小荒": "40倍～60倍", "中荒": "60倍～90倍", "大荒": "90倍～130倍"},
-    "中山": {"堅": "～20倍", "並": "20倍～40倍", "小荒": "40倍～60倍", "中荒": "60倍～90倍", "大荒": "90倍～130倍"},
-    "新潟": {"堅": "～20倍", "並": "20倍～40倍", "小荒": "40倍～60倍", "中荒": "60倍～90倍", "大荒": "90倍～130倍"},
-    "函館": {"堅": "～20倍", "並": "20倍～40倍", "小荒": "40倍～60倍", "中荒": "60倍～90倍", "大荒": "90倍～130倍"},
-    "札幌": {"堅": "～20倍", "並": "20倍～40倍", "小荒": "40倍～60倍", "中荒": "60倍～90倍", "大荒": "90倍～130倍"},
-    "小倉": {"堅": "～20倍", "並": "20倍～40倍", "小荒": "40倍～60倍", "中荒": "60倍～90倍", "大荒": "90倍～130倍"},
-    "中京": {"堅": "～20倍", "並": "20倍～40倍", "小荒": "40倍～60倍", "中荒": "60倍～90倍", "大荒": "90倍～130倍"}
+# 新・想定倍率マトリックス定義（荒れ度 × 相手候補頭数）
+ODDS_MATRIX = {
+    "堅": {4: "～20倍", 5: "20～40倍", 6: "20～40倍", 7: "40～60倍", 8: "40～60倍", 9: "60～80倍"},
+    "並": {4: "～20倍", 5: "20～40倍", 6: "20～40倍", 7: "40～60倍", 8: "40～60倍", 9: "60～80倍"},
+    "小荒": {4: "20～40倍", 5: "20～40倍", 6: "40～60倍", 7: "40～60倍", 8: "60～80倍", 9: "80～100倍"},
+    "中荒": {4: "20～40倍", 5: "40～60倍", 6: "40～60倍", 7: "60～80倍", 8: "80～100倍", 9: "100倍～"},
+    "大荒": {4: "40～60倍", 5: "40～60倍", 6: "60～80倍", 7: "80～100倍", 8: "100倍～", 9: "100倍～"},
 }
+
+def get_matrix_odds(pattern: str, n_aite: int) -> str:
+    if pattern not in ODDS_MATRIX:
+        return "20倍以上"
+    if n_aite <= 4:
+        key = 4
+    elif n_aite >= 9:
+        key = 9
+    else:
+        key = n_aite
+    return ODDS_MATRIX[pattern].get(key, "20倍以上")
 
 VALID_PURCHASE_COMBINATIONS = {
     "東京": {"堅": False, "並": True,  "小荒": True,  "中荒": True,  "大荒": False},
@@ -630,7 +637,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     }
 
     pattern_desc = PATTERN_DESCS.get(race_pattern, "")
-    odds_condition = VENUE_STRATEGY_MAP.get(track, {}).get(race_pattern, "20倍以上")
 
     track_purchase_map = VALID_PURCHASE_COMBINATIONS.get(track, {})
     is_marked_purchase = track_purchase_map.get(race_pattern, False)
@@ -640,11 +646,15 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     fav1_num = sorted_by_odds.iloc[0]["馬番"] if len(sorted_by_odds) >= 1 else 1
     fav2_num = sorted_by_odds.iloc[1]["馬番"] if len(sorted_by_odds) >= 2 else fav1_num
     
-    is_single_jiku = (race_pattern == "堅") or (odds_1 < 3.0)
-
-    if is_single_jiku:
+    # 堅の時、軸は2番人気に変更 (is_single_jiku扱いにする)
+    if race_pattern == "堅":
+        is_single_jiku = True
+        jiku_horses = sorted_by_odds.iloc[1:2] if len(sorted_by_odds) >= 2 else sorted_by_odds
+    elif odds_1 < 3.0:
+        is_single_jiku = True
         jiku_horses = sorted_by_odds.iloc[:1] if len(sorted_by_odds) >= 1 else sorted_by_odds
     else:
+        is_single_jiku = False
         jiku_horses = sorted_by_odds.iloc[:2] if len(sorted_by_odds) >= 2 else sorted_by_odds
 
     jiku_nums = jiku_horses["馬番"].tolist()
@@ -653,7 +663,9 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     jiku_1_num = jiku_nums[0] if len(jiku_nums) >= 1 else 1
     jiku_2_num = jiku_nums[1] if len(jiku_nums) >= 2 else jiku_1_num
 
-    if is_single_jiku:
+    if race_pattern == "堅":
+        jiku_odds_str = f"{sorted_by_odds.iloc[1]['単勝オッズ']:.1f}倍" if len(sorted_by_odds) >= 2 else f"{odds_1:.1f}倍"
+    elif is_single_jiku:
         jiku_odds_str = f"{odds_1:.1f}倍"
     elif len(sorted_by_odds) >= 2:
         o1 = sorted_by_odds.iloc[0]["単勝オッズ"]
@@ -695,7 +707,18 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     n_aite_1 = len(aite_list_1)
     p_1 = (n_aite_1 * (n_aite_1 - 1)) // 2 if n_aite_1 >= 2 else 0
 
-    if is_single_jiku:
+    # 想定倍率を新マトリックス（荒れ度 × 相手候補頭数）から取得
+    odds_condition = get_matrix_odds(race_pattern, n_aite_1)
+
+    if race_pattern == "堅":
+        buying_lines = [
+            "**【買い目候補】**  ",
+            f"軸候補 ：{jiku_display_str}({jiku_odds_str})  ",
+            f"相手候補：{aite_nums_str}",
+            "\n#### 4. 入力用買い目\n",
+            f"* 2番人気軸：{jiku_1_num} - {aite_sorted_str_1}（{p_1}点）"
+        ]
+    elif is_single_jiku:
         buying_lines = [
             "**【買い目候補】**  ",
             f"軸候補 ：{jiku_display_str}({jiku_odds_str})  ",
