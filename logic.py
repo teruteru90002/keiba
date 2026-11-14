@@ -449,6 +449,17 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     for idx, row in df_target.iterrows():
         h_num, h_name = row["馬番"], row["馬名"]
         past_runs = row.get("past_runs", [])[:4]
+
+        # 過去4走の3着内率を算出
+        valid_ranks = []
+        for r in past_runs:
+            try:
+                rk = int(r.get("rank", 99))
+                if 1 <= rk <= 28:
+                    valid_ranks.append(rk)
+            except (ValueError, TypeError):
+                continue
+        top3_rate_4 = round((sum(1 for rk in valid_ranks if rk <= 3) / len(valid_ranks) * 100), 1) if valid_ranks else 0.0
         
         raw_pos = row.get("位置取り")
         pos_type = str(raw_pos).strip() if raw_pos and not pd.isna(raw_pos) and str(raw_pos).strip() not in ["", "nan"] else estimate_position_type_final_corner(past_runs)
@@ -537,7 +548,15 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         final_ability_score = round(var_A + dist_adj + weight_adj + etc_total, 2)
         phase2_lines.append(f"* 変数A[{var_A:.2f}] ＋ Dist_補正[{dist_adj:+2f}] ＋ Weight_補正[{weight_adj:+d}] ＋ Etc_補正[{etc_total:+d}] ＝ 最終能力スコア[{final_ability_score:.2f}]\n")
 
-        calculated_horses.append({"馬番": h_num, "馬名": h_name, "単勝オッズ": row["単勝オッズ"], "最終能力スコア": final_ability_score, "位置取り": pos_type, "走数": jra_valid_count})
+        calculated_horses.append({
+            "馬番": h_num,
+            "馬名": h_name,
+            "単勝オッズ": row["単勝オッズ"],
+            "3着内率(4走)": top3_rate_4,
+            "最終能力スコア": final_ability_score,
+            "位置取り": pos_type,
+            "走数": jra_valid_count
+        })
 
     df_calc = pd.DataFrame(calculated_horses)
     max_ability_score = df_calc["最終能力スコア"].max()
@@ -706,11 +725,11 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         f"\n※判定基準：堅＜30, 並＜50, 小荒＜60, 中荒＜70, 大荒≧70"
     ]
 
-    phase6_lines.append("\n#### 2. 最終ランキング\n| 順位 | 馬 | オッズ | 合成値(順位) | オッズ(順位) | 能力(順位) | 勝率 | 複勝率 | 期待値 | 位置 | 走数 |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
+    phase6_lines.append("\n#### 2. 最終ランキング\n| 順位 | 馬 | オッズ | 3着内率 | 合成値(順位) | オッズ(順位) | 能力(順位) | 勝率 | 複勝率 | 期待値 | 位置 | 走数 |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
 
     for idx, r in df_sorted.iterrows():
         prefix = "**" if r["馬番"] in selected_horse_numbers else ""
-        phase6_lines.append(f"| {prefix}{idx + 1}{prefix} | {prefix}{r['馬番']} {r['馬名']}{prefix} | {prefix}{r['単勝オッズ']}倍{prefix} | {prefix}{r['合成値']:.2f} ({r['合成順位']}位){prefix} | {prefix}{r['オッズスコア']:.1f} ({r['オッズ順位']}位){prefix} | {prefix}{r['能力スコア']:.1f} ({r['能力順位']}位){prefix} | {prefix}{r['勝率(MC)']:.1f}%{prefix} | {prefix}{r['複勝率(MC)']:.1f}%{prefix} | {prefix}{r['期待値']:.2f}{prefix} | {prefix}{r.get('位置取り', '差')}{prefix} | {prefix}{r.get('走数', 0)}{prefix} |")
+        phase6_lines.append(f"| {prefix}{idx + 1}{prefix} | {prefix}{r['馬番']} {r['馬名']}{prefix} | {prefix}{r['単勝オッズ']}倍{prefix} | {prefix}{r['3着内率(4走)']:.1f}%{prefix} | {prefix}{r['合成値']:.2f} ({r['合成順位']}位){prefix} | {prefix}{r['オッズスコア']:.1f} ({r['オッズ順位']}位){prefix} | {prefix}{r['能力スコア']:.1f} ({r['能力順位']}位){prefix} | {prefix}{r['勝率(MC)']:.1f}%{prefix} | {prefix}{r['複勝率(MC)']:.1f}%{prefix} | {prefix}{r['期待値']:.2f}{prefix} | {prefix}{r.get('位置取り', '差')}{prefix} | {prefix}{r.get('走数', 0)}{prefix} |")
 
     phase6_lines.extend([
         f"\n#### 3. 買い目判定（会場: {track} / 荒れ度: {race_pattern}）\n",
