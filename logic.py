@@ -746,7 +746,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         f"#### 1. レース情報\n[{race_name} / {track}{race_no}R / {surface} / {distance}m]",
         f"\n* **荒れ度分析（スコア判定）**:\n{analysis_table_md}",
         f"\n**【レース判定結果】**：{race_pattern}（{odds_condition}）\n"
-        f"\n**【{purchase_verdict}】（{pattern_desc}）\n"
+        f"\n**【{purchase_verdict}】**（{pattern_desc}）\n"
         f"\n※判定基準：堅＜30, 並＜50, 小荒＜60, 中荒＜70, 大荒≧70"
     ]
 
