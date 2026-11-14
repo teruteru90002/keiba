@@ -693,10 +693,10 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     # 想定倍率を新マトリックス（荒れ度 × 相手候補頭数）から取得
     odds_condition = get_matrix_odds(race_pattern, n_aite_1)
 
-    # 購入／見送り判定（堅の時は想定倍率が「～20倍」の場合のみ見送り対象）
+    # 購入／見送り判定（堅および並の時は想定倍率が「～20倍」の場合を見送り対象）
     track_purchase_map = VALID_PURCHASE_COMBINATIONS.get(track, {})
     is_marked_purchase = track_purchase_map.get(race_pattern, False)
-    if race_pattern == "堅":
+    if race_pattern in ["堅", "並"]:
         is_marked_purchase = (odds_condition != "～20倍")
     purchase_verdict = "購入" if is_marked_purchase else "見送り"
 
