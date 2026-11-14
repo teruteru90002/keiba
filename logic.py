@@ -349,7 +349,7 @@ PLACE_CODE_MAP = {
 
 # 想定倍率マトリックス定義（荒れ度 × 相手候補頭数）
 ODDS_MATRIX = {
-    "堅":   {4: "～20倍",   5: "20～40倍", 6: "20～40倍", 7: "30～60倍", 8: "40～70倍",  9: "60～90倍"},
+    "堅":   {4: "～20倍",   5: "～20倍",   6: "20～40倍", 7: "30～60倍", 8: "40～70倍",  9: "60～90倍"},
     "並":   {4: "～20倍",   5: "20～40倍", 6: "20～40倍", 7: "30～60倍", 8: "40～70倍",  9: "60～90倍"},
     "小荒": {4: "20～40倍", 5: "20～40倍", 6: "30～60倍", 7: "40～70倍", 8: "60～90倍",  9: "80～110倍"},
     "中荒": {4: "20～40倍", 5: "30～60倍", 6: "40～70倍", 7: "60～90倍", 8: "80～110倍", 9: "100倍～"},
@@ -368,16 +368,16 @@ def get_matrix_odds(pattern: str, n_aite: int) -> str:
     return ODDS_MATRIX[pattern].get(key, "20倍以上")
 
 VALID_PURCHASE_COMBINATIONS = {
-    "東京": {"堅": False, "並": True,  "小荒": True,  "中荒": True,  "大荒": False},
-    "京都": {"堅": False, "並": True,  "小荒": True,  "中荒": True,  "大荒": False},
-    "阪神": {"堅": False, "並": True,  "小荒": True,  "中荒": True,  "大荒": False},
-    "福島": {"堅": False, "並": True,  "小荒": True,  "中荒": True,  "大荒": False},
-    "中山": {"堅": False, "並": True,  "小荒": True,  "中荒": True,  "大荒": False},
-    "新潟": {"堅": False, "並": True,  "小荒": True,  "中荒": True,  "大荒": False},
-    "函館": {"堅": False, "並": True,  "小荒": True,  "中荒": True,  "大荒": False},
-    "札幌": {"堅": False, "並": True,  "小荒": True,  "中荒": True,  "大荒": False},
-    "小倉": {"堅": False, "並": True,  "小荒": True,  "中荒": True,  "大荒": False},
-    "中京": {"堅": False, "並": True,  "小荒": True,  "中荒": True,  "大荒": False}
+    "東京": {"堅": True, "並": True,  "小荒": True,  "中荒": True,  "大荒": False},
+    "京都": {"堅": True, "並": True,  "小荒": True,  "中荒": True,  "大荒": False},
+    "阪神": {"堅": True, "並": True,  "小荒": True,  "中荒": True,  "大荒": False},
+    "福島": {"堅": True, "並": True,  "小荒": True,  "中荒": True,  "大荒": False},
+    "中山": {"堅": True, "並": True,  "小荒": True,  "中荒": True,  "大荒": False},
+    "新潟": {"堅": True, "並": True,  "小荒": True,  "中荒": True,  "大荒": False},
+    "函館": {"堅": True, "並": True,  "小荒": True,  "中荒": True,  "大荒": False},
+    "札幌": {"堅": True, "並": True,  "小荒": True,  "中荒": True,  "大荒": False},
+    "小倉": {"堅": True, "並": True,  "小荒": True,  "中荒": True,  "大荒": False},
+    "中京": {"堅": True, "並": True,  "小荒": True,  "中荒": True,  "大荒": False}
 }
 
 def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=False, trend="フラット"):
@@ -398,31 +398,18 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     except Exception:
         tansho_odds = []
 
+    analysis_result = None
     if len(tansho_odds) >= 5:
         try:
             analysis_result = analyze_race(tansho_odds)
             race_pattern = analysis_result["荒れ度"]
             rough_score = analysis_result["荒れスコア"]
-            
-            track_purchase_map = VALID_PURCHASE_COMBINATIONS.get(track, {})
-            is_marked_circle = track_purchase_map.get(race_pattern, False)
-            display_race_pattern = f"{race_pattern}{'（購入対象）' if is_marked_circle else '（見送り対象）'}"
-
-            analysis_table_md = (
-                "\n| 荒れ度判定 | 荒れスコア | 1番人気オッズ | 2番人気オッズ | 3番人気オッズ | 1番人気支持率 |\n"
-                "| --- | --- | --- | --- | --- | --- |\n"
-                f"| **{display_race_pattern}** | **{rough_score}点** | {analysis_result['1番人気オッズ']:.1f}倍 | {analysis_result['2番人気オッズ']:.1f}倍 | {analysis_result['3番人気オッズ']:.1f}倍 | {analysis_result['1番人気支持率']*100:.1f}% |"
-            )
         except Exception:
             race_pattern = "データ不足"
-            display_race_pattern = "データ不足"
             rough_score = 0.0
-            analysis_table_md = "\n* **荒れ度分析**: 計算エラー"
     else:
         race_pattern = "データ不足"
-        display_race_pattern = "データ不足"
         rough_score = 0.0
-        analysis_table_md = "\n* **荒れ度分析**: データ不足のため算出不可"
 
     surface = "ダート" if "ダート" in raw_text else ("芝" if "芝" in raw_text else str(race_info.get("track", "")))
     
@@ -638,10 +625,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     pattern_desc = PATTERN_DESCS.get(race_pattern, "")
 
-    track_purchase_map = VALID_PURCHASE_COMBINATIONS.get(track, {})
-    is_marked_purchase = track_purchase_map.get(race_pattern, False)
-    purchase_verdict = "購入" if is_marked_purchase else "見送り"
-
     odds_1 = sorted_by_odds.iloc[0]["単勝オッズ"] if not sorted_by_odds.empty else 1.0
     fav1_num = sorted_by_odds.iloc[0]["馬番"] if len(sorted_by_odds) >= 1 else 1
     fav2_num = sorted_by_odds.iloc[1]["馬番"] if len(sorted_by_odds) >= 2 else fav1_num
@@ -710,6 +693,25 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     # 想定倍率を新マトリックス（荒れ度 × 相手候補頭数）から取得
     odds_condition = get_matrix_odds(race_pattern, n_aite_1)
 
+    # 購入／見送り判定（堅の時は想定倍率が「～20倍」の場合のみ見送り対象）
+    track_purchase_map = VALID_PURCHASE_COMBINATIONS.get(track, {})
+    is_marked_purchase = track_purchase_map.get(race_pattern, False)
+    if race_pattern == "堅":
+        is_marked_purchase = (odds_condition != "～20倍")
+    purchase_verdict = "購入" if is_marked_purchase else "見送り"
+
+    if len(tansho_odds) >= 5 and analysis_result is not None:
+        display_race_pattern = f"{race_pattern}{'（購入対象）' if is_marked_purchase else '（見送り対象）'}"
+        analysis_table_md = (
+            "\n| 荒れ度判定 | 荒れスコア | 1番人気オッズ | 2番人気オッズ | 3番人気オッズ | 1番人気支持率 |\n"
+            "| --- | --- | --- | --- | --- | --- |\n"
+            f"| **{display_race_pattern}** | **{rough_score}点** | {analysis_result['1番人気オッズ']:.1f}倍 | {analysis_result['2番人気オッズ']:.1f}倍 | {analysis_result['3番人気オッズ']:.1f}倍 | {analysis_result['1番人気支持率']*100:.1f}% |"
+        )
+    elif len(tansho_odds) >= 5:
+        analysis_table_md = "\n* **荒れ度分析**: 計算エラー"
+    else:
+        analysis_table_md = "\n* **荒れ度分析**: データ不足のため算出不可"
+
     if race_pattern == "堅":
         buying_lines = [
             "**【買い目候補】**  ",
@@ -743,8 +745,8 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         "#### ■ PHASE 6：最終ランキングと買い目\n",
         f"#### 1. レース情報\n[{race_name} / {track}{race_no}R / {surface} / {distance}m]",
         f"\n* **荒れ度分析（スコア判定）**:\n{analysis_table_md}",
-        f"\n**【レース判定結果】**：荒れ度[{race_pattern}]（{odds_condition}）\n"
-        f"\n**【{purchase_verdict}】**：荒れスコア **{rough_score}点** （{pattern_desc}）\n"
+        f"\n**【レース判定結果】**：{race_pattern}（{odds_condition}）\n"
+        f"\n**【{purchase_verdict}】（{pattern_desc}）\n"
         f"\n※判定基準：堅＜30, 並＜50, 小荒＜60, 中荒＜70, 大荒≧70"
     ]
 
