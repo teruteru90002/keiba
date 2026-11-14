@@ -646,15 +646,14 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     df_without_jiku = df_sorted[~df_sorted["馬番"].isin(jiku_nums)].copy()
     
-    if race_pattern in ["中荒", "大荒"]:
-        aite_df = df_without_jiku[df_without_jiku["複勝率(MC)"] >= 15.0].sort_values(by="合成順位")
-    else:
-        aite_df = df_without_jiku[df_without_jiku["複勝率(MC)"] >= 15.0].sort_values(by="合成順位").head(7)
+    # 最大7頭制限を撤廃し、全パターンで複勝率15.0%以上を全て抽出
+    aite_df = df_without_jiku[df_without_jiku["複勝率(MC)"] >= 15.0].sort_values(by="合成順位")
     
     aite_df_sorted = aite_df.sort_values(by="単勝オッズ")
     base_aite_list = aite_df_sorted["馬番"].tolist()
 
-    if race_pattern == "並" and len(sorted_by_odds) >= 2:
+    # 補完処理も全パターン（2頭軸の場合）で実行
+    if not is_single_jiku and len(sorted_by_odds) >= 2:
         aite_list_1 = base_aite_list.copy()
         if fav2_num not in aite_list_1:
             aite_list_1.append(fav2_num)
@@ -685,10 +684,9 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
             "\n#### 4. 入力用買い目\n",
             f"* 1番人気軸：{jiku_1_num} - {aite_sorted_str_1}（{p_1}点）"
         ]
-    elif race_pattern == "並":
+    else:
         n_aite_2 = len(aite_list_2)
         p_2 = (n_aite_2 * (n_aite_2 - 1)) // 2 if n_aite_2 >= 2 else 0
-        aite_nums_str_2 = ", ".join([str(h) for h in aite_list_2])
 
         buying_lines = [
             "**【買い目候補】**  ",
@@ -698,18 +696,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
             f"* 1番人気軸：{jiku_1_num} - {aite_sorted_str_1}（{p_1}点）",
             f"* 2番人気軸：{jiku_2_num} - {aite_sorted_str_2}（{p_2}点）",
         ]
-    else:
-        n_aite_base = len(base_aite_list)
-        p_base = (n_aite_base * (n_aite_base - 1)) // 2 if n_aite_base >= 2 else 0
-
-        buying_lines = [
-            "**【買い目候補】**  ",
-            f"軸候補 ：{jiku_display_str}({jiku_odds_str})  ",
-            f"相手候補：{aite_nums_str}",
-            "\n#### 4. 入力用買い目\n",
-            f"* 1番人気軸：{jiku_1_num} - {aite_sorted_str_1}（{p_base}点）",
-            f"* 2番人気軸：{jiku_2_num} - {aite_sorted_str_1}（{p_base}点）",
-        ]
 
     phase6_lines = [
         "#### ■ PHASE 6：最終ランキングと買い目\n",
@@ -717,7 +703,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         f"\n* **荒れ度分析（スコア判定）**:\n{analysis_table_md}",
         f"\n**【レース判定結果】**：荒れ度[{race_pattern}]（{odds_condition}）\n"
         f"\n**【{purchase_verdict}】**：荒れスコア **{rough_score}点** （{pattern_desc}）\n"
-        f"\n**判定基準：**堅＜30, 並＜50, 小荒＜60, 中荒＜70, 大荒≧70"
+        f"\n※判定基準：堅＜30, 並＜50, 小荒＜60, 中荒＜70, 大荒≧70"
     ]
 
     phase6_lines.append("\n#### 2. 最終ランキング\n| 順位 | 馬 | オッズ | 合成値(順位) | オッズ(順位) | 能力(順位) | 勝率 | 複勝率 | 期待値 | 位置 | 走数 |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
