@@ -569,11 +569,11 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         df_calc.loc[idx, ["能力項", "オッズ項", "合成値"]] = [ab_term, odds_term, syn_val]
         phase5_lines.append(f"馬番{r['馬番']} [{r['馬名']}]：能力項[{ab_term:.2f}] ＋ オッズ項[{odds_term:.2f}] ＝ 合成値[{syn_val:.2f}]")
 
-    # 【修正】まず合成値などの降順でソートし、正しい「合成順位」を算出・保持する
+    # 合成値などの降順でソートし、正しい「合成順位」を算出・保持する
     df_sorted = df_calc.sort_values(by=["合成値", "能力スコア", "オッズ順位", "馬番"], ascending=[False, False, False, True]).reset_index(drop=True)
     df_sorted["合成順位"] = range(1, len(df_sorted) + 1)
     
-    # 最終ランキング表示のために単勝オッズ昇順に並び替え（合成順位の列は保持される）
+    # 最終ランキング表示のために単勝オッズ昇順に並び替え
     df_sorted = df_sorted.sort_values(by="単勝オッズ", ascending=True).reset_index(drop=True)
 
     TRACK_STD_DEV = {"東京": 15.0, "京都": 15.0, "阪神": 15.0, "中山": 18.0, "中京": 18.0, "新潟": 20.0, "福島": 20.0, "函館": 20.0, "札幌": 20.0, "小倉": 20.0}
@@ -652,7 +652,11 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     df_without_jiku = df_sorted[~df_sorted["馬番"].isin(jiku_nums)].copy()
     
-    aite_df = df_without_jiku[df_without_jiku["複勝率(MC)"] >= 15.0].sort_values(by="合成順位")
+    # 【追加・修正】「堅」「並」の場合は単勝オッズ40倍以上の馬を選択対象外（除外）にする
+    if race_pattern in ["堅", "並"]:
+        aite_df = df_without_jiku[(df_without_jiku["複勝率(MC)"] >= 15.0) & (df_without_jiku["単勝オッズ"] < 40.0)].sort_values(by="合成順位")
+    else:
+        aite_df = df_without_jiku[df_without_jiku["複勝率(MC)"] >= 15.0].sort_values(by="合成順位")
     
     aite_df_sorted = aite_df.sort_values(by="単勝オッズ")
     base_aite_list = aite_df_sorted["馬番"].tolist()
@@ -727,7 +731,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         f"\n* **荒れ度分析（スコア判定）**:\n{analysis_table_md}",
         f"\n**【レース判定結果】**：{race_pattern}（{odds_condition}）\n"
         f"\n**【{purchase_verdict}】**（{pattern_desc}）\n"
-        f"\n※判定基準：堅＜30, 並＜50, 小荒＜60, 中荒＜70, 大荒≧70"
+        f"\n※判定基準：堅＜30, 並＜50, 小荒＜60, 中荒＜70, 대荒≧70"
     ]
 
     phase6_lines.append("\n#### 2. 最終ランキング\n| 順位 | 馬 | オッズ | 3着内率 | 合成値(順位) | オッズ(順位) | 能力(順位) | 勝率 | 複勝率 | 期待値 | 位置 | 走数 |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
