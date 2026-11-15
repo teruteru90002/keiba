@@ -349,11 +349,11 @@ PLACE_CODE_MAP = {
 
 # 想定倍率マトリックス定義（荒れ度 × 相手候補頭数）
 ODDS_MATRIX = {
-    "堅":   {4: "～20倍",   5: "～20倍",   6: "20～40倍", 7: "30～60倍", 8: "40～70倍",  9: "60～90倍"},
-    "並":   {4: "～20倍",   5: "20～40倍", 6: "20～40倍", 7: "30～60倍", 8: "40～70倍",  9: "60～90倍"},
-    "小荒": {4: "20～40倍", 5: "20～40倍", 6: "30～60倍", 7: "40～70倍", 8: "60～90倍",  9: "80～110倍"},
-    "中荒": {4: "20～40倍", 5: "30～60倍", 6: "40～70倍", 7: "60～90倍", 8: "80～110倍", 9: "100倍～"},
-    "大荒": {4: "30～60倍", 5: "40～70倍", 6: "60～90倍", 7: "80～110倍", 8: "100倍～",  9: "100倍～"},
+    "堅":   {4: "～20倍",   5: "20～40倍", 6: "20～40倍", 7: "20～50倍", 8: "20～50倍",  9: "20～50倍"},
+    "並":   {4: "～20倍",   5: "20～40倍", 6: "20～40倍", 7: "20～50倍", 8: "20～50倍",  9: "20～50倍"},
+    "小荒": {4: "20～40倍", 5: "20～40倍", 6: "30～50倍", 7: "30～60倍", 8: "30～60倍",  9: "40～70倍"},
+    "中荒": {4: "20～40倍", 5: "30～50倍", 6: "40～60倍", 7: "50～80倍", 8: "50～80倍",  9: "70～100倍"},
+    "大荒": {4: "30～50倍", 5: "30～50倍", 6: "40～60倍", 7: "50～80倍", 8: "70～100倍", 9: "100倍～"},
 }
 
 def get_matrix_odds(pattern: str, n_aite: int) -> str:
@@ -629,11 +629,8 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     fav1_num = sorted_by_odds.iloc[0]["馬番"] if len(sorted_by_odds) >= 1 else 1
     fav2_num = sorted_by_odds.iloc[1]["馬番"] if len(sorted_by_odds) >= 2 else fav1_num
     
-    # 堅の時、軸は2番人気に変更 (is_single_jiku扱いにする)
-    if race_pattern == "堅":
-        is_single_jiku = True
-        jiku_horses = sorted_by_odds.iloc[1:2] if len(sorted_by_odds) >= 2 else sorted_by_odds
-    elif odds_1 < 3.0:
+    # 堅の場合も並などと同様に、1番人気オッズ3.0倍未満なら1頭軸、それ以外は2頭軸
+    if odds_1 < 3.0:
         is_single_jiku = True
         jiku_horses = sorted_by_odds.iloc[:1] if len(sorted_by_odds) >= 1 else sorted_by_odds
     else:
@@ -646,9 +643,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     jiku_1_num = jiku_nums[0] if len(jiku_nums) >= 1 else 1
     jiku_2_num = jiku_nums[1] if len(jiku_nums) >= 2 else jiku_1_num
 
-    if race_pattern == "堅":
-        jiku_odds_str = f"{sorted_by_odds.iloc[1]['単勝オッズ']:.1f}倍" if len(sorted_by_odds) >= 2 else f"{odds_1:.1f}倍"
-    elif is_single_jiku:
+    if is_single_jiku:
         jiku_odds_str = f"{odds_1:.1f}倍"
     elif len(sorted_by_odds) >= 2:
         o1 = sorted_by_odds.iloc[0]["単勝オッズ"]
@@ -712,15 +707,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     else:
         analysis_table_md = "\n* **荒れ度分析**: データ不足のため算出不可"
 
-    if race_pattern == "堅":
-        buying_lines = [
-            "**【買い目候補】**  ",
-            f"軸候補 ：{jiku_display_str}({jiku_odds_str})  ",
-            f"相手候補：{aite_nums_str}",
-            "\n#### 4. 入力用買い目\n",
-            f"* 2番人気軸：{jiku_1_num} - {aite_sorted_str_1}（{p_1}点）"
-        ]
-    elif is_single_jiku:
+    if is_single_jiku:
         buying_lines = [
             "**【買い目候補】**  ",
             f"軸候補 ：{jiku_display_str}({jiku_odds_str})  ",
