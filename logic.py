@@ -444,7 +444,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         h_num, h_name = row["馬番"], row["馬名"]
         past_runs = row.get("past_runs", [])[:4]
 
-        # 過去4走の3着内率を算出
         valid_ranks = []
         for r in past_runs:
             try:
@@ -572,7 +571,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     df_sorted = df_calc.sort_values(by=["合成値", "能力スコア", "オッズ順位", "馬番"], ascending=[False, False, False, True]).reset_index(drop=True)
     
-    # 最終ランキングを単勝オッズ昇順に並び替え
     df_sorted = df_sorted.sort_values(by="単勝オッズ", ascending=True).reset_index(drop=True)
     df_sorted["合成順位"] = range(1, len(df_sorted) + 1)
 
@@ -587,7 +585,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     df_sorted["複勝率(MC)"] = (np.sum(ranks <= 3, axis=0) / NUM_SIMS * 100).round(1)
     df_sorted["期待値"] = (df_sorted["単勝オッズ"] * (df_sorted["勝率(MC)"] / 100.0)).round(2)
 
-    # 1番人気・2番人気の同時3着内確率および同時3着外確率の計算
     sorted_by_odds = df_sorted.sort_values(by="単勝オッズ")
     if len(sorted_by_odds) >= 2:
         fav1_num = sorted_by_odds.iloc[0]["馬番"]
@@ -604,7 +601,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         both_top3_prob = 0.0
         both_out_top3_prob = 0.0
 
-    # オッズ断層の計算
     odds_fault_nums = []
     if len(sorted_by_odds) >= 2:
         for i in range(len(sorted_by_odds) - 1):
@@ -739,7 +735,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         phase6_lines.append(f"| {prefix}{idx + 1}{prefix} | {prefix}{r['馬番']} {r['馬名']}{prefix} | {prefix}{r['単勝オッズ']}倍{prefix} | {prefix}{r['3着内率(4走)']:.1f}%{prefix} | {prefix}{r['合成値']:.2f} ({r['合成順位']}位){prefix} | {prefix}{r['オッズスコア']:.1f} ({r['オッズ順位']}位){prefix} | {prefix}{r['能力スコア']:.1f} ({r['能力順位']}位){prefix} | {prefix}{r['勝率(MC)']:.1f}%{prefix} | {prefix}{r['複勝率(MC)']:.1f}%{prefix} | {prefix}{r['期待値']:.2f}{prefix} | {prefix}{r.get('位置取り', '差')}{prefix} | {prefix}{r.get('走数', 0)}{prefix} |")
 
     phase6_lines.extend([
-        f"\n#### 3. 買い目判定（会場: {track} / {surface}）\n",
+        f"\n#### 3. 買い目判定（会場: {track} / {surface} / {distance}m）\n",
         f"* **判定結果**：【{purchase_verdict}】",
         f"* **レース判定結果**：{race_pattern}（{odds_condition}）",
         f"* **1,2番人気 同時3着内確率**：{both_top3_prob:.1f}%",
