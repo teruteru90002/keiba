@@ -629,7 +629,6 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     fav1_num = sorted_by_odds.iloc[0]["馬番"] if len(sorted_by_odds) >= 1 else 1
     fav2_num = sorted_by_odds.iloc[1]["馬番"] if len(sorted_by_odds) >= 2 else fav1_num
     
-    # 堅の場合も並などと同様に、1番人気オッズ3.0倍未満なら1頭軸、それ以外は2頭軸
     if odds_1 < 3.0:
         is_single_jiku = True
         jiku_horses = sorted_by_odds.iloc[:1] if len(sorted_by_odds) >= 1 else sorted_by_odds
@@ -655,13 +654,11 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     df_without_jiku = df_sorted[~df_sorted["馬番"].isin(jiku_nums)].copy()
     
-    # 最大7頭制限を撤廃し、全パターンで複勝率15.0%以上を全て抽出
     aite_df = df_without_jiku[df_without_jiku["複勝率(MC)"] >= 15.0].sort_values(by="合成順位")
     
     aite_df_sorted = aite_df.sort_values(by="単勝オッズ")
     base_aite_list = aite_df_sorted["馬番"].tolist()
 
-    # 補完処理も全パターン（2頭軸の場合）で実行
     if not is_single_jiku and len(sorted_by_odds) >= 2:
         aite_list_1 = base_aite_list.copy()
         if fav2_num not in aite_list_1:
@@ -685,10 +682,8 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     n_aite_1 = len(aite_list_1)
     p_1 = (n_aite_1 * (n_aite_1 - 1)) // 2 if n_aite_1 >= 2 else 0
 
-    # 想定倍率を新マトリックス（荒れ度 × 相手候補頭数）から取得
     odds_condition = get_matrix_odds(race_pattern, n_aite_1)
 
-    # 購入／見送り判定（堅および並の時は想定倍率が「～20倍」の場合を見送り対象）
     track_purchase_map = VALID_PURCHASE_COMBINATIONS.get(track, {})
     is_marked_purchase = track_purchase_map.get(race_pattern, False)
     if race_pattern in ["堅", "並"]:
@@ -744,9 +739,9 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         phase6_lines.append(f"| {prefix}{idx + 1}{prefix} | {prefix}{r['馬番']} {r['馬名']}{prefix} | {prefix}{r['単勝オッズ']}倍{prefix} | {prefix}{r['3着内率(4走)']:.1f}%{prefix} | {prefix}{r['合成値']:.2f} ({r['合成順位']}位){prefix} | {prefix}{r['オッズスコア']:.1f} ({r['オッズ順位']}位){prefix} | {prefix}{r['能力スコア']:.1f} ({r['能力順位']}位){prefix} | {prefix}{r['勝率(MC)']:.1f}%{prefix} | {prefix}{r['複勝率(MC)']:.1f}%{prefix} | {prefix}{r['期待値']:.2f}{prefix} | {prefix}{r.get('位置取り', '差')}{prefix} | {prefix}{r.get('走数', 0)}{prefix} |")
 
     phase6_lines.extend([
-        f"\n#### 3. 買い目判定（会場: {track} / 荒れ度: {race_pattern}）\n",
+        f"\n#### 3. 買い目判定（会場: {track} / {surface}）\n",
         f"* **判定結果**：【{purchase_verdict}】",
-        f"* **想定倍率**：{odds_condition}",
+        f"* **レース判定結果**：{race_pattern}（{odds_condition}）",
         f"* **1,2番人気 同時3着内確率**：{both_top3_prob:.1f}%",
         f"* **1,2番人気 同時3着外確率**：{both_out_top3_prob:.1f}%",
         f"* **オッズ断層**：{odds_fault_str} \n"
