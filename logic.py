@@ -569,10 +569,12 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         df_calc.loc[idx, ["能力項", "オッズ項", "合成値"]] = [ab_term, odds_term, syn_val]
         phase5_lines.append(f"馬番{r['馬番']} [{r['馬名']}]：能力項[{ab_term:.2f}] ＋ オッズ項[{odds_term:.2f}] ＝ 合成値[{syn_val:.2f}]")
 
+    # 【修正】まず合成値などの降順でソートし、正しい「合成順位」を算出・保持する
     df_sorted = df_calc.sort_values(by=["合成値", "能力スコア", "オッズ順位", "馬番"], ascending=[False, False, False, True]).reset_index(drop=True)
-    
-    df_sorted = df_sorted.sort_values(by="単勝オッズ", ascending=True).reset_index(drop=True)
     df_sorted["合成順位"] = range(1, len(df_sorted) + 1)
+    
+    # 最終ランキング表示のために単勝オッズ昇順に並び替え（合成順位の列は保持される）
+    df_sorted = df_sorted.sort_values(by="単勝オッズ", ascending=True).reset_index(drop=True)
 
     TRACK_STD_DEV = {"東京": 15.0, "京都": 15.0, "阪神": 15.0, "中山": 18.0, "中京": 18.0, "新潟": 20.0, "福島": 20.0, "函館": 20.0, "札幌": 20.0, "小倉": 20.0}
     NUM_SIMS = 10000
