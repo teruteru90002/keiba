@@ -652,9 +652,9 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     df_without_jiku = df_sorted[~df_sorted["馬番"].isin(jiku_nums)].copy()
     
-    # 【追加・修正】「堅」「並」の場合は単勝オッズ40倍以上の馬を選択対象外（除外）にする
+    # 【追加・修正】「堅」「並」の場合は単勝オッズ50倍以上の馬を選択対象外（除外）にする
     if race_pattern in ["堅", "並"]:
-        aite_df = df_without_jiku[(df_without_jiku["複勝率(MC)"] >= 15.0) & (df_without_jiku["単勝オッズ"] < 40.0)].sort_values(by="合成順位")
+        aite_df = df_without_jiku[(df_without_jiku["複勝率(MC)"] >= 15.0) & (df_without_jiku["単勝オッズ"] < 50.0)].sort_values(by="合成順位")
     else:
         aite_df = df_without_jiku[df_without_jiku["複勝率(MC)"] >= 15.0].sort_values(by="合成順位")
     
