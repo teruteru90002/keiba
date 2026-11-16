@@ -731,7 +731,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         f"\n* **荒れ度分析（スコア判定）**:\n{analysis_table_md}",
         f"\n**【レース判定結果】**：{race_pattern}（{odds_condition}）\n"
         f"\n**【{purchase_verdict}】**（{pattern_desc}）\n"
-        f"\n※判定基準：堅＜30, 並＜50, 小荒＜60, 中荒＜70, 대荒≧70"
+        f"\n※判定基準：堅＜30, 並＜50, 小荒＜60, 中荒＜70, 荒≧70"
     ]
 
     phase6_lines.append("\n#### 2. 最終ランキング\n| 順位 | 馬 | オッズ | 3着内率 | 合成値(順位) | オッズ(順位) | 能力(順位) | 勝率 | 複勝率 | 期待値 | 位置 | 走数 |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
