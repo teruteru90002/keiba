@@ -677,12 +677,13 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     aite_sorted_str_1 = ",".join(map(str, aite_list_1)) if aite_list_1 else "該当なし"
     aite_sorted_str_2 = ",".join(map(str, aite_list_2)) if aite_list_2 else "該当なし"
-    aite_nums_str = ", ".join([str(h) for h in aite_list_1]) if aite_list_1 else "該当なし"
 
     selected_horse_numbers = set(jiku_nums) | set(aite_list_1) | set(aite_list_2)
 
     n_aite_1 = len(aite_list_1)
     p_1 = (n_aite_1 * (n_aite_1 - 1)) // 2 if n_aite_1 >= 2 else 0
+
+    aite_nums_str = f"{', '.join([str(h) for h in aite_list_1])}（{n_aite_1}頭）" if aite_list_1 else "該当なし"
 
     odds_condition = get_matrix_odds(race_pattern, n_aite_1)
 
