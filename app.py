@@ -6,13 +6,30 @@ import time
 from datetime import datetime
 from logic import run_pipeline, RACE_GRADE_DICT, detect_grade
 
-# 画面上のヘッダーや右上のメニューを非表示にする設定
+# 画面上のヘッダーや右上のメニューを非表示にし、強制的に白地・黒文字（ライトモード）にする設定
 st.markdown(
     """
     <style>
     #MainMenu {visibility: hidden;}
     header {visibility: hidden;}
     footer {visibility: hidden;}
+
+    /* アプリ全体の背景を白、文字色を黒に強制固定 */
+    .stApp {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+    }
+
+    /* サイドバーがある場合の背景と文字色 */
+    section[data-testid="stSidebar"] {
+        background-color: #f8f9fa !important;
+        color: #000000 !important;
+    }
+
+    /* 各種テキスト、見出し、ラベル類の文字色を黒に固定 */
+    .stMarkdown, p, span, label, h1, h2, h3, h4, h5, h6, .stCheckbox span, .stRadio div {
+        color: #000000 !important;
+    }
     </style>
     """,
     unsafe_allow_html=True,
