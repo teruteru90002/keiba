@@ -6,33 +6,103 @@ import time
 from datetime import datetime
 from logic import run_pipeline, RACE_GRADE_DICT, detect_grade
 
-# 画面上のヘッダーや右上のメニューを非表示にする設定
+st.set_page_config(page_title="Ver2.16 競馬分析システム", layout="centered", initial_sidebar_state="collapsed")
+
+# 画面上のヘッダーや右上のメニューを非表示にし、すべてのUIパーツを白地・黒文字に強制固定する設定
 st.markdown(
     """
     <style>
     #MainMenu {visibility: hidden;}
     header {visibility: hidden;}
     footer {visibility: hidden;}
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
 
-st.set_page_config(page_title="Ver2.16 競馬分析システム", layout="centered", initial_sidebar_state="collapsed")
+    /* アプリ全体の背景を白、文字色を黒に強制固定 */
+    .stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"], .main {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+    }
 
-st.markdown("""
-    <style>
+    /* サイドバーがある場合の背景と文字色 */
+    section[data-testid="stSidebar"] {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+    }
+
+    /* 各種テキスト、見出し、ラベル類の文字色を黒に固定 */
+    .stMarkdown, p, span, label, div, h1, h2, h3, h4, h5, h6,
+    .stCheckbox span, .stRadio div, small {
+        color: #000000 !important;
+    }
+
+    /* テキストエリア・テキストボックスの背景を白、文字を黒、枠線をグレーに固定 */
+    textarea, input,
+    div[data-baseweb="textarea"],
+    div[data-baseweb="input"],
+    div[data-baseweb="base-input"] {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        -webkit-text-fill-color: #000000 !important;
+        caret-color: #000000 !important;
+    }
+    div[data-baseweb="textarea"], div[data-baseweb="input"] {
+        border: 1px solid #cccccc !important;
+    }
+
+    /* プレースホルダーの文字色 */
+    textarea::placeholder, input::placeholder {
+        color: #888888 !important;
+        -webkit-text-fill-color: #888888 !important;
+    }
+
+    /* セレクトボックス（プルダウン）本体と開いたリストの背景を白に固定 */
+    div[data-baseweb="select"] > div,
+    ul[data-baseweb="menu"],
+    li[role="option"] {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+    }
+    div[data-baseweb="select"] > div {
+        border: 1px solid #cccccc !important;
+    }
+
+    /* ボタン（通常ボタン・プライマリボタン両方）の背景を白、枠線をグレーに固定 */
+    button[kind="secondary"], button[kind="primary"], .stButton > button {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        border: 1px solid #cccccc !important;
+    }
+    button[kind="secondary"]:hover, button[kind="primary"]:hover, .stButton > button:hover {
+        background-color: #f2f2f2 !important;
+        color: #000000 !important;
+        border: 1px solid #999999 !important;
+    }
+
+    /* テーブルの背景・枠線・文字色 */
     div[data-testid="stMarkdownContainer"] table {
         font-size: 0.82rem !important;
         width: 100% !important;
+        background-color: #ffffff !important;
+        color: #000000 !important;
     }
     div[data-testid="stMarkdownContainer"] table th,
     div[data-testid="stMarkdownContainer"] table td {
         padding: 4px 6px !important;
         white-space: nowrap !important;
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        border: 1px solid #dddddd !important;
+    }
+
+    /* アラート・通知ボックスの背景も白ベースに統一 */
+    div[data-testid="stAlert"] {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        border: 1px solid #cccccc !important;
     }
     </style>
-""", unsafe_allow_html=True)
+    """,
+    unsafe_allow_html=True,
+)
 
 st.markdown("### 🏇 競馬分析システム Ver2.16")
 st.write("提示された定義書に基づき、過去バイアスゼロ・完全固定ロジックで自動分析を実行します。")
