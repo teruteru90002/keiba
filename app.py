@@ -31,11 +31,22 @@ st.markdown("""
         padding: 4px 6px !important;
         white-space: nowrap !important;
     }
-    /* テーブル内の太字（**...**）を強調 */
+    /* テーブル内の太字（**...**）を強調（ライトモード：黒文字） */
     div[data-testid="stMarkdownContainer"] table strong,
     div[data-testid="stMarkdownContainer"] table b {
         font-weight: 900 !important;
         color: #000000 !important;
+    }
+    /* ダークモード時は白文字＋ハイライト背景で視認性を確保 */
+    @media (prefers-color-scheme: dark) {
+        div[data-testid="stMarkdownContainer"] table strong,
+        div[data-testid="stMarkdownContainer"] table b {
+            font-weight: 900 !important;
+            color: #ffffff !important;
+            background-color: rgba(255, 255, 255, 0.14) !important;
+            padding: 1px 3px !important;
+            border-radius: 3px !important;
+        }
     }
     </style>
 """, unsafe_allow_html=True)
