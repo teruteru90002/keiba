@@ -31,6 +31,12 @@ st.markdown("""
         padding: 4px 6px !important;
         white-space: nowrap !important;
     }
+    /* テーブル内の太字（**...**）を強調 */
+    div[data-testid="stMarkdownContainer"] table strong,
+    div[data-testid="stMarkdownContainer"] table b {
+        font-weight: 900 !important;
+        color: #000000 !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
