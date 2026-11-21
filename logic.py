@@ -693,6 +693,8 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     is_marked_purchase = track_purchase_map.get(race_pattern, False)
     if race_pattern in ["堅", "並"]:
         is_marked_purchase = (odds_condition != "～20倍")
+    if race_pattern == "堅" and n_aite_1 >= 7:
+        is_marked_purchase = False
     purchase_verdict = "購入" if is_marked_purchase else "見送り"
 
     if len(tansho_odds) >= 5 and analysis_result is not None:
