@@ -757,7 +757,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         phase6_lines.append(f"| {prefix}{idx + 1}{prefix} | {prefix}{r['馬番']} {r['馬名']}{prefix} | {prefix}{r['単勝オッズ']}倍{prefix} | {prefix}{r['3着内率(4走)']:.1f}%{prefix} | {prefix}{r['合成値']:.2f} ({r['合成順位']}位){prefix} | {prefix}{r['オッズスコア']:.1f} ({r['オッズ順位']}位){prefix} | {prefix}{r['能力スコア']:.1f} ({r['能力順位']}位){prefix} | {prefix}{r['勝率(MC)']:.1f}%{prefix} | {prefix}{r['複勝率(MC)']:.1f}%{prefix} | {prefix}{r['期待値']:.2f}{prefix} | {prefix}{r.get('位置取り', '差')}{prefix} | {prefix}{r.get('走数', 0)}{prefix} |")
 
     phase6_lines.extend([
-        f"\n#### 3. 買い目判定（会場: {track} / {surface} / {distance}m{handicap_suffix}）\n",
+        f"\n#### 3. 買い目判定（会場: {track}{race_no}R / {surface} / {distance}m{handicap_suffix}）\n",
         f"* **判定結果**：【{purchase_verdict}】",
         f"* **レース判定結果**：{race_pattern}（{odds_condition}）",
         f"* **単勝10倍未満の頭数**：{under_10_count}頭",
