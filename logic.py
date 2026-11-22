@@ -398,6 +398,8 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     except Exception:
         tansho_odds = []
 
+    under_10_count = sum(1 for o in tansho_odds if o < 10.0)
+
     analysis_result = None
     if len(tansho_odds) >= 5:
         try:
@@ -758,6 +760,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         f"\n#### 3. 買い目判定（会場: {track} / {surface} / {distance}m{handicap_suffix}）\n",
         f"* **判定結果**：【{purchase_verdict}】",
         f"* **レース判定結果**：{race_pattern}（{odds_condition}）",
+        f"* **単勝10倍未満の頭数**：{under_10_count}頭",
         f"* **1,2番人気 同時3着内確率**：{both_top3_prob:.1f}%",
         f"* **1,2番人気 同時3着外確率**：{both_out_top3_prob:.1f}%",
         f"* **オッズ断層**：{odds_fault_str} \n"
