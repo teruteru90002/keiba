@@ -349,11 +349,11 @@ PLACE_CODE_MAP = {
 
 # 想定倍率マトリックス定義（荒れ度 × 相手候補頭数）
 ODDS_MATRIX = {
-    "堅":   {4: "～20倍",   5: "～20倍",   6: "20～40倍", 7: "20～40倍", 8: "20～50倍",   9: "30～60倍"},
-    "並":   {4: "～20倍",   5: "20～40倍", 6: "20～40倍", 7: "30～50倍", 8: "30～60倍",   9: "40～70倍"},
-    "小荒": {4: "～20倍",   5: "20～40倍", 6: "30～60倍", 7: "30～60倍", 8: "50～80倍",   9: "70～100倍"},
-    "中荒": {4: "20～40倍", 5: "30～60倍", 6: "50～80倍", 7: "50～80倍", 8: "70～100倍",  9: "90～120倍"},
-    "大荒": {4: "30～60倍", 5: "30～60倍", 6: "50～80倍", 7: "50～80倍", 8: "70～100倍",  9: "100倍～"},
+    "堅":   {4: "△全通り",   5: "全通り",   6: "20～40倍", 7: "△30～70倍", 8: "△60～80倍",   9: "△100～150倍"},
+    "並":   {4: "全通り",   5: "全通り", 6: "20～60倍", 7: "△30～80倍", 8: "△40～70倍",   9: "△100～150倍"},
+    "小荒": {4: "全通り",   5: "全通り", 6: "20～60倍", 7: "30～60倍", 8: "△40～70倍",   9: "△100～150倍"},
+    "中荒": {4: "△全通り", 5: "全通り", 6: "30～60倍", 7: "40～80倍", 8: "△100～150倍",  9: "△100～150倍"},
+    "大荒": {4: "△全通り", 5: "△全通り", 6: "△50～70倍", 7: "90～120倍", 8: "100～150倍",  9: "△100～150倍"},
 }
 
 def get_matrix_odds(pattern: str, n_aite: int) -> str:
@@ -399,6 +399,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         tansho_odds = []
 
     under_10_count = sum(1 for o in tansho_odds if o < 10.0)
+    under_30_count = sum(1 for o in tansho_odds if o < 30.0)
 
     analysis_result = None
     if len(tansho_odds) >= 5:
@@ -703,7 +704,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     track_purchase_map = VALID_PURCHASE_COMBINATIONS.get(track, {})
     is_marked_purchase = track_purchase_map.get(race_pattern, False)
     if race_pattern in ["堅", "並"]:
-        is_marked_purchase = (odds_condition != "～20倍")
+        is_marked_purchase = (not odds_condition.startswith("△")) and (odds_condition != "～20倍")
     if race_pattern == "堅" and n_aite_1 >= 8:
         is_marked_purchase = False
     purchase_verdict = "購入" if is_marked_purchase else "見送り"
@@ -761,6 +762,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         f"* **判定結果**：【{purchase_verdict}】",
         f"* **レース判定結果**：{race_pattern}（{odds_condition}）",
         f"* **単勝10倍未満の頭数**：{under_10_count}頭",
+        f"* **単勝30倍未満の頭数**：{under_30_count}頭",
         f"* **1,2番人気 同時3着内確率**：{both_top3_prob:.1f}%",
         f"* **1,2番人気 同時3着外確率**：{both_out_top3_prob:.1f}%",
         f"* **オッズ断層**：{odds_fault_str} \n"
