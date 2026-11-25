@@ -599,7 +599,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     df_sorted["複勝率(MC)"] = (np.sum(ranks <= 3, axis=0) / NUM_SIMS * 100).round(1)
     df_sorted["期待値"] = (df_sorted["単勝オッズ"] * (df_sorted["勝率(MC)"] / 100.0)).round(2)
 
-    sorted_by_odds = df_sorted.sort_values(by="単勝オッズ")
+    sorted_by_odds = df_sorted.sort_values(by="単勝オッズ").reset_index(drop=True)
     if len(sorted_by_odds) >= 2:
         fav1_num = sorted_by_odds.iloc[0]["馬番"]
         fav2_num = sorted_by_odds.iloc[1]["馬番"]
@@ -616,12 +616,17 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         both_out_top3_prob = 0.0
 
     odds_fault_nums = []
+    cut_horses_by_fault = set()
     if len(sorted_by_odds) >= 2:
         for i in range(len(sorted_by_odds) - 1):
             curr_o = sorted_by_odds.iloc[i]["単勝オッズ"]
             next_o = sorted_by_odds.iloc[i+1]["単勝オッズ"]
             if curr_o > 0 and (next_o / curr_o) >= 2.0:
                 odds_fault_nums.append(str(sorted_by_odds.iloc[i]["馬番"]))
+                # 5番人気以下（0-indexed で i >= 4）でオッズ断層が発生した場合、その下の馬を買い目からカット
+                if i >= 4:
+                    for j in range(i + 1, len(sorted_by_odds)):
+                        cut_horses_by_fault.add(sorted_by_odds.iloc[j]["馬番"])
     odds_fault_str = ", ".join(odds_fault_nums) if odds_fault_nums else "なし"
 
     PATTERN_DESCS = {
@@ -662,7 +667,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
     else:
         jiku_odds_str = f"{odds_1:.1f}倍,-"
 
-    df_without_jiku = df_sorted[~df_sorted["馬番"].isin(jiku_nums)].copy()
+    df_without_jiku = df_sorted[~df_sorted["馬番"].isin(jiku_nums | cut_horses_by_fault)].copy()
     
     # 【変更】相手候補の選定条件：複勝率(MC)が 15.0% 以上 または 単勝オッズが 20.0倍 未満
     # （「堅」「並」の場合は引き続き単勝オッズ50倍以上を選択対象外とする）
@@ -677,12 +682,12 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     if not is_single_jiku and len(sorted_by_odds) >= 2:
         aite_list_1 = base_aite_list.copy()
-        if fav2_num not in aite_list_1:
+        if fav2_num not in aite_list_1 and fav2_num not in cut_horses_by_fault:
             aite_list_1.append(fav2_num)
         aite_list_1 = sorted(aite_list_1, key=lambda h: df_sorted[df_sorted["馬番"] == h]["単勝オッズ"].values[0] if not df_sorted[df_sorted["馬番"] == h].empty else 999.0)
 
         aite_list_2 = base_aite_list.copy()
-        if fav1_num not in aite_list_2:
+        if fav1_num not in aite_list_2 and fav1_num not in cut_horses_by_fault:
             aite_list_2.append(fav1_num)
         aite_list_2 = sorted(aite_list_2, key=lambda h: df_sorted[df_sorted["馬番"] == h]["単勝オッズ"].values[0] if not df_sorted[df_sorted["馬番"] == h].empty else 999.0)
     else:
