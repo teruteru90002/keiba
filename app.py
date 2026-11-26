@@ -106,8 +106,8 @@ with col_trend:
 
 with col_matrix:
     matrix_pattern_input = st.selectbox(
-        "📐 想定倍率マトリックス",
-        options=["パターン2", "パターン1"],
+        "📐 想定倍率パターン",
+        options=["パターン1", "パターン2"],
         key="matrix_pattern_input",
         help="パターン2: 荒れ度×相手候補頭数マトリックス（現状設定） / パターン1: 荒れ度共通マトリックス"
     )
