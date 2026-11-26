@@ -18,7 +18,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.set_page_config(page_title="Ver2.16 競馬分析システム", layout="centered", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="Ver2.17 競馬分析システム", layout="centered", initial_sidebar_state="collapsed")
 
 st.markdown("""
     <style>
@@ -51,7 +51,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown("### 🏇 競馬分析システム Ver2.16")
+st.markdown("### 🏇 競馬分析システム Ver2.17")
 st.write("提示された定義書に基づき、過去バイアスゼロ・完全固定ロジックで自動分析を実行します。")
 
 # --- セッション状態の初期化 ---
@@ -65,6 +65,8 @@ if "is_simple" not in st.session_state:
     st.session_state.is_simple = True  
 if "trend_input" not in st.session_state:
     st.session_state.trend_input = "フラット"
+if "matrix_pattern_input" not in st.session_state:
+    st.session_state.matrix_pattern_input = "パターン2"
 if "analysis_result" not in st.session_state:
     st.session_state.analysis_result = None
 if "df_parsed" not in st.session_state:
@@ -76,6 +78,7 @@ def clear_all():
     st.session_state.bad_input_str = ""
     st.session_state.is_simple = True  
     st.session_state.trend_input = "フラット"
+    st.session_state.matrix_pattern_input = "パターン2"
     st.session_state.analysis_result = None
     st.session_state.df_parsed = None
 
@@ -88,15 +91,26 @@ raw_input = st.text_area(
     label_visibility="visible"
 )
 
-# 2. 当日状態（調子）の設定
+# 2. 当日状態（調子）・マトリックスパターンの設定
 st.subheader("⚙️ 設定・補正")
 
-trend_input = st.selectbox(
-    "📊 当日傾向",
-    options=["フラット", "前有利", "後有利"],
-    key="trend_input",
-    help="フラット: 加点なし / 前有利: 逃げ・先行 +5点 / 後有利: 差し・追い +5点"
-)
+col_trend, col_matrix = st.columns(2)
+
+with col_trend:
+    trend_input = st.selectbox(
+        "📊 当日傾向",
+        options=["フラット", "前有利", "後有利"],
+        key="trend_input",
+        help="フラット: 加点なし / 前有利: 逃げ・先行 +5点 / 後有利: 差し・追い +5点"
+    )
+
+with col_matrix:
+    matrix_pattern_input = st.selectbox(
+        "📐 想定倍率マトリックス",
+        options=["パターン2", "パターン1"],
+        key="matrix_pattern_input",
+        help="パターン2: 荒れ度×相手候補頭数マトリックス（現状設定） / パターン1: 荒れ度共通マトリックス"
+    )
 
 col_good, col_bad = st.columns(2)
 
@@ -402,7 +416,8 @@ if run_clicked:
                 good_horses=good_horses, 
                 bad_horses=bad_horses,
                 is_simple=is_simple,
-                trend=trend_input
+                trend=trend_input,
+                matrix_pattern=matrix_pattern_input
             )
             st.session_state.analysis_result = result
             
