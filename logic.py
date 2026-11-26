@@ -348,16 +348,40 @@ PLACE_CODE_MAP = {
 }
 
 # 想定倍率マトリックス定義（荒れ度 × 相手候補頭数）
-ODDS_MATRIX = {
-    "堅":   {4: "☓全通り 6点",   5: "△全通り 10点",   6: "10倍～ 10点",   7: "△15倍～ 14点", 8: "△20倍～ 18点",   9: "☓25倍～ 20点"},
-    "並":   {4: "☓全通り 6点",   5: "全通り 10点",     6: "15倍～ 10点",   7: "20倍～ 14点",   8: "△25倍～ 18点",   9: "☓30倍～ 20点"},
-    "小荒": {4: "☓全通り 6点",   5: "全通り 10点",     6: "20倍～ 10点",   7: "25倍～ 14点",   8: "△30倍～ 18点",   9: "☓40倍～ 20点"},
-    "中荒": {4: "☓全通り 6点",   5: "△全通り 10点",   6: "30倍～ 10点",   7: "35倍～ 14点",   8: "△40倍～ 18点",  9: "☓50倍～ 20点"},
-    "大荒": {4: "☓全通り 6点",   5: "△全通り 10点",   6: "△40倍～ 10点", 7: "50倍～ 14点",   8: "55倍～ 18点",  9: "☓60倍～ 20点"},
+# パターン１：荒れ度共通（4頭以下: 見送り, 5頭: 全通り, 6頭: 3頭づつカット 10点, 7頭: 5頭づつカット 9点, 8頭: 6頭づつカット 11点, 9頭以上: 見送り 16点）
+# パターン２：現状の設定
+PATTERN1_ROW = {4: "見送り", 5: "全通り", 6: "3頭づつカット 10点", 7: "5頭づつカット 9点", 8: "6頭づつカット 11点", 9: "見送り 16点"}
+
+ODDS_MATRIX_PATTERNS = {
+    "パターン1": {
+        "堅":   PATTERN1_ROW.copy(),
+        "並":   PATTERN1_ROW.copy(),
+        "小荒": PATTERN1_ROW.copy(),
+        "中荒": PATTERN1_ROW.copy(),
+        "大荒": PATTERN1_ROW.copy(),
+    },
+    "パターン2": {
+        "堅":   {4: "☓全通り 6点",   5: "△全通り 10点",   6: "10倍～ 10点",   7: "△15倍～ 14点", 8: "△20倍～ 18点",   9: "☓25倍～ 20点"},
+        "並":   {4: "☓全通り 6点",   5: "全通り 10点",     6: "15倍～ 10点",   7: "20倍～ 14点",   8: "△25倍～ 18点",   9: "☓30倍～ 20点"},
+        "小荒": {4: "☓全通り 6点",   5: "全通り 10点",     6: "20倍～ 10点",   7: "25倍～ 14点",   8: "△30倍～ 18点",   9: "☓40倍～ 20点"},
+        "中荒": {4: "☓全通り 6点",   5: "△全通り 10点",   6: "30倍～ 10点",   7: "35倍～ 14点",   8: "△40倍～ 18点",  9: "☓50倍～ 20点"},
+        "大荒": {4: "☓全通り 6点",   5: "△全通り 10点",   6: "△40倍～ 10点", 7: "50倍～ 14点",   8: "55倍～ 18点",  9: "☓60倍～ 20点"},
+    }
 }
 
-def get_matrix_odds(pattern: str, n_aite: int) -> str:
-    if pattern not in ODDS_MATRIX:
+# 後方互換性のため現状設定を ODDS_MATRIX としても保持
+ODDS_MATRIX = ODDS_MATRIX_PATTERNS["パターン2"]
+
+def normalize_matrix_pattern(matrix_pattern: str) -> str:
+    p = str(matrix_pattern or "パターン2").strip()
+    if p in ["パターン1", "パターン１", "1", "pattern1", "pattern_1"]:
+        return "パターン1"
+    return "パターン2"
+
+def get_matrix_odds(pattern: str, n_aite: int, matrix_pattern: str = "パターン2") -> str:
+    active_pattern_name = normalize_matrix_pattern(matrix_pattern)
+    matrix = ODDS_MATRIX_PATTERNS.get(active_pattern_name, ODDS_MATRIX)
+    if pattern not in matrix:
         return "20倍以上"
     if n_aite <= 4:
         key = 4
@@ -365,11 +389,12 @@ def get_matrix_odds(pattern: str, n_aite: int) -> str:
         key = 9
     else:
         key = n_aite
-    return ODDS_MATRIX[pattern].get(key, "20倍以上")
+    return matrix[pattern].get(key, "20倍以上")
 
-def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=False, trend="フラット"):
+def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=False, trend="フラット", matrix_pattern="パターン2"):
     if good_horses is None: good_horses = []
     if bad_horses is None: bad_horses = []
+    active_matrix_pattern = normalize_matrix_pattern(matrix_pattern)
 
     raw_text = str(race_info.get("raw_header", "")) + str(race_info.get("race_name", "")) + str(race_info.get("track", ""))
     
@@ -692,10 +717,10 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     aite_nums_str = f"{', '.join([str(h) for h in aite_list_1])}（{n_aite_1}頭）" if aite_list_1 else "該当なし"
 
-    odds_condition = get_matrix_odds(race_pattern, n_aite_1)
+    odds_condition = get_matrix_odds(race_pattern, n_aite_1, matrix_pattern=active_matrix_pattern)
 
     is_data_insufficient = (race_pattern == "データ不足")
-    has_symbol_in_odds = ("△" in str(odds_condition)) or ("☓" in str(odds_condition))
+    has_symbol_in_odds = ("△" in str(odds_condition)) or ("☓" in str(odds_condition)) or ("見送り" in str(odds_condition))
     is_marked_purchase = not (is_data_insufficient or has_symbol_in_odds)
     purchase_verdict = "購入" if is_marked_purchase else "見送り"
 
@@ -736,7 +761,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
         "#### ■ PHASE 6：最終ランキングと買い目\n",
         f"#### 1. レース情報\n",#[{race_name} / {track}{race_no}R / {surface} / {distance}m]",
         f"\n* **荒れ度分析（スコア判定）**:\n{analysis_table_md}",
-        f"\n**【レース判定結果】**：{race_pattern}（{odds_condition}）\n"
+        f"\n**【レース判定結果】**：{race_pattern}（{odds_condition} / {active_matrix_pattern}）\n"
         f"\n**【{purchase_verdict}】**（{pattern_desc}）\n"
         f"\n※判定基準：堅＜30, 並＜50, 小荒＜60, 中荒＜70, 荒≧70"
     ]
@@ -749,6 +774,7 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     phase6_lines.extend([
         f"\n#### 3. 買い目判定（会場: {track}{race_no}R / {surface} / {distance}m{handicap_suffix}）\n",
+        f"* **マトリックス定義**：{active_matrix_pattern}",
         f"* **判定結果**：【{purchase_verdict}】",
         f"* **レース判定結果**：{race_pattern}（{odds_condition}）",
         f"* **単勝10倍未満の頭数**：{under_10_count}頭",
