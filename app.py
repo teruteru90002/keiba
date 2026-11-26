@@ -66,7 +66,7 @@ if "is_simple" not in st.session_state:
 if "trend_input" not in st.session_state:
     st.session_state.trend_input = "フラット"
 if "matrix_pattern_input" not in st.session_state:
-    st.session_state.matrix_pattern_input = "パターン2"
+    st.session_state.matrix_pattern_input = "オッズ上下カット"
 if "analysis_result" not in st.session_state:
     st.session_state.analysis_result = None
 if "df_parsed" not in st.session_state:
@@ -78,7 +78,7 @@ def clear_all():
     st.session_state.bad_input_str = ""
     st.session_state.is_simple = True  
     st.session_state.trend_input = "フラット"
-    st.session_state.matrix_pattern_input = "パターン2"
+    st.session_state.matrix_pattern_input = "オッズ上下カット"
     st.session_state.analysis_result = None
     st.session_state.df_parsed = None
 
@@ -107,9 +107,9 @@ with col_trend:
 with col_matrix:
     matrix_pattern_input = st.selectbox(
         "📐 想定倍率パターン",
-        options=["パターン1", "パターン2"],
+        options=["オッズ上下カット", "オッズ範囲指定"],
         key="matrix_pattern_input",
-        help="パターン2: 荒れ度×相手候補頭数マトリックス（現状設定） / パターン1: 荒れ度共通マトリックス"
+        help="オッズ上下カット: 荒れ度共通マトリックス / オッズ範囲指定: 荒れ度×相手候補頭数マトリックス"
     )
 
 col_good, col_bad = st.columns(2)

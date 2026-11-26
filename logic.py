@@ -348,17 +348,27 @@ PLACE_CODE_MAP = {
 }
 
 # 想定倍率マトリックス定義（荒れ度 × 相手候補頭数）
-PATTERN1_ROW = {4: "☓全通り 6点", 5: "全通り 10点", 6: "3頭づつカット 9点", 7: "5頭づつカット 11点", 8: "6頭づつカット 16点", 9: "☓8頭づつカット 20点"}
+PATTERN_UPPER_LOWER_CUT_NAME = "オッズ上下カット"
+PATTERN_ODDS_RANGE_NAME = "オッズ範囲指定"
+
+UPPER_LOWER_CUT_ROW = {
+    4: "見送り",
+    5: "全通り",
+    6: "3頭づつカット 10点",
+    7: "5頭づつカット 9点",
+    8: "6頭づつカット 11点",
+    9: "見送り 16点",
+}
 
 ODDS_MATRIX_PATTERNS = {
-    "パターン1": {
-        "堅":   PATTERN1_ROW.copy(),
-        "並":   PATTERN1_ROW.copy(),
-        "小荒": PATTERN1_ROW.copy(),
-        "中荒": PATTERN1_ROW.copy(),
-        "大荒": PATTERN1_ROW.copy(),
+    PATTERN_UPPER_LOWER_CUT_NAME: {
+        "堅":   UPPER_LOWER_CUT_ROW.copy(),
+        "並":   UPPER_LOWER_CUT_ROW.copy(),
+        "小荒": UPPER_LOWER_CUT_ROW.copy(),
+        "中荒": UPPER_LOWER_CUT_ROW.copy(),
+        "大荒": UPPER_LOWER_CUT_ROW.copy(),
     },
-    "パターン2": {
+    PATTERN_ODDS_RANGE_NAME: {
         "堅":   {4: "☓全通り 6点",   5: "△全通り 10点",   6: "10倍～ 10点",   7: "△15倍～ 14点", 8: "△20倍～ 18点",   9: "☓25倍～ 20点"},
         "並":   {4: "☓全通り 6点",   5: "全通り 10点",     6: "15倍～ 10点",   7: "20倍～ 14点",   8: "△25倍～ 18点",   9: "☓30倍～ 20点"},
         "小荒": {4: "☓全通り 6点",   5: "全通り 10点",     6: "20倍～ 10点",   7: "25倍～ 14点",   8: "△30倍～ 18点",   9: "☓40倍～ 20点"},
@@ -367,18 +377,20 @@ ODDS_MATRIX_PATTERNS = {
     }
 }
 
-# 後方互換性のため現状設定を ODDS_MATRIX としても保持
-ODDS_MATRIX = ODDS_MATRIX_PATTERNS["パターン2"]
+# 後方互換性のため現状設定（オッズ範囲指定）を ODDS_MATRIX としても保持
+ODDS_MATRIX = ODDS_MATRIX_PATTERNS[PATTERN_ODDS_RANGE_NAME]
 
 def normalize_matrix_pattern(matrix_pattern: str) -> str:
-    p = str(matrix_pattern or "パターン2").strip()
-    if p in ["パターン1", "パターン１", "1", "pattern1", "pattern_1"]:
-        return "パターン1"
-    return "パターン2"
+    p = str(matrix_pattern or PATTERN_UPPER_LOWER_CUT_NAME).strip()
+    if p in [PATTERN_ODDS_RANGE_NAME, "パターン2", "パターン２", "2", "pattern2", "pattern_2"]:
+        return PATTERN_ODDS_RANGE_NAME
+    if p in [PATTERN_UPPER_LOWER_CUT_NAME, "パターン1", "パターン１", "1", "pattern1", "pattern_1"]:
+        return PATTERN_UPPER_LOWER_CUT_NAME
+    return PATTERN_UPPER_LOWER_CUT_NAME
 
-def get_matrix_odds(pattern: str, n_aite: int, matrix_pattern: str = "パターン2") -> str:
+def get_matrix_odds(pattern: str, n_aite: int, matrix_pattern: str = PATTERN_UPPER_LOWER_CUT_NAME) -> str:
     active_pattern_name = normalize_matrix_pattern(matrix_pattern)
-    matrix = ODDS_MATRIX_PATTERNS.get(active_pattern_name, ODDS_MATRIX)
+    matrix = ODDS_MATRIX_PATTERNS.get(active_pattern_name, ODDS_MATRIX_PATTERNS[PATTERN_UPPER_LOWER_CUT_NAME])
     if pattern not in matrix:
         return "20倍以上"
     if n_aite <= 4:
@@ -389,7 +401,7 @@ def get_matrix_odds(pattern: str, n_aite: int, matrix_pattern: str = "パター�
         key = n_aite
     return matrix[pattern].get(key, "20倍以上")
 
-def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=False, trend="フラット", matrix_pattern="パターン2"):
+def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=False, trend="フラット", matrix_pattern=PATTERN_UPPER_LOWER_CUT_NAME):
     if good_horses is None: good_horses = []
     if bad_horses is None: bad_horses = []
     active_matrix_pattern = normalize_matrix_pattern(matrix_pattern)
