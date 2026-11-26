@@ -367,19 +367,6 @@ def get_matrix_odds(pattern: str, n_aite: int) -> str:
         key = n_aite
     return ODDS_MATRIX[pattern].get(key, "20倍以上")
 
-VALID_PURCHASE_COMBINATIONS = {
-    "東京": {"堅": True, "並": True,  "小荒": True,  "中荒": True,  "大荒": False},
-    "京都": {"堅": True, "並": True,  "小荒": True,  "中荒": True,  "大荒": False},
-    "阪神": {"堅": True, "並": True,  "小荒": True,  "中荒": True,  "大荒": False},
-    "福島": {"堅": True, "並": True,  "小荒": True,  "中荒": True,  "大荒": False},
-    "中山": {"堅": True, "並": True,  "小荒": True,  "中荒": True,  "大荒": False},
-    "新潟": {"堅": True, "並": True,  "小荒": True,  "中荒": True,  "大荒": False},
-    "函館": {"堅": True, "並": True,  "小荒": True,  "中荒": True,  "大荒": False},
-    "札幌": {"堅": True, "並": True,  "小荒": True,  "中荒": True,  "大荒": False},
-    "小倉": {"堅": True, "並": True,  "小荒": True,  "中荒": True,  "大荒": False},
-    "中京": {"堅": True, "並": True,  "小荒": True,  "中荒": True,  "大荒": False}
-}
-
 def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=False, trend="フラット"):
     if good_horses is None: good_horses = []
     if bad_horses is None: bad_horses = []
@@ -707,12 +694,9 @@ def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=Fal
 
     odds_condition = get_matrix_odds(race_pattern, n_aite_1)
 
-    track_purchase_map = VALID_PURCHASE_COMBINATIONS.get(track, {})
-    is_marked_purchase = track_purchase_map.get(race_pattern, False)
-    if race_pattern in ["堅", "並"]:
-        is_marked_purchase = (not odds_condition.startswith("△")) and (odds_condition != "～20倍")
-    if race_pattern == "堅" and n_aite_1 >= 8:
-        is_marked_purchase = False
+    is_data_insufficient = (race_pattern == "データ不足")
+    has_symbol_in_odds = ("△" in str(odds_condition)) or ("☓" in str(odds_condition))
+    is_marked_purchase = not (is_data_insufficient or has_symbol_in_odds)
     purchase_verdict = "購入" if is_marked_purchase else "見送り"
 
     if len(tansho_odds) >= 5 and analysis_result is not None:
