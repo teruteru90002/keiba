@@ -360,11 +360,11 @@ ODDS_MATRIX_PATTERNS = {
         "大荒": {4: "☓全通り 6点", 5: "△全通り 10点", 6: "△3頭づつカット 9点", 7: "4頭づつカット 13点",  8: "6頭づつカット 16点",  9: "☓8頭づつカット 20点"},
     },
     PATTERN_ODDS_RANGE_NAME: {
-        "堅":   {4: "☓全通り 6点",   5: "△全通り 10点",   6: "10倍～ 10点",   7: "△15倍～ 14点", 8: "△20倍～ 18点",   9: "☓25倍～ 20点"},
-        "並":   {4: "☓全通り 6点",   5: "全通り 10点",     6: "15倍～ 10点",   7: "20倍～ 14点",   8: "△25倍～ 18点",   9: "☓30倍～ 20点"},
-        "小荒": {4: "☓全通り 6点",   5: "全通り 10点",     6: "20倍～ 10点",   7: "25倍～ 14点",   8: "△30倍～ 18点",   9: "☓40倍～ 20点"},
-        "中荒": {4: "☓全通り 6点",   5: "△全通り 10点",   6: "30倍～ 10点",   7: "35倍～ 14点",   8: "△40倍～ 18点",  9: "☓50倍～ 20点"},
-        "大荒": {4: "☓全通り 6点",   5: "△全通り 10点",   6: "△40倍～ 10点", 7: "50倍～ 14点",   8: "55倍～ 18点",  9: "☓60倍～ 20点"},
+        "堅":   {4: "☓～20倍 3点",   5: "△～20倍 5点",   6: "～30倍 5点",   7: "△～30倍 5点", 8: "△～40倍 7点",   9: "☓～40倍 7点"},
+        "並":   {4: "☓～20倍 3点",   5: "～30倍 5点",     6: "～30倍 5点",   7: "～40倍 7点",   8: "△～50倍 7点",   9: "☓～60倍 8点"},
+        "小荒": {4: "☓～20倍 3点",   5: "～30倍 5点",     6: "～30倍 5点",   7: "～40倍 7点",   8: "△～50倍 7点",   9: "☓～60倍 8点"},
+        "中荒": {4: "☓～20倍 3点",   5: "△～50倍 7点",   6: "～50倍 7点",   7: "～70倍 10点",  8: "△～80倍 10点",  9: "☓80倍～ 10点"},
+        "大荒": {4: "☓～20倍 3点",   5: "△～50倍 7点",   6: "～80倍 10点",  7: "～80倍 10点",  8: "80倍～ 10点",   9: "☓100倍～ 10点"},
     }
 }
 
@@ -372,16 +372,16 @@ ODDS_MATRIX_PATTERNS = {
 ODDS_MATRIX = ODDS_MATRIX_PATTERNS[PATTERN_ODDS_RANGE_NAME]
 
 def normalize_matrix_pattern(matrix_pattern: str) -> str:
-    p = str(matrix_pattern or PATTERN_UPPER_LOWER_CUT_NAME).strip()
+    p = str(matrix_pattern or PATTERN_ODDS_RANGE_NAME).strip()
     if p in [PATTERN_ODDS_RANGE_NAME, "パターン2", "パターン２", "2", "pattern2", "pattern_2"]:
         return PATTERN_ODDS_RANGE_NAME
     if p in [PATTERN_UPPER_LOWER_CUT_NAME, "パターン1", "パターン１", "1", "pattern1", "pattern_1"]:
         return PATTERN_UPPER_LOWER_CUT_NAME
-    return PATTERN_UPPER_LOWER_CUT_NAME
+    return PATTERN_ODDS_RANGE_NAME
 
-def get_matrix_odds(pattern: str, n_aite: int, matrix_pattern: str = PATTERN_UPPER_LOWER_CUT_NAME) -> str:
+def get_matrix_odds(pattern: str, n_aite: int, matrix_pattern: str = PATTERN_ODDS_RANGE_NAME) -> str:
     active_pattern_name = normalize_matrix_pattern(matrix_pattern)
-    matrix = ODDS_MATRIX_PATTERNS.get(active_pattern_name, ODDS_MATRIX_PATTERNS[PATTERN_UPPER_LOWER_CUT_NAME])
+    matrix = ODDS_MATRIX_PATTERNS.get(active_pattern_name, ODDS_MATRIX_PATTERNS[PATTERN_ODDS_RANGE_NAME])
     if pattern not in matrix:
         return "20倍以上"
     if n_aite <= 4:
@@ -392,7 +392,7 @@ def get_matrix_odds(pattern: str, n_aite: int, matrix_pattern: str = PATTERN_UPP
         key = n_aite
     return matrix[pattern].get(key, "20倍以上")
 
-def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=False, trend="フラット", matrix_pattern=PATTERN_UPPER_LOWER_CUT_NAME):
+def run_pipeline(df, race_info, good_horses=None, bad_horses=None, is_simple=False, trend="フラット", matrix_pattern=PATTERN_ODDS_RANGE_NAME):
     if good_horses is None: good_horses = []
     if bad_horses is None: bad_horses = []
     active_matrix_pattern = normalize_matrix_pattern(matrix_pattern)
